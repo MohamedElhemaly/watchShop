@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b4442" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="إدارة منتجات صُدْفَة — مساحة خاصة بمالك المتجر." />
+    <title>إدارة المتجر | صُدْفَة</title>
+    <link rel="icon" type="image/png" href="/sodfa-icon-v3.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="admin-body">
+    <header class="admin-header">
+      <a class="admin-brand" href="/" aria-label="العودة إلى متجر صُدْفَة">
+        <img src="/sodfa-icon-v3.png" alt="" />
+        <span><strong>صُدْفَة</strong><small>إدارة المتجر</small></span>
+      </a>
+      <a class="admin-back" href="/"><span aria-hidden="true">→</span> العودة للمتجر</a>
+    </header>
+
+    <main class="admin-main">
+      <section id="login-panel" class="login-panel" hidden aria-labelledby="login-title">
+        <span class="admin-kicker">مساحة المالك</span>
+        <h1 id="login-title">إدارة التشكيلة<br /><em>من مكان واحد.</em></h1>
+        <p>سجّل الدخول بحساب Manus المصرّح به لإضافة الساعات والأسعار والخصومات، وإدارة أرقام التواصل التي تظهر للزوار.</p>
+        <button id="login-button" class="admin-button admin-button-primary" type="button">تسجيل الدخول بحساب Manus <span aria-hidden="true">←</span></button>
+        <p class="login-note">هذه الصفحة خاصة بالمالك. لا تُتاح إدارة المنتجات للزوار.</p>
+      </section>
+
+      <section id="loading-panel" class="admin-loading" aria-live="polite">
+        <span class="loading-orbit" aria-hidden="true"></span>
+        <p>جارٍ التحقق من جلسة الدخول…</p>
+      </section>
+
+      <section id="workspace" class="workspace" hidden aria-labelledby="workspace-title">
+        <div class="workspace-heading">
+          <div>
+            <span class="admin-kicker">مساحة العمل</span>
+            <h1 id="workspace-title">تشكيلتك، <em>على ذوقك.</em></h1>
+            <p id="signed-in-as" class="signed-in-as"></p>
+          </div>
+          <button id="logout-button" class="admin-button admin-button-quiet" type="button">تسجيل الخروج</button>
+        </div>
+
+        <div class="admin-stats" aria-label="ملخص المنتجات">
+          <article class="stat-card"><span>كل الساعات</span><strong id="total-count">٠</strong></article>
+          <article class="stat-card"><span>معروضة للزوار</span><strong id="active-count">٠</strong></article>
+          <article class="stat-card"><span>عروض نشطة الآن</span><strong id="discount-count">٠</strong></article>
+        </div>
+
+        <div class="workspace-layout">
+          <section class="product-manager" aria-labelledby="products-title">
+            <div class="list-heading">
+              <div><span class="admin-kicker">كتالوجك</span><h2 id="products-title">الساعات</h2></div>
+              <div class="filter-tabs" role="group" aria-label="تصفية الساعات">
+                <button class="filter-tab is-active" type="button" data-filter="all" aria-pressed="true">الكل</button>
+                <button class="filter-tab" type="button" data-filter="active" aria-pressed="false">معروضة</button>
+                <button class="filter-tab" type="button" data-filter="hidden" aria-pressed="false">مخفية</button>
+              </div>
+            </div>
+            <div id="product-list" class="product-list" aria-live="polite"></div>
+          </section>
+
+          <aside class="editor-panel" aria-labelledby="form-title">
+            <div class="editor-title-row">
+              <div><span class="admin-kicker">تفاصيل الموديل</span><h2 id="form-title">أضف ساعة</h2></div>
+              <span class="editor-mark" aria-hidden="true">✳</span>
+            </div>
+            <form id="product-form">
+              <label class="form-field"><span>اسم الموديل <b>*</b></span><input id="product-name" name="name" type="text" maxlength="120" required placeholder="مثال: ساعة كلاسيكية" /></label>
+              <label class="form-field"><span>الوصف والمواصفات</span><textarea id="product-description" name="description" maxlength="2000" rows="5" placeholder="اكتب وصف الساعة ومواصفاتها؛ يمكنك كتابة كل نقطة في سطر"></textarea></label>
+              <label class="form-field"><span>تصنيف الساعة</span><select id="product-category" name="categoryId"><option value="">بدون تصنيف</option></select><small>أنشئ التصنيفات من قسم إدارة التصنيفات أسفل القائمة.</small></label>
+
+              <div class="price-fields">
+                <label class="form-field"><span>السعر الأصلي <b>*</b></span><div class="input-with-unit"><input id="base-price" name="basePrice" type="number" inputmode="numeric" min="1" max="10000000" step="1" required placeholder="0" /><span>ج.م</span></div></label>
+                <label class="form-field"><span>نسبة الخصم</span><div class="input-with-unit"><input id="discount-percent" name="discountPercent" type="number" inputmode="numeric" min="0" max="99" step="1" value="0" /><span>%</span></div></label>
+              </div>
+              <div class="discount-schedule-fields">
+                <label class="form-field"><span>بداية العرض <small>اليوم شامل</small></span><input id="discount-start-on" name="discountStartOn" type="date" /></label>
+                <label class="form-field"><span>نهاية العرض <small>اليوم شامل</small></span><input id="discount-end-on" name="discountEndOn" type="date" /></label>
+                <label class="form-field discount-schedule-reason"><span>سبب الخصم <small>حتى 120 حرفًا</small></span><input id="discount-reason" name="discountReason" type="text" maxlength="120" placeholder="مثال: عرض افتتاح أو مناسبة" /></label>
+              </div>
+              <p class="discount-schedule-note">يظهر الخصم وسببه خلال الفترة فقط حسب توقيت القاهرة، ثم يرجع السعر الأصلي تلقائيًا بعد تاريخ النهاية.</p>
+              <div id="price-preview" class="price-preview" aria-live="polite"><span>السعر للزائر</span><span id="preview-price">—</span><small id="preview-note">أدخل السعر لمعاينة السعر النهائي</small></div>
+
+              <label class="form-field"><span>صور الساعة والألوان <small>حتى 8 صور — JPG أو PNG أو WebP — 5 ميجابايت للصورة</small></span><input id="product-images" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple /></label>
+              <div id="image-gallery-editor" class="image-gallery-editor" aria-live="polite" hidden></div>
+              <label class="form-field"><span>وصف الصورة الرئيسية لسهولة الوصول</span><input id="image-alt" name="imageAlt" type="text" maxlength="200" placeholder="مثال: ساعة صُدْفَة بلون فضي" /></label>
+
+              <label class="form-field"><span>ترتيب العرض <small>الرقم الأقل يظهر أولًا</small></span><input id="sort-order" name="sortOrder" type="number" min="0" max="100000" step="1" value="0" /></label>
+              <label class="active-toggle"><input id="product-active" name="active" type="checkbox" /><span class="toggle-track" aria-hidden="true"></span><span><strong>اعرضها في المتجر</strong><small>لن تظهر للزوار قبل تفعيل هذا الخيار</small></span></label>
+
+              <div id="form-error" class="form-feedback form-feedback-error" role="alert" hidden></div>
+              <div class="form-actions"><button id="save-button" class="admin-button admin-button-primary" type="submit">حفظ الساعة <span aria-hidden="true">←</span></button><button id="cancel-edit" class="admin-button admin-button-quiet" type="button" hidden>إلغاء التعديل</button></div>
+            </form>
+          </aside>
+        </div>
+
+        <section class="category-manager-panel" aria-labelledby="categories-title">
+          <div class="editor-title-row">
+            <div><span class="admin-kicker">تنظيم التشكيلة</span><h2 id="categories-title">إدارة التصنيفات</h2></div>
+            <span class="editor-mark" aria-hidden="true">⌘</span>
+          </div>
+          <p class="settings-intro">أضف أسماء الفئات واربط بها الساعات من نموذج المنتج. الفئة بلا ساعات نشطة ستظهر للزوار بعبارة Coming soon؛ ولا يمكن حذف فئة مرتبطة بأي ساعة.</p>
+          <form id="category-form" class="category-form">
+            <label class="form-field"><span>اسم التصنيف <b>*</b></span><input id="category-name" name="name" type="text" maxlength="80" required placeholder="مثال: ساعات كلاسيكية" /></label>
+            <button id="category-save-button" class="admin-button admin-button-primary" type="submit">إضافة تصنيف <span aria-hidden="true">←</span></button>
+          </form>
+          <div id="category-error" class="form-feedback form-feedback-error" role="alert" hidden></div>
+          <div id="category-list" class="category-list" aria-live="polite"></div>
+        </section>
+
+        <section class="store-settings-panel" aria-labelledby="settings-title">
+          <div class="editor-title-row">
+            <div><span class="admin-kicker">بيانات المتجر</span><h2 id="settings-title">وسائل التواصل</h2></div>
+            <span class="editor-mark" aria-hidden="true">☎</span>
+          </div>
+          <p class="settings-intro">أدخل الأرقام التي تريد إظهارها للعملاء. اترك أي حقل فارغًا لإخفائه من الموقع، وتظهر التغييرات بعد الحفظ.</p>
+          <form id="settings-form" class="settings-form">
+            <label class="form-field"><span>رقم واتساب للطلبات</span><input id="settings-whatsapp" name="whatsappNumber" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" maxlength="32" placeholder="رقم مصري أو دولي مثل +20…" /></label>
+            <label class="form-field"><span>رقم اتصال اختياري</span><input id="settings-phone" name="phoneNumber" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" maxlength="32" placeholder="رقم مصري أو دولي مثل +20…" /></label>
+            <p class="settings-hint">الأرقام المصرية المحلية تبدأ بصفر؛ يمكن أيضًا إدخال الرقم مع مفتاح الدولة.</p>
+            <div id="settings-error" class="form-feedback form-feedback-error" role="alert" hidden></div>
+            <button id="settings-save-button" class="admin-button admin-button-primary" type="submit">حفظ أرقام التواصل <span aria-hidden="true">←</span></button>
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="admin-toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>

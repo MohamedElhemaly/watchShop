@@ -1,6 +1,7 @@
 import "./style.css";
 import "./product.css";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
+import { getCart, saveCart, getStoredProducts, storeSettings } from "./data.js";
 
 const $ = (selector) => document.querySelector(selector);
 const safeText = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({
@@ -166,43 +167,135 @@ function renderProduct(product, serverNow) {
 async function loadContacts() {
   try {
     const response = await fetch("/api/settings", { headers: { Accept: "application/json" } });
-    if (!response.ok) return;
-    const data = await response.json();
-    const settings = data.settings || {};
-    publicContacts = {
-      phoneNumber: validStoredNumber(settings.phoneNumber),
-      whatsappNumber: validStoredNumber(settings.whatsappNumber),
-    };
-    updateOrderLinks();
+    if (response.ok) {
+      const data = await response.json();
+      const settings = data.settings || {};
+      publicContacts = {
+        phoneNumber: validStoredNumber(settings.phoneNumber) || storeSettings.defaultPhone,
+        whatsappNumber: validStoredNumber(settings.whatsappNumber) || storeSettings.defaultWhatsapp,
+      };
+      updateOrderLinks();
+      return;
+    }
   } catch {
-    updateOrderLinks();
+    // API unavailable
   }
+  publicContacts = {
+    phoneNumber: storeSettings.defaultPhone,
+    whatsappNumber: storeSettings.defaultWhatsapp,
+  };
+  updateOrderLinks();
 }
 
 async function loadProduct() {
   const id = new URLSearchParams(window.location.search).get("id") || "";
-  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+  if (!id) {
     $("#product-loading").hidden = true;
     $("#product-error").hidden = false;
     return;
   }
 
+  // Check local curated products
+  const localProducts = getStoredProducts();
+  const localMatch = localProducts.find((p) => p.id === id);
+
   try {
     const response = await fetch(`/api/products/${encodeURIComponent(id)}`, { headers: { Accept: "application/json" } });
-    if (response.status === 404) {
-      $("#product-loading").hidden = true;
-      $("#product-error").hidden = false;
-      return;
+    if (response.ok) {
+      const data = await response.json();
+      if (data.product) {
+        renderProduct(data.product, data.serverNow);
+        await loadContacts();
+        return;
+      }
     }
-    if (!response.ok) throw new Error("تعذر تحميل الساعة.");
-    const data = await response.json();
-    if (!data.product) throw new Error("الساعة غير متاحة.");
-  renderProduct(data.product, data.serverNow);
+  } catch (err) {
+    console.warn("API load failed, falling back to local catalog:", err);
+  }
+
+  if (localMatch) {
+    renderProduct(localMatch, new Date().toISOString());
     await loadContacts();
-  } catch {
-    $("#product-loading").hidden = true;
-    $("#product-error").hidden = false;
+    return;
+  }
+
+  $("#product-loading").hidden = true;
+  $("#product-error").hidden = false;
+}
+
+function updateCartBadge() {
+  const cart = getCart();
+  const count = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  const badge = $("#detail-cart-badge");
+  if (badge) {
+    badge.textContent = count;
+    badge.classList.toggle("is-active", count > 0);
   }
 }
 
+function initCartActions() {
+  updateCartBadge();
+  let quantity = 1;
+  const qtyVal = $("#detail-qty-val");
+  const minusBtn = $("#detail-qty-minus");
+  const plusBtn = $("#detail-qty-plus");
+  const addBtn = $("#detail-add-cart-btn");
+  const feedback = $("#detail-add-feedback");
+
+  minusBtn?.addEventListener("click", () => {
+    if (quantity > 1) {
+      quantity -= 1;
+      if (qtyVal) qtyVal.textContent = quantity;
+    }
+  });
+
+  plusBtn?.addEventListener("click", () => {
+    if (quantity < 10) {
+      quantity += 1;
+      if (qtyVal) qtyVal.textContent = quantity;
+    }
+  });
+
+  addBtn?.addEventListener("click", () => {
+    if (!currentProduct) return;
+    const cart = getCart();
+    const image = currentImages[selectedImageIndex];
+    const selectedColor = image ? String(image.colorLabel || "").trim() : "";
+    const selectedImg = image ? image.imageUrl : currentProduct.imageUrl;
+    const effectivePrice = (currentProduct.discountActive && Number(currentProduct.discountPercent) > 0)
+      ? Number(currentProduct.salePrice)
+      : Number(currentProduct.basePrice);
+
+    const existingIndex = cart.findIndex(
+      (item) => item.id === currentProduct.id && (item.color || "") === selectedColor
+    );
+
+    if (existingIndex > -1) {
+      cart[existingIndex].quantity += quantity;
+    } else {
+      cart.push({
+        id: currentProduct.id,
+        name: currentProduct.name,
+        price: effectivePrice,
+        basePrice: Number(currentProduct.basePrice),
+        image: selectedImg,
+        color: selectedColor,
+        quantity: quantity,
+      });
+    }
+
+    saveCart(cart);
+    updateCartBadge();
+
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.innerHTML = `تمت إضافة <strong>${quantity}</strong> من <strong>${safeText(currentProduct.name)}</strong> إلى الحقيبة بنجاح. <a class="detail-feedback-link" href="/?openCart=true#catalog">عرض الحقيبة ←</a>`;
+      setTimeout(() => {
+        feedback.hidden = true;
+      }, 5000);
+    }
+  });
+}
+
+initCartActions();
 loadProduct();

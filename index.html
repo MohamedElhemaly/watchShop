@@ -3,109 +3,421 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b4442" />
+    <meta name="theme-color" content="#072624" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="description" content="صُدْفَة — ساعات مختارة للحظاتك اليومية. تصفح التشكيلة وتواصل معنا للاستفسار عن الموديلات والأسعار." />
+    <meta name="description" content="صُدْفَة — متجر ساعات فاخرة بتصميم عربي معاصر. تصفح التشكيلة، واطلب عبر الموقع أو واتساب مع الدفع عند الاستلام." />
     <title>صُدْفَة | سَاعَةٌ لِكُلِّ لَحْظَةٍ</title>
     <link rel="icon" type="image/png" href="/sodfa-icon-v3.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div class="announcement"><span class="announcement-dot" aria-hidden="true"></span>كل لحظة لها حكاية… اختار اللي يشبهك</div>
+    <div class="announcement">
+      <span class="announcement-dot" aria-hidden="true"></span>
+      شحن مجاني لكافة المحافظات • دفع عند الاستلام مع حق الفحص والمعاينة قبل السداد
+    </div>
+
     <header class="site-header">
       <a class="brand" href="#home" aria-label="صُدْفَة، الصفحة الرئيسية">
-        <span class="brand-mark"><img src="/sodfa-icon-v3.png" alt="" /></span>
+        <span class="brand-mark"><img src="/sodfa-icon-v3.png" alt="شعار صُدْفَة" /></span>
         <span class="brand-copy"><strong>صُدْفَة</strong><small>سَاعَةٌ لِكُلِّ لَحْظَةٍ</small></span>
       </a>
-      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح القائمة"><span></span><span></span></button>
+
+      <!-- Live Search Input -->
+      <div class="header-search-wrap">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input id="header-search-input" type="search" placeholder="ابحث عن ساعة، موديل، أو تصنيف..." aria-label="بحث في الساعات" autocomplete="off" />
+        <button id="header-search-clear" type="button" aria-label="مسح نص البحث" hidden>×</button>
+      </div>
+
       <nav class="site-nav" id="site-nav" aria-label="القائمة الرئيسية">
         <a href="#catalog">التشكيلة</a>
         <a href="#story">حكاية صُدْفَة</a>
         <a href="#ordering">الطلب والشحن</a>
-        <a href="#policy">سياسة صُدْفَة</a>
+        <a href="#policy">الضمان والسياسة</a>
       </nav>
-      <a class="header-cta" href="#catalog">اكتشف الساعات <span aria-hidden="true">←</span></a>
+
+      <!-- Cart Button with Live Counter Badge -->
+      <button id="cart-drawer-toggle" class="header-cart-button" type="button" aria-label="عرض حقيبة التسوق" aria-haspopup="dialog">
+        <span class="cart-icon" aria-hidden="true">👜</span>
+        <span class="cart-text">الحقيبة</span>
+        <span id="cart-badge" class="cart-badge">0</span>
+      </button>
+
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح القائمة">
+        <span></span><span></span>
+      </button>
     </header>
 
     <main>
+      <!-- Hero Section with Flagship Timepiece Feature -->
       <section class="hero" id="home" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow"><span></span> لكل وقت حكاية</p>
+          <p class="eyebrow"><span></span> تشكيلة 2026 الحصرية</p>
           <h1 id="hero-title">كل لحظة حلوة<br /><em>تستاهل وقتها.</em></h1>
-          <p class="hero-description">ساعات مختارة بعناية، بتفاصيل بسيطة تكمّل يومك وتعبّر عنك.</p>
+          <p class="hero-description">
+            ساعات مختارة بعناية فائقة، تجمع بين دقة صناعة الساعات العالمية وجمال الخطوط المعاصرة. اقتنِ قطعة تعبّر عن هويتك اليومية.
+          </p>
+
+          <div class="hero-flagship-pill">
+            <span class="flagship-tag">القطعة المميزة</span>
+            <strong id="hero-flagship-name">صُدْفَة هيريتدج كرونوغراف</strong>
+            <span class="flagship-sep">•</span>
+            <span class="flagship-spec">سافاير • مقاومة 100م • ستيل 316L</span>
+          </div>
+
           <div class="hero-actions">
             <a class="button button-light" href="#catalog">تصفّح التشكيلة <span aria-hidden="true">←</span></a>
-            <span class="hero-note">اختيارات أنيقة بأسعار مناسبة</span>
+            <button id="hero-flagship-cta" class="button hero-quick-view-btn" type="button">تفاصيل القطعة المميزة</button>
           </div>
           <div class="hero-stamp" aria-hidden="true"><span>صُدْفَة</span><i>✳</i><small>وقتك بطريقتك</small></div>
         </div>
+
         <div class="hero-art" role="group" aria-label="فيديو برومو صُدْفَة">
-          <video class="hero-video" autoplay muted loop playsinline controls preload="auto" poster="/manus-storage/sodfa-promo-poster_fceecbac.jpg" aria-label="فيديو برومو صُدْفَة">
+          <video class="hero-video" autoplay muted loop playsinline preload="auto" poster="/sodfa-promo-poster.jpg" aria-label="فيديو برومو صُدْفَة">
             <source src="/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4" type="video/mp4" />
-            متصفحك لا يدعم تشغيل الفيديو. استخدم أدوات التحكم لفتح نسخة متوافقة.
           </video>
-          <div class="art-caption"><span>01 / لحظتك</span><span>تشكيلة صُدْفَة</span></div>
+          <div class="art-caption"><span>01 / الإصدار الأول</span><span>صُدْفَة هورولوجي</span></div>
         </div>
-        <div class="hero-bottom"><span>وقت يشبهك</span><span class="scroll-mark">مرّر للأسفل <b aria-hidden="true">↓</b></span></div>
+
+        <div class="hero-bottom">
+          <span>دقة متناهية • ضمان سنتين</span>
+          <span class="scroll-mark">مرّر لاستكشاف التشكيلة <b aria-hidden="true">↓</b></span>
+        </div>
       </section>
 
+      <!-- Complete Catalog & E-Commerce Showcase -->
       <section class="catalog-section section-pad" id="catalog" aria-labelledby="catalog-title">
-        <div class="section-heading">
-          <div><p class="eyebrow eyebrow-dark"><span></span> اختار على مهلك</p><h2 id="catalog-title">التشكيلة <em>قريبًا</em></h2></div>
-          <p>بنجهّز أول اختيارات صُدْفَة. كل موديل هيظهر هنا بتفاصيله وسعره بوضوح.</p>
+        <div class="section-heading catalog-header-row">
+          <div>
+            <p class="eyebrow eyebrow-dark"><span></span> اختار على مهلك</p>
+            <h2 id="catalog-title">التشكيلة <em>المختارة</em></h2>
+          </div>
+          <p>استكشف موديلات صُدْفَة المصنوعة بحرفية واقتنِ ساعتك مباشرة مع إمكانية المعاينة قبل الاستلام.</p>
         </div>
-        <div id="catalog-grid" class="catalog-grid" aria-live="polite">
-          <div class="empty-state">
-            <span class="empty-orbit" aria-hidden="true"><i></i></span>
-            <p class="empty-kicker">لحظة ونرجعلك</p>
-            <h3>بنحضّر التشكيلة الأولى</h3>
-            <p>الموديلات هتظهر هنا أول ما نختارها ونجهّز صورها وأسعارها.</p>
+
+        <!-- Interactive Filter & Category Navigation Bar -->
+        <div class="catalog-toolbar">
+          <div id="catalog-category-tabs" class="catalog-category-tabs" role="tablist" aria-label="تصنيفات الساعات">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <div class="catalog-controls">
+            <div class="catalog-sort-wrap">
+              <label for="catalog-sort">الترتيب:</label>
+              <select id="catalog-sort">
+                <option value="featured">المميز والموصى به</option>
+                <option value="price-asc">السعر: من الأقل للأعلى</option>
+                <option value="price-desc">السعر: من الأعلى للأقل</option>
+                <option value="discount">أكبر نسبة تخفيض</option>
+              </select>
+            </div>
+
+            <div class="catalog-quick-filters">
+              <button class="filter-chip" type="button" data-filter="sale">عروض وتخفيضات</button>
+              <button class="filter-chip" type="button" data-filter="leather">سوار جلد</button>
+              <button class="filter-chip" type="button" data-filter="steel">سوار ستيل</button>
+            </div>
           </div>
         </div>
+
+        <!-- Live Results Count & Active Search Banner -->
+        <div id="catalog-status-bar" class="catalog-status-bar" aria-live="polite">
+          <span id="catalog-results-count">جارٍ تحميل التشكيلة…</span>
+          <button id="catalog-reset-filters" class="reset-filters-btn" type="button" hidden>إلغاء التصفية والبحث ↺</button>
+        </div>
+
+        <!-- Product Cards Grid -->
+        <div id="catalog-grid" class="catalog-grid" aria-live="polite">
+          <!-- Rendered dynamically -->
+        </div>
       </section>
 
+      <!-- Brand Story Section -->
       <section class="story-section" id="story" aria-labelledby="story-title">
         <div class="story-mark" aria-hidden="true"><img src="/sodfa-icon-v3.png" alt="" /></div>
         <div class="story-copy">
           <p class="eyebrow"><span></span> حكاية صُدْفَة</p>
           <h2 id="story-title">أجمل الحكايات<br />تبدأ <em>بصُدْفَة.</em></h2>
-          <p>صُدْفَة مساحة لاختيارات ساعات أنيقة وسهلة، لكل يوم وكل مناسبة. بندوّر على تفاصيل تفرّق، من غير ما تبعّدك عن السعر المناسب.</p>
-          <a class="text-link" href="#catalog">شوف التشكيلة أول ما توصل <span aria-hidden="true">←</span></a>
+          <p>
+            انطلقت «صُدْفَة» من شغف بالوقت وقيمته؛ ساعات كلاسيكية ورياضية وهجينة، بتفاصيل لا تساوم على الجودة وخامات متينة تدوم لسنوات، مع الحفاظ على السعر العادل والوضوح التام في كل خطوة.
+          </p>
+          <a class="text-link" href="#catalog">تصفّح تشكيلة الساعات الآن <span aria-hidden="true">←</span></a>
         </div>
         <div class="story-side-note"><span>اختيارك</span><b>له وقته.</b></div>
       </section>
 
+      <!-- Ordering Steps -->
       <section class="ordering-section section-pad" id="ordering" aria-labelledby="ordering-title">
         <div class="section-heading ordering-heading">
-          <div><p class="eyebrow eyebrow-dark"><span></span> خطوات بسيطة</p><h2 id="ordering-title">من الاختيار <em>لحد بابك</em></h2></div>
-          <p>طريقة الطلب وتفاصيل التوصيل هتكون واضحة قبل ما تأكد طلبك.</p>
+          <div><p class="eyebrow eyebrow-dark"><span></span> تجربة شراء مريحة</p><h2 id="ordering-title">من الاختيار <em>لحد بابك</em></h2></div>
+          <p>طريقة الطلب وتفاصيل التوصيل واضحة، مع إمكانية الفحص قبل السداد.</p>
         </div>
         <div class="steps-list">
-          <article class="step-card"><span class="step-number">01</span><div><h3>اختار موديلك</h3><p>تصفّح الصور والتفاصيل والسعر بعد إضافة التشكيلة.</p></div><span class="step-arrow" aria-hidden="true">←</span></article>
-          <article class="step-card"><span class="step-number">02</span><div><h3>تواصل معنا</h3><p>اسأل عن التوفر والسعر وتكلفة الشحن قبل تأكيد الطلب عبر وسيلة التواصل المتاحة.</p><div id="ordering-contact-links" class="ordering-contact-links" hidden><a id="order-whatsapp-link" class="contact-link contact-link-primary" target="_blank" rel="noopener noreferrer" hidden>واتساب</a><a id="order-phone-link" class="contact-link contact-link-secondary" hidden>اتصال</a></div></div><span class="step-arrow" aria-hidden="true">←</span></article>
-          <article class="step-card"><span class="step-number">03</span><div><h3>تفاصيل التوصيل</h3><p>سعر الساعة شامل الشحن للمحافظات، مع رسوم إضافية لبعض المناطق الموضحة في سياسة المتجر.</p></div><span class="step-arrow" aria-hidden="true">✓</span></article>
+          <article class="step-card">
+            <span class="step-number">01</span>
+            <div>
+              <h3>اختار موديلك وأضفه للحقيبة</h3>
+              <p>تصفّح المواصفات التفصيلية والألوان المتاحة وأضف ما يعجبك بضغطة واحدة.</p>
+            </div>
+            <span class="step-arrow" aria-hidden="true">←</span>
+          </article>
+          <article class="step-card">
+            <span class="step-number">02</span>
+            <div>
+              <h3>أكّد بيانات التوصيل</h3>
+              <p>أدخل اسمك وعنوانك ورقم هاتفك، أو تواصل معنا عبر واتساب للمساعدة والاستفسار.</p>
+              <div id="ordering-contact-links" class="ordering-contact-links" hidden>
+                <a id="order-whatsapp-link" class="contact-link contact-link-primary" target="_blank" rel="noopener noreferrer" hidden>واتساب الطلبات</a>
+                <a id="order-phone-link" class="contact-link contact-link-secondary" hidden>اتصال هاتفي</a>
+              </div>
+            </div>
+            <span class="step-arrow" aria-hidden="true">←</span>
+          </article>
+          <article class="step-card">
+            <span class="step-number">03</span>
+            <div>
+              <h3>عاين وادفع عند الاستلام</h3>
+              <p>سعر الساعة شامل الشحن لمعظم المحافظات. افتح الشحنة وعاين ساعتك قبل الدفع للمندوب.</p>
+            </div>
+            <span class="step-arrow" aria-hidden="true">✓</span>
+          </article>
         </div>
       </section>
 
+      <!-- Policy Section -->
       <section class="policy-section section-pad" id="policy" aria-labelledby="policy-title">
         <div class="section-heading policy-heading">
           <div><p class="eyebrow eyebrow-dark"><span></span> وعدنا ليك</p><h2 id="policy-title">راحة بالك <em>جزء من اختيارك</em></h2></div>
-          <p>الميزة عند صُدْفَة إن كل التفاصيل تتقال قبل ما تأكد، ولو احتجت مساعدة تلاقينا واضحين معاك.</p>
+          <p>كل التفاصيل معلنة بوضوح، وحقوقك محمية طبقًا للقانون المصري.</p>
         </div>
         <div class="policy-promise">
           <span class="promise-mark" aria-hidden="true">✳</span>
-          <div><strong>مفيش مفاجآت بعد «تم».</strong><p>قبل تأكيد الطلب، هنبعت لك كتابةً اسم الموديل وسعره ومصاريف الشحن المتاحة وتفاصيله المعروفة. ما فيش تكلفة إضافية غير معلنة، ومن حقك تسأل أو تلغي قبل التأكيد.</p></div>
+          <div>
+            <strong>مفيش مفاجآت بعد «تم».</strong>
+            <p>قبل تثبيت الطلب، نوضح لك السعر الإجمالي ومصاريف الشحن ومواصفات الساعة. من حقك فحص المنتج عند الاستلام وإلغاء الطلب إذا لم يطابق توقعاتك.</p>
+          </div>
         </div>
         <div class="policy-cards">
-          <article class="policy-card"><span class="policy-number">01</span><div><h3>الاستبدال أو الاسترجاع</h3><p>وفق إرشادات جهاز حماية المستهلك، يحق لك طلب الاستبدال أو رد السلعة خلال 14 يومًا من استلامها دون إبداء سبب أو تحمّل نفقات، مع مراعاة الاستثناءات القانونية وحالة السلعة. بعض فئات المنتجات قد تنطبق عليها استثناءات؛ اسألنا عن الموديل قبل الطلب إذا احتجت توضيحًا.</p><a href="https://cpa.gov.eg/ar-EG/اسئلة-متكررة" target="_blank" rel="noopener noreferrer">اقرأ التفاصيل من جهاز حماية المستهلك <span aria-hidden="true">↗</span></a></div></article>
-          <article class="policy-card"><span class="policy-number">02</span><div><h3>لو وصلتك الساعة بعيب أو غير مطابقة</h3><p>تواصل معنا خلال 30 يومًا من الاستلام. وفق إرشادات الجهاز، لك طلب الاستبدال أو رد القيمة دون تكلفة إضافية، وتتم معالجة رد القيمة خلال أسبوع من لجوئك للمورد وبطريقة الدفع ذاتها. حقوقك القانونية تظل محفوظة.</p><a href="https://cpa.gov.eg/ar-eg/بيانات-اعلامية/ArtMID/654/ArticleID/6773" target="_blank" rel="noopener noreferrer">تفاصيل حقك في حالة العيب <span aria-hidden="true">↗</span></a></div></article>
-          <article class="policy-card"><span class="policy-number">03</span><div><h3>الشحن والسعر النهائي</h3><p>سعر الساعة المعروض شامل الشحن إلى المحافظات. تُضاف رسوم شحن إضافية لمحافظات جنوب مصر ومرسى مطروح والغردقة، ونوضحها لك مع الإجمالي النهائي قبل تأكيد الطلب.</p></div></article>
+          <article class="policy-card">
+            <span class="policy-number">01</span>
+            <div>
+              <h3>الاستبدال أو الاسترجاع</h3>
+              <p>وفق إرشادات جهاز حماية المستهلك المصري، يحق لك طلب الاستبدال أو رد السلعة خلال 14 يومًا من استلامها بحالتها الأصلية دون تحمّل أعباء إضافية.</p>
+              <a href="https://cpa.gov.eg/ar-EG/اسئلة-متكررة" target="_blank" rel="noopener noreferrer">تفاصيل الحماية من جهاز حماية المستهلك <span aria-hidden="true">↖</span></a>
+            </div>
+          </article>
+          <article class="policy-card">
+            <span class="policy-number">02</span>
+            <div>
+              <h3>ضمان الجودة ضد أي عيب</h3>
+              <p>تواصل معنا خلال 30 يومًا عند وجود أي عيب مصنعي لطلب الاستبدال الفوري أو رد القيمة كاملة بنفس وسيلة الدفع دون أي تكلفة إضافية.</p>
+              <a href="https://cpa.gov.eg/ar-eg/بيانات-اعلامية/ArtMID/654/ArticleID/6773" target="_blank" rel="noopener noreferrer">إجراءات حق المستهلك في حالة العيب <span aria-hidden="true">↖</span></a>
+            </div>
+          </article>
+          <article class="policy-card">
+            <span class="policy-number">03</span>
+            <div>
+              <h3>الشحن والسعر النهائي</h3>
+              <p>سعر الساعة المعروض شامل الشحن للمحافظات الرئيسية. تُضاف رسوم للمحافظات الحدودية وجنوب الصعيد وتُوضح في ملخص الطلب قبل التأكيد.</p>
+            </div>
+          </article>
         </div>
-        <p class="policy-legal-note">هذه السياسة لا تنتقص من أي حق يقرره قانون حماية المستهلك المصري. تُراعى الاستثناءات القانونية لكل منتج وحالته، وتُراجع أي شروط خاصة قبل اعتماد الطلب.</p>
+        <p class="policy-legal-note">هذه السياسة تتطابق مع قانون حماية المستهلك المصري رقم 181 لسنة 2018.</p>
       </section>
     </main>
+
+    <!-- Slide-Over Shopping Cart Drawer -->
+    <aside id="cart-drawer" class="cart-drawer" aria-labelledby="cart-drawer-title" aria-modal="true" role="dialog" hidden>
+      <div class="cart-backdrop" id="cart-backdrop"></div>
+      <div class="cart-content">
+        <div class="cart-header">
+          <div class="cart-title-row">
+            <h2 id="cart-drawer-title">حقيبة التسوق</h2>
+            <span id="cart-items-count-text" class="cart-items-count-text">0 قطعة</span>
+          </div>
+          <button id="cart-drawer-close" class="cart-close-button" type="button" aria-label="إغلاق حقيبة التسوق">✕</button>
+        </div>
+
+        <div id="cart-items-list" class="cart-items-list" aria-live="polite">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <div id="cart-empty-view" class="cart-empty-view" hidden>
+          <span class="cart-empty-icon" aria-hidden="true">👜</span>
+          <h3>الحقيبة فارغة حاليًا</h3>
+          <p>استكشف التشكيلة وأضف الساعة الأقرب لذوقك لتصلك حتى باب منزلك.</p>
+          <button id="cart-explore-button" class="button button-primary" type="button">استكشف التشكيلة</button>
+        </div>
+
+        <div id="cart-footer" class="cart-footer">
+          <div class="cart-summary-line">
+            <span>المجموع الفرعي</span>
+            <strong id="cart-subtotal-amount">0 ج.م</strong>
+          </div>
+          <div class="cart-summary-line cart-shipping-line">
+            <span>الشحن للمحافظات</span>
+            <span class="free-shipping-tag">مجاني</span>
+          </div>
+          <div class="cart-summary-line cart-total-line">
+            <span>الإجمالي النهائي للدفع</span>
+            <strong id="cart-total-amount">0 ج.م</strong>
+          </div>
+          <p class="cart-notice">الدفع عند الاستلام بعد المعاينة والفحص</p>
+          <button id="cart-checkout-button" class="button button-primary cart-checkout-button" type="button">
+            متابعة إتمام الطلب <span aria-hidden="true">←</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Rich Product Detail Modal -->
+    <div id="product-detail-modal" class="product-modal" role="dialog" aria-modal="true" aria-labelledby="modal-product-name" hidden>
+      <div class="modal-backdrop" id="modal-backdrop"></div>
+      <div class="modal-card">
+        <button id="modal-close" class="modal-close-button" type="button" aria-label="إغلاق النافذة">✕</button>
+        <div class="modal-grid">
+          <div class="modal-gallery-col">
+            <div class="modal-image-wrap">
+              <img id="modal-main-image" src="" alt="" />
+            </div>
+            <div id="modal-swatches" class="modal-swatches" role="group" aria-label="ألوان وموديلات الساعة"></div>
+          </div>
+          <div class="modal-info-col">
+            <span id="modal-product-category" class="modal-category-badge"></span>
+            <h2 id="modal-product-name"></h2>
+            <div id="modal-price-wrap" class="modal-price-wrap" aria-live="polite"></div>
+            <p id="modal-product-description" class="modal-description"></p>
+
+            <div class="modal-specs-wrap">
+              <h3>المواصفات التقنية</h3>
+              <dl id="modal-specs-list" class="modal-specs-list"></dl>
+            </div>
+
+            <div class="modal-actions-row">
+              <div class="quantity-control" aria-label="تحديد الكمية">
+                <button id="modal-qty-minus" type="button" aria-label="تقليل الكمية">−</button>
+                <span id="modal-qty-display">1</span>
+                <button id="modal-qty-plus" type="button" aria-label="زيادة الكمية">+</button>
+              </div>
+              <button id="modal-add-cart-btn" class="button button-primary modal-cart-btn" type="button">أضف للحقيبة 👜</button>
+              <a id="modal-whatsapp-btn" class="button button-light modal-whatsapp-btn" target="_blank" rel="noopener noreferrer">طلب عبر واتساب 💬</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Complete Checkout Flow Modal -->
+    <div id="checkout-modal" class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkout-modal-title" hidden>
+      <div class="modal-backdrop" id="checkout-backdrop"></div>
+      <div class="checkout-card">
+        <button id="checkout-close" class="modal-close-button" type="button" aria-label="إغلاق">✕</button>
+
+        <div id="checkout-form-view">
+          <div class="checkout-header">
+            <span class="eyebrow eyebrow-dark"><span></span> خطوة أخيرة</span>
+            <h2 id="checkout-modal-title">بيانات الشحن والتوصيل</h2>
+            <p>أدخل بياناتك لتأكيد الطلب. الدفع نقدًا عند الاستلام بعد معاينة الساعة بنفسك.</p>
+          </div>
+
+          <form id="checkout-form" class="checkout-form">
+            <div class="checkout-form-grid">
+              <label class="checkout-field">
+                <span>الاسم الكامل <b>*</b></span>
+                <input id="checkout-name" type="text" required placeholder="مثال: أحمد محمود" autocomplete="name" />
+              </label>
+              <label class="checkout-field">
+                <span>رقم الهاتف للتأكيد <b>*</b></span>
+                <input id="checkout-phone" type="tel" dir="ltr" required placeholder="01012345678 أو +20..." autocomplete="tel" />
+              </label>
+              <label class="checkout-field">
+                <span>المحافظة <b>*</b></span>
+                <select id="checkout-governorate" required>
+                  <option value="" disabled selected>اختر محافظتك</option>
+                  <option value="القاهرة">القاهرة</option>
+                  <option value="الجيزة">الجيزة</option>
+                  <option value="الإسكندرية">الإسكندرية</option>
+                  <option value="القليوبية">القليوبية</option>
+                  <option value="الشرقية">الشرقية</option>
+                  <option value="الدقهلية">الدقهلية</option>
+                  <option value="الغربية">الغربية</option>
+                  <option value="المنوفية">المنوفية</option>
+                  <option value="البحيرة">البحيرة</option>
+                  <option value="كفر الشيخ">كفر الشيخ</option>
+                  <option value="دمياط">دمياط</option>
+                  <option value="بورسعيد">بورسعيد</option>
+                  <option value="الإسماعيلية">الإسماعيلية</option>
+                  <option value="السويس">السويس</option>
+                  <option value="الفيوم">الفيوم</option>
+                  <option value="بني سويف">بني سويف</option>
+                  <option value="المنيا">المنيا</option>
+                  <option value="أسيوط">أسيوط</option>
+                  <option value="سوهاج">سوهاج</option>
+                  <option value="قنا">قنا</option>
+                  <option value="الأقصر">الأقصر</option>
+                  <option value="أسوان">أسوان</option>
+                  <option value="البحر الأحمر">البحر الأحمر (الغردقة)</option>
+                  <option value="مطروح">مرسى مطروح</option>
+                </select>
+              </label>
+              <label class="checkout-field">
+                <span>المدينة أو الحي <b>*</b></span>
+                <input id="checkout-city" type="text" required placeholder="مثال: المعادي / سموحة / الدقي" />
+              </label>
+            </div>
+
+            <label class="checkout-field">
+              <span>العنوان بالتفصيل <b>*</b></span>
+              <input id="checkout-address" type="text" required placeholder="اسم الشارع، رقم العمارة، رقم الشقة أو علامة مميزة" />
+            </label>
+
+            <label class="checkout-field">
+              <span>ملاحظات التوصيل (اختياري)</span>
+              <textarea id="checkout-notes" rows="2" placeholder="أي تعليمات للمندوب أو وقت مفضل للاستلام"></textarea>
+            </label>
+
+            <div class="checkout-order-summary">
+              <div class="summary-header">ملخص مشترياتك</div>
+              <div id="checkout-items-summary" class="checkout-items-summary"></div>
+              <div class="summary-total-row">
+                <span>الإجمالي النهائي المستحق:</span>
+                <strong id="checkout-final-total">0 ج.م</strong>
+              </div>
+              <div class="payment-guarantee">
+                <span>🛡️ الدفع نقدًا عند الاستلام • يحق لك فتح الشحنة وفحص الساعة قبل دفع أي مبلغ</span>
+              </div>
+            </div>
+
+            <div id="checkout-error" class="form-feedback form-feedback-error" hidden></div>
+
+            <button id="checkout-submit-btn" class="button button-primary checkout-submit-btn" type="submit">
+              تثبيت الطلب الآن <span aria-hidden="true">✓</span>
+            </button>
+          </form>
+        </div>
+
+        <div id="checkout-success-view" class="checkout-success-view" hidden>
+          <div class="success-icon-wrap" aria-hidden="true">✓</div>
+          <h2>تم استلام طلبك بنجاح!</h2>
+          <p class="success-order-num">رقم الطلب: <strong id="success-order-id">SDF-2026-0000</strong></p>
+          <p class="success-desc">
+            شكرًا لثقتك في صُدْفَة. سنبدأ بتجهيز ساعتك فورًا، وسيتواصل معك مندوب التوصيل لتحديد موعد التسليم والمعاينة.
+          </p>
+          <div id="success-summary-card" class="success-summary-card"></div>
+          <div class="success-actions">
+            <a id="success-whatsapp-confirm" class="button button-primary success-whatsapp-btn" target="_blank" rel="noopener noreferrer">
+              متابعة وتأكيد الشحن عبر واتساب 💬
+            </a>
+            <button id="success-continue-btn" class="button button-light" type="button">متابعة تصفح المتجر</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Feedback Toast -->
+    <div id="site-toast" class="site-toast" role="status" aria-live="polite"></div>
 
     <footer class="site-footer">
       <a class="brand footer-brand" href="#home" aria-label="صُدْفَة، العودة للأعلى">
@@ -114,9 +426,16 @@
       </a>
       <p>اختيارات أنيقة، للحظاتك اليومية.</p>
       <a class="back-top" href="#policy">سياسة الشراء والاستبدال</a>
-      <div id="footer-contact-links" class="footer-contact-links" aria-label="وسائل التواصل" hidden><a id="footer-whatsapp-link" class="contact-link contact-link-primary" target="_blank" rel="noopener noreferrer" hidden>واتساب</a><a id="footer-phone-link" class="contact-link contact-link-secondary" hidden>اتصال</a></div>
-      <div class="footer-bottom"><span>© <span id="year">2026</span> صُدْفَة</span><a href="/admin">إدارة المتجر</a></div>
+      <div id="footer-contact-links" class="footer-contact-links" aria-label="وسائل التواصل" hidden>
+        <a id="footer-whatsapp-link" class="contact-link contact-link-primary" target="_blank" rel="noopener noreferrer" hidden>واتساب</a>
+        <a id="footer-phone-link" class="contact-link contact-link-secondary" hidden>اتصال</a>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span id="year">2026</span> صُدْفَة — علامة تجارية مسجلة</span>
+        <a href="/admin">إدارة المتجر</a>
+      </div>
     </footer>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

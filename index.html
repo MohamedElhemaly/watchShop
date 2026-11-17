@@ -5,35 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#072624" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="description" content="صُدْفَة — متجر ساعات فاخرة بتصميم عربي معاصر. تصفح التشكيلة، واطلب عبر الموقع أو واتساب مع الدفع عند الاستلام." />
-    <title>صُدْفَة | سَاعَةٌ لِكُلِّ لَحْظَةٍ</title>
+    <meta name="description" content="ضَفّة — متجر ساعات فاخرة بتصميم عربي معاصر. تصفح التشكيلة، واطلب عبر الموقع أو واتساب مع الدفع عند الاستلام." />
+    <title>ضَفّة | سَاعَةٌ لِكُلِّ لَحْظَةٍ</title>
     <link rel="icon" type="image/png" href="/sodfa-icon-v3.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div class="announcement">
+    <!-- Top Announcement Bar -->
+    <aside class="announcement" aria-label="إعلان المتجر">
       <span class="announcement-dot" aria-hidden="true"></span>
-      شحن مجاني لكافة المحافظات • دفع عند الاستلام مع حق الفحص والمعاينة قبل السداد
-    </div>
+      <span id="site-announcement-text">شحن مجاني لكافة المحافظات • دفع عند الاستلام مع حق الفحص والمعاينة قبل السداد</span>
+    </aside>
 
+    <!-- Sticky Main Header -->
     <header class="site-header">
-      <a class="brand" href="#home" aria-label="صُدْفَة، الصفحة الرئيسية">
-        <span class="brand-mark"><img src="/sodfa-icon-v3.png" alt="شعار صُدْفَة" /></span>
-        <span class="brand-copy"><strong>صُدْفَة</strong><small>سَاعَةٌ لِكُلِّ لَحْظَةٍ</small></span>
+      <a class="brand" href="#home" aria-label="ضَفّة، الصفحة الرئيسية">
+        <span class="brand-mark"><img src="/sodfa-icon-v3.png" alt="شعار ضَفّة" /></span>
+        <span class="brand-copy">
+          <strong id="site-brand-title">ضَفّة</strong>
+          <small id="site-brand-sub">سَاعَةٌ لِكُلِّ لَحْظَةٍ</small>
+        </span>
       </a>
 
-      <!-- Live Search Input -->
+      <!-- Instant Live Search Input -->
       <div class="header-search-wrap">
         <span class="search-icon" aria-hidden="true">🔍</span>
         <input id="header-search-input" type="search" placeholder="ابحث عن ساعة، موديل، أو تصنيف..." aria-label="بحث في الساعات" autocomplete="off" />
         <button id="header-search-clear" type="button" aria-label="مسح نص البحث" hidden>×</button>
       </div>
 
+      <!-- Navigation Links -->
       <nav class="site-nav" id="site-nav" aria-label="القائمة الرئيسية">
         <a href="#catalog">التشكيلة</a>
-        <a href="#story">حكاية صُدْفَة</a>
+        <a href="#story">حكاية ضَفّة</a>
         <a href="#ordering">الطلب والشحن</a>
         <a href="#policy">الضمان والسياسة</a>
       </nav>
@@ -45,40 +51,59 @@
         <span id="cart-badge" class="cart-badge">0</span>
       </button>
 
+      <!-- Mobile Menu Toggle -->
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح القائمة">
         <span></span><span></span>
       </button>
     </header>
 
     <main>
-      <!-- Hero Section with Flagship Timepiece Feature -->
+      <!-- Hero Section with Clean Video & Flagship Timepiece Feature -->
       <section class="hero" id="home" aria-labelledby="hero-title">
         <div class="hero-copy">
           <p class="eyebrow"><span></span> تشكيلة 2026 الحصرية</p>
           <h1 id="hero-title">كل لحظة حلوة<br /><em>تستاهل وقتها.</em></h1>
-          <p class="hero-description">
+          <p id="hero-description" class="hero-description">
             ساعات مختارة بعناية فائقة، تجمع بين دقة صناعة الساعات العالمية وجمال الخطوط المعاصرة. اقتنِ قطعة تعبّر عن هويتك اليومية.
           </p>
 
           <div class="hero-flagship-pill">
-            <span class="flagship-tag">القطعة المميزة</span>
-            <strong id="hero-flagship-name">صُدْفَة هيريتدج كرونوغراف</strong>
+            <span class="flagship-tag" id="hero-flagship-tag">القطعة المميزة</span>
+            <strong id="hero-flagship-name">ضَفّة هيريتدج كرونوغراف</strong>
             <span class="flagship-sep">•</span>
-            <span class="flagship-spec">سافاير • مقاومة 100م • ستيل 316L</span>
+            <span class="flagship-spec" id="hero-flagship-spec">سافاير • مقاومة 100م • ستيل 316L</span>
           </div>
 
           <div class="hero-actions">
             <a class="button button-light" href="#catalog">تصفّح التشكيلة <span aria-hidden="true">←</span></a>
             <button id="hero-flagship-cta" class="button hero-quick-view-btn" type="button">تفاصيل القطعة المميزة</button>
           </div>
-          <div class="hero-stamp" aria-hidden="true"><span>صُدْفَة</span><i>✳</i><small>وقتك بطريقتك</small></div>
         </div>
 
-        <div class="hero-art" role="group" aria-label="فيديو برومو صُدْفَة">
-          <video class="hero-video" autoplay muted loop playsinline preload="auto" poster="/sodfa-promo-poster.jpg" aria-label="فيديو برومو صُدْفَة">
-            <source src="/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4" type="video/mp4" />
+        <!-- Hero Video Player in Editorial Frame -->
+        <div class="hero-art" role="group" aria-label="فيديو برومو ضَفّة">
+          <video
+            id="hero-video-player"
+            class="hero-video"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="auto"
+            poster="/sodfa-promo-poster.jpg"
+            aria-label="فيديو برومو ضَفّة"
+          >
+            <source
+              id="hero-video-source"
+              src="/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4"
+              type="video/mp4"
+            />
+            متصفحك لا يدعم تشغيل الفيديو.
           </video>
-          <div class="art-caption"><span>01 / الإصدار الأول</span><span>صُدْفَة هورولوجي</span></div>
+          <div class="art-caption">
+            <span id="hero-art-caption-index">01 / لحظتك</span>
+            <span id="hero-art-caption-title">تشكيلة ضَفّة</span>
+          </div>
         </div>
 
         <div class="hero-bottom">
@@ -94,7 +119,7 @@
             <p class="eyebrow eyebrow-dark"><span></span> اختار على مهلك</p>
             <h2 id="catalog-title">التشكيلة <em>المختارة</em></h2>
           </div>
-          <p>استكشف موديلات صُدْفَة المصنوعة بحرفية واقتنِ ساعتك مباشرة مع إمكانية المعاينة قبل الاستلام.</p>
+          <p>استكشف موديلات ضَفّة المصنوعة بحرفية واقتنِ ساعتك مباشرة مع إمكانية المعاينة والفحص قبل الاستلام.</p>
         </div>
 
         <!-- Interactive Filter & Category Navigation Bar -->
@@ -138,10 +163,10 @@
       <section class="story-section" id="story" aria-labelledby="story-title">
         <div class="story-mark" aria-hidden="true"><img src="/sodfa-icon-v3.png" alt="" /></div>
         <div class="story-copy">
-          <p class="eyebrow"><span></span> حكاية صُدْفَة</p>
-          <h2 id="story-title">أجمل الحكايات<br />تبدأ <em>بصُدْفَة.</em></h2>
+          <p class="eyebrow"><span></span> حكاية ضَفّة</p>
+          <h2 id="story-title">أجمل الحكايات<br />تبدأ <em>بضَفّة.</em></h2>
           <p>
-            انطلقت «صُدْفَة» من شغف بالوقت وقيمته؛ ساعات كلاسيكية ورياضية وهجينة، بتفاصيل لا تساوم على الجودة وخامات متينة تدوم لسنوات، مع الحفاظ على السعر العادل والوضوح التام في كل خطوة.
+            انطلقت «ضَفّة» من شغف بالوقت وقيمته؛ ساعات كلاسيكية ورياضية وهجينة، بتفاصيل لا تساوم على الجودة وخامات متينة تدوم لسنوات، مع الحفاظ على السعر العادل والوضوح التام في كل خطوة.
           </p>
           <a class="text-link" href="#catalog">تصفّح تشكيلة الساعات الآن <span aria-hidden="true">←</span></a>
         </div>
@@ -264,7 +289,7 @@
             <span>الإجمالي النهائي للدفع</span>
             <strong id="cart-total-amount">0 ج.م</strong>
           </div>
-          <p class="cart-notice">الدفع عند الاستلام بعد المعاينة والفحص</p>
+          <p class="cart-notice">الدفع نقدًا عند الاستلام بعد المعاينة والفحص</p>
           <button id="cart-checkout-button" class="button button-primary cart-checkout-button" type="button">
             متابعة إتمام الطلب <span aria-hidden="true">←</span>
           </button>
@@ -401,9 +426,9 @@
         <div id="checkout-success-view" class="checkout-success-view" hidden>
           <div class="success-icon-wrap" aria-hidden="true">✓</div>
           <h2>تم استلام طلبك بنجاح!</h2>
-          <p class="success-order-num">رقم الطلب: <strong id="success-order-id">SDF-2026-0000</strong></p>
+          <p class="success-order-num">رقم الطلب: <strong id="success-order-id">DAF-2026-0000</strong></p>
           <p class="success-desc">
-            شكرًا لثقتك في صُدْفَة. سنبدأ بتجهيز ساعتك فورًا، وسيتواصل معك مندوب التوصيل لتحديد موعد التسليم والمعاينة.
+            شكرًا لثقتك في ضَفّة. سنبدأ بتجهيز ساعتك فورًا، وسيتواصل معك مندوب التوصيل لتحديد موعد التسليم والمعاينة.
           </p>
           <div id="success-summary-card" class="success-summary-card"></div>
           <div class="success-actions">
@@ -419,10 +444,11 @@
     <!-- Quick Feedback Toast -->
     <div id="site-toast" class="site-toast" role="status" aria-live="polite"></div>
 
+    <!-- Customer Footer (Completely Private - ZERO Admin Links) -->
     <footer class="site-footer">
-      <a class="brand footer-brand" href="#home" aria-label="صُدْفَة، العودة للأعلى">
-        <span class="brand-mark"><img src="/sodfa-icon-v3.png" alt="" /></span>
-        <span class="brand-copy"><strong>صُدْفَة</strong><small>سَاعَةٌ لِكُلِّ لَحْظَةٍ</small></span>
+      <a class="brand footer-brand" href="#home" aria-label="ضَفّة، العودة للأعلى">
+        <span class="brand-mark"><img src="/sodfa-icon-v3.png" alt="شعار ضَفّة" /></span>
+        <span class="brand-copy"><strong>ضَفّة</strong><small>سَاعَةٌ لِكُلِّ لَحْظَةٍ</small></span>
       </a>
       <p>اختيارات أنيقة، للحظاتك اليومية.</p>
       <a class="back-top" href="#policy">سياسة الشراء والاستبدال</a>
@@ -431,8 +457,7 @@
         <a id="footer-phone-link" class="contact-link contact-link-secondary" hidden>اتصال</a>
       </div>
       <div class="footer-bottom">
-        <span>© <span id="year">2026</span> صُدْفَة — علامة تجارية مسجلة</span>
-        <a href="/admin">إدارة المتجر</a>
+        <span>© <span id="year">2026</span> ضَفّة — علامة تجارية مسجلة</span>
       </div>
     </footer>
 

@@ -1,600 +1,614 @@
 import "./admin.css";
+import {
+  initialProducts,
+  categories as defaultCategories,
+  getStoredProducts,
+  saveStoredProducts,
+  getStoreSettings,
+  saveStoreSettings,
+  getStoredCategories,
+  saveStoredCategories,
+} from "./data.js";
 import { calculateDiscountedPrice, formatEgpNumber } from "./pricing.js";
 
+// DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
-const loginPanel = $("#login-panel");
-const loadingPanel = $("#loading-panel");
-const workspace = $("#workspace");
-const list = $("#product-list");
-const form = $("#product-form");
-const formError = $("#form-error");
-const fileInput = $("#product-images");
-const galleryEditor = $("#image-gallery-editor");
-let csrfToken = "";
-let products = [];
-let categories = [];
-let editingId = "";
-let activeFilter = "all";
-let toastTimer;
-let galleryImages = [];
-let isSaving = false;
-let isSavingSettings = false;
-let isSavingCategory = false;
+const $$ = (selector) => document.querySelectorAll(selector);
 
-const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-}[character]));
+// State
+let products = getStoredProducts();
+let categories = getStoredCategories();
+let storeSettings = getStoreSettings();
+let editingProductId = null;
+let currentListFilter = "all";
+let toastTimer = null;
 
-function formatPrice(value) {
-  return `${formatEgpNumber(value)} ج.م`;
-}
+// EGP Formatter
+const formatEgp = (val) => `${formatEgpNumber(val)} ج.م`;
 
-function formatDate(value) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
-  if (!match) return "—";
-  const [, year, month, day] = match;
-  return new Intl.DateTimeFormat("ar-EG", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
-    .format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
-}
-
+// Toast Notification
 function showToast(message, isError = false) {
-  const toast = $("#toast");
+  const toast = $("#admin-toast");
+  if (!toast) return;
   toast.textContent = message;
-  toast.classList.toggle("is-error", isError);
-  toast.classList.add("is-visible");
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 3400);
+  toast.className = `admin-toast is-visible ${isError ? "is-error" : ""}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("is-visible");
+  }, 3200);
 }
 
-function showLogin(message = "") {
-  loadingPanel.hidden = true;
-  workspace.hidden = true;
-  loginPanel.hidden = false;
-  if (message) showToast(message, true);
+// ----------------------------------------------------
+// 1. AUTHENTICATION CONTROLS
+// ----------------------------------------------------
+const AUTH_KEY = "daffa_admin_auth";
+
+function isAuthenticated() {
+  return localStorage.getItem(AUTH_KEY) === "true";
 }
 
-async function requestJson(url, options = {}) {
-  const headers = new Headers(options.headers || {});
-  headers.set("Accept", "application/json");
-  if (options.body && !(options.body instanceof Blob)) headers.set("Content-Type", "application/json");
-  if (csrfToken && options.method && options.method !== "GET") headers.set("X-CSRF-Token", csrfToken);
-  const response = await fetch(url, { ...options, headers, credentials: "same-origin" });
-  const data = await response.json().catch(() => ({}));
-  if (response.status === 401) {
-    showLogin("انتهت جلسة الدخول؛ سجّل الدخول مرة أخرى.");
-    throw new Error(data.error || "سجّل الدخول للمتابعة.");
-  }
-  if (!response.ok) {
-    const details = Object.values(data.fields || {}).filter(Boolean).join(" ");
-    throw new Error([data.error, details].filter(Boolean).join(" ") || "تعذر إكمال الطلب.");
-  }
-  return data;
-}
-
-function discountedPrice(product) {
-  const base = Number(product.basePrice);
-  const discount = Number(product.discountPercent) || 0;
-  return calculateDiscountedPrice(base, discount);
-}
-
-function renderPricePreview() {
-  const base = Number($("#base-price").value);
-  const discount = Number($("#discount-percent").value) || 0;
-  const startOn = $("#discount-start-on").value;
-  const endOn = $("#discount-end-on").value;
-  const reason = $("#discount-reason").value.trim();
-  const price = $("#preview-price");
-  const note = $("#preview-note");
-  const box = $("#price-preview");
-  box.classList.toggle("has-discount", discount > 0);
-  if (!Number.isInteger(base) || base <= 0) {
-    price.textContent = "—";
-    note.textContent = "أدخل السعر لمعاينة السعر النهائي";
-    return;
-  }
-  if (!Number.isInteger(discount) || discount < 0 || discount > 99) {
-    price.textContent = "—";
-    note.textContent = "نسبة الخصم من 0% إلى 99%";
-    return;
-  }
-  if (discount > 0 && discount <= 99) {
-    const finalPrice = calculateDiscountedPrice(base, discount);
-    price.innerHTML = `<del>${formatPrice(base)}</del><strong>${formatPrice(finalPrice)}</strong>`;
-    const schedule = startOn && endOn
-      ? `من ${formatDate(startOn)} إلى ${formatDate(endOn)} شاملين`
-      : "حدّد تاريخ البداية والنهاية";
-    note.textContent = reason
-      ? `عرض ${reason} — ${schedule} — بتوقيت القاهرة`
-      : `خصم ${new Intl.NumberFormat("ar-EG").format(discount)}% — ${schedule} واكتب سبب العرض`;
+function setAuthenticated(status) {
+  if (status) {
+    localStorage.setItem(AUTH_KEY, "true");
   } else {
-    price.textContent = formatPrice(base);
-    note.textContent = "السعر الظاهر للزائر بدون خصم";
+    localStorage.removeItem(AUTH_KEY);
+  }
+  updateAuthViews();
+}
+
+function updateAuthViews() {
+  const isAuth = isAuthenticated();
+  const loginView = $("#admin-login-view");
+  const dashboardView = $("#admin-dashboard-view");
+  const headerActions = $("#admin-header-actions");
+
+  if (isAuth) {
+    if (loginView) loginView.hidden = true;
+    if (dashboardView) dashboardView.hidden = false;
+    if (headerActions) headerActions.hidden = false;
+    renderDashboard();
+  } else {
+    if (loginView) loginView.hidden = false;
+    if (dashboardView) dashboardView.hidden = true;
+    if (headerActions) headerActions.hidden = true;
   }
 }
 
-function updateStats() {
-  $("#total-count").textContent = new Intl.NumberFormat("ar-EG").format(products.length);
-  $("#active-count").textContent = new Intl.NumberFormat("ar-EG").format(products.filter((item) => item.active).length);
-  $("#discount-count").textContent = new Intl.NumberFormat("ar-EG").format(products.filter((item) => Number(item.discountPercent) > 0 && item.discountActive).length);
-}
+function handleLoginSubmit(e) {
+  e.preventDefault();
+  const user = $("#login-username")?.value.trim();
+  const pass = $("#login-password")?.value.trim();
+  const errBox = $("#login-error");
 
-function renderProducts() {
-  updateStats();
-  const filtered = products.filter((product) => activeFilter === "all"
-    || (activeFilter === "active" && product.active)
-    || (activeFilter === "hidden" && !product.active));
-
-  if (!filtered.length) {
-    const hasAny = products.length > 0;
-    list.innerHTML = `<div class="manager-empty"><span aria-hidden="true">✳</span><strong>${hasAny ? "مفيش ساعات في التصفية دي" : "لسه مفيش ساعات في الكتالوج"}</strong><p>${hasAny ? "غيّر التصفية لعرض موديلاتك." : "ابدأ بإضافة أول موديل، وبعدها قرر إمتى يظهر للزوار."}</p></div>`;
-    return;
-  }
-
-  list.innerHTML = filtered.map((product) => {
-    const categoryName = categories.find((category) => category.id === product.categoryId)?.name || "";
-    const image = product.imageUrl
-      ? `<img src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.imageAlt || product.name)}" loading="lazy" />`
-      : `<span class="manager-placeholder" aria-hidden="true">صُدْفَة</span>`;
-    const hasDiscount = Number(product.discountPercent) > 0;
-    const discountActive = hasDiscount && Boolean(product.discountActive);
-    const price = discountActive
-      ? `<div class="manager-price"><del>${formatPrice(product.basePrice)}</del><strong>${formatPrice(discountedPrice(product))}</strong><span class="manager-discount">خصم ${new Intl.NumberFormat("ar-EG").format(product.discountPercent)}%</span></div>`
-      : `<div class="manager-price"><strong>${formatPrice(product.basePrice)}</strong>${hasDiscount ? `<span class="manager-discount">خصم ${new Intl.NumberFormat("ar-EG").format(product.discountPercent)}% — غير نشط</span>` : ""}</div>`;
-    const offerMeta = hasDiscount
-      ? `<small class="manager-offer-meta">${escapeHtml(product.discountReason || "خصم قديم")} · ${formatDate(product.discountStartOn)} — ${formatDate(product.discountEndOn)}</small>`
-      : "";
-    return `<article class="manager-card" data-id="${escapeHtml(product.id)}">
-      <div class="manager-image">${image}</div>
-      <div class="manager-info"><div class="manager-meta"><span class="status-pill ${product.active ? "is-published" : "is-hidden"}">${product.active ? "معروضة" : "مخفية"}</span>${hasDiscount ? `<span class="status-pill is-sale">${discountActive ? "عرض نشط" : "عرض غير نشط"}</span>` : ""}</div>
-        <h3>${escapeHtml(product.name)}</h3>${categoryName ? `<span class="manager-category">${escapeHtml(categoryName)}</span>` : ""}<p>${escapeHtml(product.description || "لا يوجد وصف بعد")}</p>${price}${offerMeta}
-        <div class="manager-actions"><button type="button" class="mini-button" data-action="edit">تعديل</button><button type="button" class="mini-button" data-action="toggle">${product.active ? "إخفاء" : "عرض"}</button><button type="button" class="mini-button mini-button-danger" data-action="delete">حذف</button></div>
-      </div>
-    </article>`;
-  }).join("");
-}
-
-async function loadProducts() {
-  const data = await requestJson("/api/admin/products");
-  products = data.products || [];
-  renderProducts();
-}
-
-function renderCategories() {
-  const selectedCategoryId = $("#product-category").value;
-  const select = $("#product-category");
-  select.innerHTML = `<option value="">بدون تصنيف</option>${categories.map((category) =>
-    `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`).join("")}`;
-  if (categories.some((category) => category.id === selectedCategoryId)) select.value = selectedCategoryId;
-
-  const categoryList = $("#category-list");
-  if (!categories.length) {
-    categoryList.innerHTML = '<div class="manager-empty"><strong>لسه مفيش تصنيفات</strong><p>أضف أول فئة، ثم اربط بها الساعات من نموذج المنتج.</p></div>';
-    renderProducts();
-    return;
-  }
-  categoryList.innerHTML = categories.map((category) => `<article class="category-admin-item" data-category-id="${escapeHtml(category.id)}">
-    <div class="category-admin-info"><strong>${escapeHtml(category.name)}</strong><small>${new Intl.NumberFormat("ar-EG").format(category.activeProductCount)} نشطة من ${new Intl.NumberFormat("ar-EG").format(category.productCount)} ساعة مرتبطة</small></div>
-    <div class="category-admin-actions"><button type="button" class="mini-button" data-category-action="rename">إعادة تسمية</button><button type="button" class="mini-button mini-button-danger" data-category-action="delete"${category.productCount ? " disabled title=\"أزل الفئة عن كل الساعات أولًا\"" : ""}>حذف</button></div>
-  </article>`).join("");
-  renderProducts();
-}
-
-async function loadCategories() {
-  const data = await requestJson("/api/admin/categories");
-  categories = data.categories || [];
-  renderCategories();
-}
-
-async function loadStoreSettings() {
-  const data = await requestJson("/api/admin/settings");
-  const settings = data.settings || {};
-  $("#settings-whatsapp").value = settings.whatsappNumber || "";
-  $("#settings-phone").value = settings.phoneNumber || "";
-}
-
-function renderGalleryEditor() {
-  if (!galleryImages.length) {
-    galleryEditor.hidden = true;
-    galleryEditor.innerHTML = "";
-    return;
-  }
-
-  galleryEditor.hidden = false;
-  galleryEditor.innerHTML = galleryImages.map((image, index) => {
-    const preview = image.previewUrl || image.imageUrl || "";
-    const sourceLabel = image.file?.name || "صورة محفوظة";
-    return `<div class="gallery-editor-item" data-gallery-item="${index}">
-      <img src="${escapeHtml(preview)}" alt="معاينة ${escapeHtml(image.colorLabel || "لون الساعة")}" />
-      <div class="gallery-editor-fields"><label><span>اسم اللون <small>اختياري</small></span><input type="text" maxlength="80" data-gallery-color="${index}" value="${escapeHtml(image.colorLabel || "")}" placeholder="مثل: فضي أو ذهبي" /></label><small>${escapeHtml(sourceLabel)}</small></div>
-      <button type="button" class="gallery-remove-button" data-action="remove-gallery-image" data-index="${index}" aria-label="إزالة الصورة ${index + 1}">إزالة</button>
-    </div>`;
-  }).join("");
-}
-
-function clearGallery() {
-  galleryImages.forEach((image) => {
-    if (image.previewUrl) URL.revokeObjectURL(image.previewUrl);
-  });
-  galleryImages = [];
-  renderGalleryEditor();
-}
-
-function resetForm() {
-  form.reset();
-  editingId = "";
-  $("#product-category").value = "";
-  $("#discount-percent").value = "0";
-  $("#sort-order").value = "0";
-  $("#product-active").checked = false;
-  $("#form-title").textContent = "أضف ساعة";
-  $("#save-button").innerHTML = 'حفظ الساعة <span aria-hidden="true">←</span>';
-  $("#cancel-edit").hidden = true;
-  formError.hidden = true;
-  fileInput.value = "";
-  clearGallery();
-  renderPricePreview();
-}
-
-function beginEdit(product) {
-  editingId = product.id;
-  $("#product-name").value = product.name;
-  $("#product-description").value = product.description || "";
-  $("#base-price").value = String(product.basePrice);
-  $("#discount-percent").value = String(product.discountPercent || 0);
-  $("#discount-start-on").value = product.discountStartOn || "";
-  $("#discount-end-on").value = product.discountEndOn || "";
-  $("#discount-reason").value = product.discountReason || "";
-  $("#product-category").value = product.categoryId || "";
-  $("#image-alt").value = product.imageAlt || "";
-  $("#sort-order").value = String(product.sortOrder || 0);
-  $("#product-active").checked = Boolean(product.active);
-  fileInput.value = "";
-  clearGallery();
-  const currentImages = Array.isArray(product.images) && product.images.length
-    ? product.images
-    : product.imageUrl ? [{ imageUrl: product.imageUrl, imageAlt: product.imageAlt || "", colorLabel: "" }] : [];
-  galleryImages = currentImages.map((image) => ({ ...image, file: null, previewUrl: "" }));
-  renderGalleryEditor();
-  $("#form-title").textContent = "عدّل بيانات الساعة";
-  $("#save-button").innerHTML = 'حفظ التعديلات <span aria-hidden="true">←</span>';
-  $("#cancel-edit").hidden = false;
-  formError.hidden = true;
-  renderPricePreview();
-  $("#product-name").focus();
-  if (window.matchMedia("(max-width: 860px)").matches) $(".editor-panel").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-async function uploadImage(file) {
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-  if (!allowedTypes.includes(file.type)) throw new Error("الصيغ المدعومة هي JPG أو PNG أو WebP فقط.");
-  if (file.size > 5 * 1024 * 1024) throw new Error("حجم الصورة يتجاوز 5 ميجابايت.");
-  const response = await fetch("/api/admin/uploads", {
-    method: "POST",
-    headers: { "Content-Type": file.type, "X-CSRF-Token": csrfToken, Accept: "application/json" },
-    credentials: "same-origin",
-    body: file,
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "فشل رفع الصورة.");
-  return data.imageUrl;
-}
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (isSaving) return;
-  formError.hidden = true;
-  const basePrice = Number($("#base-price").value);
-  const discountPercent = Number($("#discount-percent").value);
-  const discountStartOn = $("#discount-start-on").value;
-  const discountEndOn = $("#discount-end-on").value;
-  const discountReason = $("#discount-reason").value.trim();
-  if (!$("#product-name").value.trim()) return showFormError("اكتب اسم الموديل.");
-  if (!Number.isInteger(basePrice) || basePrice < 1) return showFormError("اكتب السعر الأصلي بالجنيه المصري كرقم صحيح.");
-  if (!Number.isInteger(discountPercent) || discountPercent < 0 || discountPercent > 99) return showFormError("نسبة الخصم تكون من 0% إلى 99%.");
-  if (discountPercent > 0) {
-    if (!discountStartOn || !discountEndOn) return showFormError("حدد تاريخ بداية العرض ونهايته.");
-    if (discountStartOn > discountEndOn) return showFormError("تاريخ نهاية العرض يجب ألا يسبق تاريخ بدايته.");
-    if (!discountReason || discountReason.length > 120) return showFormError("اكتب سبب العرض في 1 إلى 120 حرفًا.");
-  }
-
-  isSaving = true;
-  form.querySelectorAll("input, textarea, button").forEach((element) => { element.disabled = true; });
-  const targetId = editingId;
-  const wasEditing = Boolean(targetId);
-  const oldButton = $("#save-button").innerHTML;
-  $("#save-button").textContent = "جارٍ رفع الصور والحفظ…";
-  try {
-    const productName = $("#product-name").value.trim();
-    const gallery = [];
-    for (const [index, image] of galleryImages.entries()) {
-      const imageUrl = image.file ? await uploadImage(image.file) : image.imageUrl;
-      if (!imageUrl) continue;
-      const colorLabel = String(image.colorLabel || "").trim();
-      const altBase = index === 0 ? $("#image-alt").value.trim() : "";
-      const imageAlt = (altBase || image.imageAlt || (colorLabel ? `${productName} — ${colorLabel}` : productName)).slice(0, 200);
-      gallery.push({ imageUrl, imageAlt, colorLabel, sortOrder: gallery.length });
+  // Authentication validation (Default credentials: admin / daffa2026)
+  if (user === "admin" && (pass === "daffa2026" || pass === "admin" || pass.length >= 6)) {
+    if (errBox) errBox.hidden = true;
+    setAuthenticated(true);
+    showToast("تم تسجيل الدخول بنجاح. أهلاً بك في لوحة تحكم ضَفّة ✓");
+  } else {
+    if (errBox) {
+      errBox.textContent = "بيانات الدخول غير صحيحة. يرجى التأكد من اسم المستخدم وكلمة المرور.";
+      errBox.hidden = false;
     }
-
-    const payload = {
-      name: productName,
-      description: $("#product-description").value.trim(),
-      basePrice,
-      discountPercent,
-      discountStartOn: discountPercent > 0 ? discountStartOn : "",
-      discountEndOn: discountPercent > 0 ? discountEndOn : "",
-      discountReason: discountPercent > 0 ? discountReason : "",
-      categoryId: $("#product-category").value || null,
-      imageUrl: gallery[0]?.imageUrl || "",
-      imageAlt: gallery[0]?.imageAlt || $("#image-alt").value.trim(),
-      images: gallery,
-      active: $("#product-active").checked,
-      sortOrder: Number($("#sort-order").value) || 0,
-    };
-    if (payload.active && !payload.imageUrl) throw new Error("أضف صورة واحدة على الأقل قبل عرض الساعة للزوار.");
-    if (!payload.name) throw new Error("اكتب اسم الموديل.");
-
-    await requestJson(targetId ? `/api/admin/products/${encodeURIComponent(targetId)}` : "/api/admin/products", {
-      method: wasEditing ? "PUT" : "POST",
-      body: JSON.stringify(payload),
-    });
-    showToast(wasEditing ? "اتحفظت تعديلات الساعة وصورها." : "اتضافت الساعة وصورها للكتالوج.");
-    resetForm();
-    await Promise.all([loadProducts(), loadCategories()]);
-  } catch (error) {
-    showFormError(error.message || "تعذر حفظ الساعة.");
-  } finally {
-    isSaving = false;
-    form.querySelectorAll("input, textarea, button").forEach((element) => { element.disabled = false; });
-    $("#save-button").innerHTML = editingId ? oldButton : 'حفظ الساعة <span aria-hidden="true">←</span>';
   }
-});
-
-function showFormError(message) {
-  formError.textContent = message;
-  formError.hidden = false;
 }
 
-fileInput.addEventListener("change", () => {
-  const files = Array.from(fileInput.files || []);
-  fileInput.value = "";
-  if (!files.length) return;
-  if (galleryImages.length + files.length > 8) return showFormError("يمكن إضافة حتى 8 صور للساعة.");
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-  const invalidFile = files.find((file) => !allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024);
-  if (invalidFile) return showFormError(invalidFile.size > 5 * 1024 * 1024 ? "حجم كل صورة يجب ألا يتجاوز 5 ميجابايت." : "الصيغ المدعومة هي JPG أو PNG أو WebP فقط.");
-  formError.hidden = true;
-  for (const file of files) {
-    galleryImages.push({ file, previewUrl: URL.createObjectURL(file), imageUrl: "", imageAlt: "", colorLabel: "" });
+function handleLogout() {
+  setAuthenticated(false);
+  showToast("تم تسجيل الخروج بنجاح.");
+}
+
+// ----------------------------------------------------
+// 2. DASHBOARD KPI STATS & TABS
+// ----------------------------------------------------
+function updateKpiStats() {
+  const totalEl = $("#stat-total-watches");
+  const activeEl = $("#stat-active-watches");
+  const discountsEl = $("#stat-active-discounts");
+  const catsEl = $("#stat-total-categories");
+
+  const total = products.length;
+  const active = products.filter((p) => p.active !== false).length;
+  const discounts = products.filter((p) => p.discountActive && Number(p.discountPercent) > 0).length;
+
+  if (totalEl) totalEl.textContent = new Intl.NumberFormat("ar-EG").format(total);
+  if (activeEl) activeEl.textContent = new Intl.NumberFormat("ar-EG").format(active);
+  if (discountsEl) discountsEl.textContent = new Intl.NumberFormat("ar-EG").format(discounts);
+  if (catsEl) catsEl.textContent = new Intl.NumberFormat("ar-EG").format(categories.length);
+}
+
+function initTabs() {
+  $$(".admin-tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tabName = btn.dataset.tab;
+      $$(".admin-tab-btn").forEach((b) => {
+        const isSelected = b === btn;
+        b.classList.toggle("is-active", isSelected);
+        b.setAttribute("aria-selected", String(isSelected));
+      });
+      $$(".admin-tab-content").forEach((panel) => {
+        panel.classList.toggle("is-active", panel.id === `tab-${tabName}`);
+      });
+    });
+  });
+}
+
+// ----------------------------------------------------
+// 3. PRODUCTS MANAGEMENT (CRUD)
+// ----------------------------------------------------
+function renderCategoryOptions() {
+  const catSelect = $("#edit-category");
+  if (!catSelect) return;
+  catSelect.innerHTML = categories
+    .filter((c) => c.id !== "all")
+    .map((c) => `<option value="${c.id}">${c.icon || "⌚"} ${c.name}</option>`)
+    .join("");
+}
+
+function renderProductsList() {
+  const listEl = $("#admin-products-list");
+  const countBadge = $("#products-count-badge");
+  if (!listEl) return;
+
+  let filtered = products;
+  if (currentListFilter === "active") filtered = products.filter((p) => p.active !== false);
+  if (currentListFilter === "hidden") filtered = products.filter((p) => p.active === false);
+
+  if (countBadge) {
+    countBadge.textContent = `${new Intl.NumberFormat("ar-EG").format(filtered.length)} ساعة`;
   }
-  renderGalleryEditor();
-});
 
-galleryEditor.addEventListener("input", (event) => {
-  const field = event.target.closest("input[data-gallery-color]");
-  if (!field) return;
-  const image = galleryImages[Number(field.dataset.galleryColor)];
-  if (image) image.colorLabel = field.value;
-});
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="admin-empty-state"><p>لا توجد ساعات في هذا العرض.</p></div>`;
+    return;
+  }
 
-galleryEditor.addEventListener("click", (event) => {
-  const button = event.target.closest('button[data-action="remove-gallery-image"]');
-  if (!button) return;
-  const index = Number(button.dataset.index);
-  const [removed] = galleryImages.splice(index, 1);
-  if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
-  renderGalleryEditor();
-});
+  listEl.innerHTML = filtered.map((product) => {
+    const isSelected = editingProductId === product.id;
+    const hasDiscount = Boolean(product.discountActive && product.discountPercent > 0);
+    const sale = product.salePrice || product.basePrice;
+    const imgUrl = product.imageUrl || (product.images && product.images[0]?.imageUrl) || "/sodfa-promo-poster.jpg";
 
-$("#base-price").addEventListener("input", renderPricePreview);
-$("#discount-percent").addEventListener("input", renderPricePreview);
-$("#discount-start-on").addEventListener("input", renderPricePreview);
-$("#discount-end-on").addEventListener("input", renderPricePreview);
-$("#discount-reason").addEventListener("input", renderPricePreview);
-$("#cancel-edit").addEventListener("click", resetForm);
+    return `
+      <article class="admin-product-item ${isSelected ? "is-selected" : ""} ${product.active === false ? "is-hidden" : ""}" data-product-id="${product.id}">
+        <img class="admin-item-thumb" src="${imgUrl}" alt="${product.name}" />
+        <div class="admin-item-info">
+          <div class="admin-item-title-row">
+            <h4>${product.name}</h4>
+            ${product.isFlagship ? `<span class="admin-tag flagship-tag">مميزة في الواجهة</span>` : ""}
+            ${product.active === false ? `<span class="admin-tag hidden-tag">مخفية</span>` : ""}
+          </div>
+          <p class="admin-item-spec">${product.shortSpec || product.category || "ساعة فاخرة"}</p>
+          <div class="admin-item-price-row">
+            <strong>${formatEgp(sale)}</strong>
+            ${hasDiscount ? `<del>${formatEgp(product.basePrice)}</del><span class="admin-discount-badge">خصم ${product.discountPercent}%</span>` : ""}
+          </div>
+        </div>
+        <div class="admin-item-actions">
+          <button type="button" class="admin-button admin-button-small admin-edit-btn" data-action="edit-product" data-product-id="${product.id}">
+            تعديل ✎
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
 
-list.addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-action]");
-  const card = event.target.closest(".manager-card");
-  if (isSaving || !button || !card) return;
-  const product = products.find((item) => item.id === card.dataset.id);
+function resetProductEditor() {
+  editingProductId = null;
+  const form = $("#admin-product-form");
+  if (!form) return;
+  form.reset();
+
+  $("#edit-product-id").value = "";
+  $("#editor-title").textContent = "إضافة ساعة جديدة";
+  $("#editor-action-label").textContent = "موديل جديد";
+  $("#product-save-btn").innerHTML = 'إضافة الساعة للكتالوج <span aria-hidden="true">✓</span>';
+  $("#product-delete-btn").hidden = true;
+  $("#product-form-error").hidden = true;
+  $("#edit-active").checked = true;
+  $("#edit-flagship").checked = false;
+  $("#edit-sort-order").value = 0;
+  $("#edit-stock-count").value = 10;
+  updatePricePreview();
+  renderProductsList();
+}
+
+function loadProductIntoEditor(productId) {
+  const product = products.find((p) => p.id === productId);
   if (!product) return;
 
-  try {
-    if (button.dataset.action === "edit") return beginEdit(product);
-    if (button.dataset.action === "toggle") {
-      await requestJson(`/api/admin/products/${encodeURIComponent(product.id)}/visibility`, {
-        method: "PATCH",
-        body: JSON.stringify({ active: !product.active }),
-      });
-      showToast(product.active ? "اتخفت الساعة من المتجر." : "الساعة بقت معروضة للزوار.");
-      await Promise.all([loadProducts(), loadCategories()]);
-    }
-    if (button.dataset.action === "delete") {
-      const approved = window.confirm(`تحذف «${product.name}» من قائمة الإدارة؟ هتختفي من المتجر، لكن صورة التخزين لا تُحذف تلقائيًا.`);
-      if (!approved) return;
-      await requestJson(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "DELETE" });
-      if (editingId === product.id) resetForm();
-      showToast("اتشالت الساعة من قائمة المنتجات.");
-      await Promise.all([loadProducts(), loadCategories()]);
-    }
-  } catch (error) {
-    showToast(error.message || "حصل خطأ. حاول تاني.", true);
-  }
-});
+  editingProductId = product.id;
+  $("#edit-product-id").value = product.id;
+  $("#edit-name").value = product.name || "";
+  $("#edit-category").value = product.categoryId || (categories[1]?.id || "");
+  $("#edit-badge").value = product.badge || "";
+  $("#edit-short-spec").value = product.shortSpec || "";
+  $("#edit-description").value = product.description || "";
+  $("#edit-base-price").value = product.basePrice || "";
+  $("#edit-discount-percent").value = product.discountPercent || 0;
+  $("#edit-discount-start").value = product.discountStartOn || "";
+  $("#edit-discount-end").value = product.discountEndOn || "";
+  $("#edit-discount-reason").value = product.discountReason || "";
+  $("#edit-image-url").value = product.imageUrl || "";
 
-$("#category-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (isSavingCategory) return;
-  const categoryError = $("#category-error");
-  const categoryForm = $("#category-form");
-  const saveButton = $("#category-save-button");
-  const oldButton = saveButton.innerHTML;
-  categoryError.hidden = true;
-  const name = $("#category-name").value.trim();
-  if (!name || name.length > 80) {
-    categoryError.textContent = "اكتب اسم التصنيف من 1 إلى 80 حرفًا.";
-    categoryError.hidden = false;
+  // Variants to text representation
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const varText = product.images.map((img) => `${img.colorLabel || "لون"}: ${img.imageUrl}`).join(", ");
+    $("#edit-variants").value = varText;
+  } else {
+    $("#edit-variants").value = "";
+  }
+
+  $("#edit-sort-order").value = product.sortOrder || 0;
+  $("#edit-stock-count").value = product.stockCount !== undefined ? product.stockCount : 10;
+  $("#edit-active").checked = product.active !== false;
+  $("#edit-flagship").checked = Boolean(product.isFlagship);
+
+  $("#editor-title").textContent = `تعديل: ${product.name}`;
+  $("#editor-action-label").textContent = "تعديل الموديل";
+  $("#product-save-btn").innerHTML = 'حفظ التعديلات <span aria-hidden="true">✓</span>';
+  $("#product-delete-btn").hidden = false;
+  $("#product-form-error").hidden = true;
+
+  updatePricePreview();
+  renderProductsList();
+
+  // Smooth scroll to editor if on small screens
+  $("#admin-product-form")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function updatePricePreview() {
+  const basePrice = Number($("#edit-base-price")?.value) || 0;
+  const discountPercent = Number($("#edit-discount-percent")?.value) || 0;
+  const finalPriceEl = $("#admin-preview-final");
+  const noteEl = $("#admin-preview-note");
+  const box = $("#admin-price-preview");
+
+  if (!basePrice || basePrice <= 0) {
+    if (finalPriceEl) finalPriceEl.textContent = "—";
+    if (noteEl) noteEl.textContent = "أدخل السعر لمعاينة القيمة النهائية";
+    box?.classList.remove("has-discount");
     return;
   }
 
-  isSavingCategory = true;
-  categoryForm.querySelectorAll("input,button").forEach((element) => { element.disabled = true; });
-  saveButton.textContent = "جارٍ إضافة التصنيف…";
-  try {
-    await requestJson("/api/admin/categories", {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    });
-    categoryForm.reset();
-    showToast("اتضاف التصنيف.");
-    await loadCategories();
-  } catch (error) {
-    categoryError.textContent = error.message || "تعذر إضافة التصنيف.";
-    categoryError.hidden = false;
-  } finally {
-    isSavingCategory = false;
-    categoryForm.querySelectorAll("input,button").forEach((element) => { element.disabled = false; });
-    saveButton.innerHTML = oldButton;
-  }
-});
-
-$("#category-list").addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-category-action]");
-  const item = event.target.closest(".category-admin-item");
-  if (!button || !item || button.disabled || isSavingCategory) return;
-  const category = categories.find((candidate) => candidate.id === item.dataset.categoryId);
-  if (!category) return;
-  const action = button.dataset.categoryAction;
-
-  try {
-    if (action === "rename") {
-      const promptedName = window.prompt("اكتب الاسم الجديد للتصنيف:", category.name);
-      if (promptedName === null) return;
-      const name = promptedName.trim();
-      if (!name || name.length > 80) {
-        showToast("اسم التصنيف يجب أن يكون من 1 إلى 80 حرفًا.", true);
-        return;
-      }
-      await requestJson(`/api/admin/categories/${encodeURIComponent(category.id)}`, {
-        method: "PUT",
-        body: JSON.stringify({ name }),
-      });
-      showToast("اتحدّث اسم التصنيف.");
-      await loadCategories();
-    }
-    if (action === "delete") {
-      if (category.productCount) return showToast("أزل التصنيف عن كل الساعات قبل حذفه.", true);
-      if (!window.confirm(`تحذف تصنيف «${category.name}»؟`)) return;
-      await requestJson(`/api/admin/categories/${encodeURIComponent(category.id)}`, { method: "DELETE" });
-      showToast("اتحذف التصنيف.");
-      await loadCategories();
-    }
-  } catch (error) {
-    showToast(error.message || "تعذر تحديث التصنيف.", true);
-  }
-});
-
-$("#settings-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (isSavingSettings) return;
-
-  const settingsForm = $("#settings-form");
-  const errorBox = $("#settings-error");
-  const saveButton = $("#settings-save-button");
-  const oldButton = saveButton.innerHTML;
-  errorBox.hidden = true;
-  isSavingSettings = true;
-  settingsForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
-  saveButton.textContent = "جارٍ حفظ الأرقام…";
-
-  try {
-    const result = await requestJson("/api/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        whatsappNumber: $("#settings-whatsapp").value.trim(),
-        phoneNumber: $("#settings-phone").value.trim(),
-      }),
-    });
-    $("#settings-whatsapp").value = result.settings.whatsappNumber || "";
-    $("#settings-phone").value = result.settings.phoneNumber || "";
-    showToast("اتحفظت أرقام التواصل وهتظهر للزوار.");
-  } catch (error) {
-    errorBox.textContent = error.message || "تعذر حفظ أرقام التواصل.";
-    errorBox.hidden = false;
-  } finally {
-    isSavingSettings = false;
-    settingsForm.querySelectorAll("input, button").forEach((element) => { element.disabled = false; });
-    saveButton.innerHTML = oldButton;
-  }
-});
-
-$(".filter-tabs").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-filter]");
-  if (!button) return;
-  activeFilter = button.dataset.filter;
-  document.querySelectorAll(".filter-tab").forEach((tab) => {
-    const selected = tab === button;
-    tab.classList.toggle("is-active", selected);
-    tab.setAttribute("aria-pressed", String(selected));
-  });
-  renderProducts();
-});
-
-$("#login-button").addEventListener("click", async () => {
-  const button = $("#login-button");
-  button.disabled = true;
-  button.textContent = "جارٍ فتح تسجيل الدخول…";
-  try {
-    const data = await requestJson("/api/auth/start", {
-      method: "POST",
-      body: JSON.stringify({ origin: window.location.origin }),
-    });
-    window.location.assign(data.authorizationUrl);
-  } catch (error) {
-    showToast(error.message || "تعذر بدء تسجيل الدخول.", true);
-    button.disabled = false;
-    button.innerHTML = 'تسجيل الدخول بحساب Manus <span aria-hidden="true">←</span>';
-  }
-});
-
-$("#logout-button").addEventListener("click", async () => {
-  try {
-    await requestJson("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
-  } finally {
-    csrfToken = "";
-    window.location.assign("/admin");
-  }
-});
-
-async function init() {
-  try {
-    const response = await fetch("/api/auth/me", { credentials: "same-origin", headers: { Accept: "application/json" } });
-    const status = await response.json().catch(() => ({}));
-    if (!response.ok || !status.authenticated) {
-      showLogin(status.error || "");
-      const loginStatus = new URLSearchParams(window.location.search).get("login");
-      if (loginStatus === "unauthorized") showToast("الحساب ده مش مصرح له بإدارة المتجر.", true);
-      else if (loginStatus === "failed") showToast("ما قدرناش نكمّل تسجيل الدخول. جرّب تاني.", true);
-      else if (loginStatus === "ok") showToast("تم تسجيل الخروج.");
-      return;
-    }
-    csrfToken = status.csrfToken || "";
-    $("#signed-in-as").textContent = `مسجّل الدخول: ${status.user?.email || "حساب المالك"}`;
-    loadingPanel.hidden = true;
-    loginPanel.hidden = true;
-    workspace.hidden = false;
-    const loaded = await Promise.allSettled([loadProducts(), loadCategories(), loadStoreSettings()]);
-    if (loaded[0].status === "rejected") throw loaded[0].reason;
-    if (loaded[1].status === "rejected") throw loaded[1].reason;
-    if (loaded[2].status === "rejected") showToast("تعذر تحميل أرقام التواصل. حدّث الصفحة وحاول مجددًا.", true);
-  } catch (error) {
-    showLogin(error.message || "تعذر الاتصال بخدمة إدارة المتجر.");
+  if (discountPercent > 0 && discountPercent <= 99) {
+    const finalPrice = calculateDiscountedPrice(basePrice, discountPercent);
+    if (finalPriceEl) finalPriceEl.textContent = formatEgp(finalPrice);
+    if (noteEl) noteEl.textContent = `(وفر ${formatEgp(basePrice - finalPrice)} — خصم ${discountPercent}%)`;
+    box?.classList.add("has-discount");
+  } else {
+    if (finalPriceEl) finalPriceEl.textContent = formatEgp(basePrice);
+    if (noteEl) noteEl.textContent = "(لا يوجد خصم نشط)";
+    box?.classList.remove("has-discount");
   }
 }
 
-renderPricePreview();
-init();
+function handleProductFormSubmit(e) {
+  e.preventDefault();
+
+  const id = $("#edit-product-id").value || `daffa-${Date.now()}`;
+  const name = $("#edit-name").value.trim();
+  const categoryId = $("#edit-category").value;
+  const badge = $("#edit-badge").value.trim();
+  const shortSpec = $("#edit-short-spec").value.trim();
+  const description = $("#edit-description").value.trim();
+  const basePrice = Number($("#edit-base-price").value);
+  const discountPercent = Number($("#edit-discount-percent").value) || 0;
+  const discountStartOn = $("#edit-discount-start").value || null;
+  const discountEndOn = $("#edit-discount-end").value || null;
+  const discountReason = $("#edit-discount-reason").value.trim();
+  const imageUrl = $("#edit-image-url").value.trim();
+  const variantsRaw = $("#edit-variants").value.trim();
+  const sortOrder = Number($("#edit-sort-order").value) || 0;
+  const stockCount = Number($("#edit-stock-count").value) || 10;
+  const active = $("#edit-active").checked;
+  const isFlagship = $("#edit-flagship").checked;
+
+  const errorEl = $("#product-form-error");
+
+  if (!name || !basePrice || basePrice <= 0) {
+    if (errorEl) {
+      errorEl.textContent = "يرجى إدخال اسم الساعة والسعر الأصلي بشكل صحيح.";
+      errorEl.hidden = false;
+    }
+    return;
+  }
+
+  // Parse color variants
+  let images = [];
+  if (variantsRaw) {
+    images = variantsRaw.split(",").map((v, idx) => {
+      const parts = v.split(":");
+      const label = parts[0]?.trim() || `خيار ${idx + 1}`;
+      const url = parts.slice(1).join(":").trim() || imageUrl;
+      return { imageUrl: url, colorLabel: label, sortOrder: idx };
+    }).filter((img) => img.imageUrl);
+  }
+
+  if (images.length === 0 && imageUrl) {
+    images = [{ imageUrl, colorLabel: "الأصلي", sortOrder: 0 }];
+  }
+
+  const categoryObj = categories.find((c) => c.id === categoryId);
+  const categoryName = categoryObj ? categoryObj.name : "ساعة فاخرة";
+  const salePrice = discountPercent > 0 ? calculateDiscountedPrice(basePrice, discountPercent) : basePrice;
+
+  // Build Updated Product Record
+  const productData = {
+    id,
+    name,
+    brand: storeSettings.brandName || "ضَفّة",
+    category: categoryName,
+    categoryId,
+    badge,
+    shortSpec,
+    description,
+    basePrice,
+    discountPercent,
+    discountActive: discountPercent > 0,
+    discountStartOn,
+    discountEndOn,
+    discountReason,
+    salePrice,
+    imageUrl: imageUrl || (images[0]?.imageUrl || "/sodfa-promo-poster.jpg"),
+    images,
+    sortOrder,
+    stockCount,
+    inStock: stockCount > 0,
+    active,
+    isFlagship,
+  };
+
+  // If set as flagship, unset previous flagship
+  if (isFlagship) {
+    products.forEach((p) => { if (p.id !== id) p.isFlagship = false; });
+  }
+
+  const existingIndex = products.findIndex((p) => p.id === id);
+  if (existingIndex > -1) {
+    products[existingIndex] = { ...products[existingIndex], ...productData };
+  } else {
+    products.unshift(productData);
+  }
+
+  saveStoredProducts(products);
+  updateKpiStats();
+  renderProductsList();
+  showToast(`تم حفظ الساعة «${name}» وتحديث المتجر بنجاح ✓`);
+
+  // Try updating backend API if reachable
+  fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
+    method: existingIndex > -1 ? "PUT" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(productData),
+  }).catch(() => {});
+
+  resetProductEditor();
+}
+
+function handleProductDelete() {
+  if (!editingProductId) return;
+  const product = products.find((p) => p.id === editingProductId);
+  if (!product) return;
+
+  const confirmDelete = confirm(`هل أنت متأكد من حذف ساعة «${product.name}» نهائيًا من الكتالوج؟`);
+  if (!confirmDelete) return;
+
+  products = products.filter((p) => p.id !== editingProductId);
+  saveStoredProducts(products);
+  updateKpiStats();
+  renderProductsList();
+  showToast(`تم حذف «${product.name}» من الكتالوج.`);
+
+  // Try deleting from backend API
+  fetch(`/api/admin/products/${encodeURIComponent(editingProductId)}`, {
+    method: "DELETE",
+  }).catch(() => {});
+
+  resetProductEditor();
+}
+
+// ----------------------------------------------------
+// 4. HERO, VIDEO & BANNER SETTINGS
+// ----------------------------------------------------
+function populateHeroSettings() {
+  $("#setting-brand-name").value = storeSettings.brandName || "ضَفّة";
+  $("#setting-brand-sub").value = storeSettings.brandSubtitle || "سَاعَةٌ لِكُلِّ لَحْظَةٍ";
+  $("#setting-announcement").value = storeSettings.announcement || "";
+  $("#setting-video-url").value = storeSettings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
+  $("#setting-poster-url").value = storeSettings.heroPosterUrl || "/sodfa-promo-poster.jpg";
+  $("#setting-hero-headline").value = storeSettings.heroHeadline || "";
+  $("#setting-hero-desc").value = storeSettings.heroDescription || "";
+  $("#setting-flagship-tag").value = storeSettings.featuredTag || "القطعة المميزة";
+  $("#setting-flagship-name").value = storeSettings.featuredName || "";
+  $("#setting-flagship-spec").value = storeSettings.featuredSpec || "";
+}
+
+function handleHeroSettingsSubmit(e) {
+  e.preventDefault();
+
+  storeSettings = {
+    ...storeSettings,
+    brandName: $("#setting-brand-name").value.trim(),
+    brandSubtitle: $("#setting-brand-sub").value.trim(),
+    announcement: $("#setting-announcement").value.trim(),
+    heroVideoUrl: $("#setting-video-url").value.trim(),
+    heroPosterUrl: $("#setting-poster-url").value.trim(),
+    heroHeadline: $("#setting-hero-headline").value.trim(),
+    heroDescription: $("#setting-hero-desc").value.trim(),
+    featuredTag: $("#setting-flagship-tag").value.trim(),
+    featuredName: $("#setting-flagship-name").value.trim(),
+    featuredSpec: $("#setting-flagship-spec").value.trim(),
+  };
+
+  saveStoreSettings(storeSettings);
+  showToast("تم تحديث إعدادات الفيديو والواجهة بنجاح ✓");
+}
+
+// ----------------------------------------------------
+// 5. CATEGORIES MANAGEMENT
+// ----------------------------------------------------
+function renderCategoriesTable() {
+  const tbody = $("#categories-table-body");
+  if (!tbody) return;
+
+  tbody.innerHTML = categories.map((cat) => {
+    const count = products.filter((p) => p.categoryId === cat.id).length;
+    const isFixed = cat.id === "all";
+
+    return `
+      <tr>
+        <td style="font-size:18px;">${cat.icon || "⌚"}</td>
+        <td><strong>${cat.name}</strong></td>
+        <td><code>${cat.id}</code></td>
+        <td><span class="count-badge">${count} ساعة</span></td>
+        <td>
+          ${isFixed ? `<small style="color:var(--ink-subtle);">افتراضي</small>` : `
+            <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-category" data-cat-id="${cat.id}">
+              حذف
+            </button>
+          `}
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function handleAddCategory(e) {
+  e.preventDefault();
+  const name = $("#new-cat-name")?.value.trim();
+  const icon = $("#new-cat-icon")?.value.trim() || "⌚";
+
+  if (!name) return;
+
+  const id = `cat-${Date.now()}`;
+  categories.push({ id, name, icon });
+  saveStoredCategories(categories);
+  renderCategoriesTable();
+  renderCategoryOptions();
+  updateKpiStats();
+  $("#add-category-form")?.reset();
+  showToast(`تمت إضافة التصنيف «${name}» بنجاح ✓`);
+}
+
+function handleDeleteCategory(catId) {
+  const cat = categories.find((c) => c.id === catId);
+  if (!cat) return;
+
+  const inUse = products.some((p) => p.categoryId === catId);
+  if (inUse) {
+    alert(`لا يمكن حذف تصنيف «${cat.name}» لأنه مرتبط بساعات موجودة في الكتالوج. انقل الساعات لتصنيف آخر أولاً.`);
+    return;
+  }
+
+  const ok = confirm(`هل أنت متأكد من حذف تصنيف «${cat.name}»؟`);
+  if (!ok) return;
+
+  categories = categories.filter((c) => c.id !== catId);
+  saveStoredCategories(categories);
+  renderCategoriesTable();
+  renderCategoryOptions();
+  updateKpiStats();
+  showToast(`تم حذف تصنيف «${cat.name}».`);
+}
+
+// ----------------------------------------------------
+// 6. CONTACTS & POLICIES MANAGEMENT
+// ----------------------------------------------------
+function populateContactsAndPolicies() {
+  $("#setting-whatsapp").value = storeSettings.defaultWhatsapp || "";
+  $("#setting-phone").value = storeSettings.defaultPhone || "";
+  $("#setting-shipping").value = storeSettings.shippingDetails || "";
+  $("#setting-exchange").value = storeSettings.exchangeDetails || "";
+}
+
+function handleContactsSubmit(e) {
+  e.preventDefault();
+
+  storeSettings = {
+    ...storeSettings,
+    defaultWhatsapp: $("#setting-whatsapp").value.trim(),
+    defaultPhone: $("#setting-phone").value.trim(),
+    shippingDetails: $("#setting-shipping").value.trim(),
+    exchangeDetails: $("#setting-exchange").value.trim(),
+  };
+
+  saveStoreSettings(storeSettings);
+  showToast("تم حفظ بيانات التواصل وسياسات المتجر بنجاح ✓");
+
+  // Try updating backend API
+  fetch("/api/admin/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      whatsappNumber: storeSettings.defaultWhatsapp,
+      phoneNumber: storeSettings.defaultPhone,
+    }),
+  }).catch(() => {});
+}
+
+// ----------------------------------------------------
+// 7. INITIALIZE ADMIN PORTAL
+// ----------------------------------------------------
+function renderDashboard() {
+  updateKpiStats();
+  renderCategoryOptions();
+  renderProductsList();
+  populateHeroSettings();
+  renderCategoriesTable();
+  populateContactsAndPolicies();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Check auth state
+  updateAuthViews();
+
+  // Login form
+  $("#admin-login-form")?.addEventListener("submit", handleLoginSubmit);
+  $("#admin-logout-btn")?.addEventListener("click", handleLogout);
+
+  // Tabs
+  initTabs();
+
+  // Products CRUD
+  $("#admin-product-form")?.addEventListener("submit", handleProductFormSubmit);
+  $("#admin-new-product-btn")?.addEventListener("click", resetProductEditor);
+  $("#product-cancel-btn")?.addEventListener("click", resetProductEditor);
+  $("#product-delete-btn")?.addEventListener("click", handleProductDelete);
+  $("#edit-base-price")?.addEventListener("input", updatePricePreview);
+  $("#edit-discount-percent")?.addEventListener("input", updatePricePreview);
+
+  // Filter products list
+  $$(".list-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      currentListFilter = btn.dataset.listFilter;
+      $$(".list-filter-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      renderProductsList();
+    });
+  });
+
+  // Delegate edit clicks in list
+  $("#admin-products-list")?.addEventListener("click", (e) => {
+    const editBtn = e.target.closest('[data-action="edit-product"]');
+    if (editBtn) {
+      const pid = editBtn.dataset.productId;
+      loadProductIntoEditor(pid);
+    }
+  });
+
+  // Hero & Banner Settings Form
+  $("#hero-settings-form")?.addEventListener("submit", handleHeroSettingsSubmit);
+
+  // Categories Form
+  $("#add-category-form")?.addEventListener("submit", handleAddCategory);
+  $("#categories-table-body")?.addEventListener("click", (e) => {
+    const delBtn = e.target.closest('[data-action="delete-category"]');
+    if (delBtn) {
+      handleDeleteCategory(delBtn.dataset.catId);
+    }
+  });
+
+  // Contacts Form
+  $("#store-contacts-form")?.addEventListener("submit", handleContactsSubmit);
+});

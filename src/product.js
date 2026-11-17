@@ -167,6 +167,14 @@ function renderProduct(product, serverNow) {
 async function loadContacts() {
   try {
     const response = await fetch("/api/settings", { headers: { Accept: "application/json" } });
+    if (!response.ok) return;
+    const data = await response.json();
+    const settings = data.settings || {};
+    publicContacts = {
+      phoneNumber: validStoredNumber(settings.phoneNumber),
+      whatsappNumber: validStoredNumber(settings.whatsappNumber),
+    };
+    updateOrderLinks();
     if (response.ok) {
       const data = await response.json();
       const settings = data.settings || {};
@@ -178,6 +186,7 @@ async function loadContacts() {
       return;
     }
   } catch {
+    updateOrderLinks();
     // API unavailable
   }
   publicContacts = {

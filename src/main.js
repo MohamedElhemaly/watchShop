@@ -1,37 +1,49 @@
 import "./style.css";
-import { initialProducts, categories, getCart, saveCart, getStoredProducts } from "./data.js";
+import {
+  initialProducts,
+  categories as defaultCategories,
+  getCart,
+  saveCart,
+  getStoredProducts,
+  getStoreSettings,
+  getStoredCategories,
+} from "./data.js";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
 
-// DOM Selectors
+// DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
 
-// State
+// Central State
 let allProducts = getStoredProducts();
+let allCategories = getStoredCategories();
+let currentSettings = getStoreSettings();
 let activeCategory = "all";
 let searchQuery = "";
 let activeSort = "featured";
 let activeFilters = new Set(); // "sale", "leather", "steel"
 let cart = getCart();
-let publicContacts = { phoneNumber: "", whatsappNumber: "" };
-let modalSelectedProduct = null;
+let modalProduct = null;
 let modalSelectedImageIndex = 0;
 let modalQuantity = 1;
 let toastTimeout = null;
 
-// Helpers
-const safeText = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-}[char]));
+// Safe HTML Escape
+const safeText = (value = "") =>
+  String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[char]));
 
+// EGP Currency Formatter
 function formatEgp(amount) {
   return new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 0 }).format(Number(amount) || 0);
 }
 
+// Toast Feedback
 function showToast(message, isSuccess = true) {
   const toast = $("#site-toast");
   if (!toast) return;
@@ -44,7 +56,92 @@ function showToast(message, isSuccess = true) {
 }
 
 // ----------------------------------------------------
-// 1. FILTERING & SORTING LOGIC
+// 1. APPLY STORE SETTINGS (HERO, VIDEO, ANNOUNCEMENT)
+// ----------------------------------------------------
+function applyStoreSettings(settings = currentSettings) {
+  currentSettings = settings;
+
+  // Announcement Bar
+  const announcementEl = $("#site-announcement-text");
+  if (announcementEl && settings.announcement) {
+    announcementEl.textContent = settings.announcement;
+  }
+
+  // Brand Name & Subtitle
+  const brandTitle = $("#site-brand-title");
+  const brandSub = $("#site-brand-sub");
+  if (brandTitle && settings.brandName) brandTitle.textContent = settings.brandName;
+  if (brandSub && settings.brandSubtitle) brandSub.textContent = settings.brandSubtitle;
+
+  // Hero Headline & Description
+  const heroTitle = $("#hero-title");
+  const heroDesc = $("#hero-description");
+  if (heroTitle && settings.heroHeadline) {
+    heroTitle.innerHTML = settings.heroHeadline.replace(/\n/g, "<br />");
+  }
+  if (heroDesc && settings.heroDescription) {
+    heroDesc.textContent = settings.heroDescription;
+  }
+
+  // Hero Flagship Timepiece
+  const flagshipTag = $("#hero-flagship-tag");
+  const flagshipName = $("#hero-flagship-name");
+  const flagshipSpec = $("#hero-flagship-spec");
+  if (flagshipTag && settings.featuredTag) flagshipTag.textContent = settings.featuredTag;
+  if (flagshipName && settings.featuredName) flagshipName.textContent = settings.featuredName;
+  if (flagshipSpec && settings.featuredSpec) flagshipSpec.textContent = settings.featuredSpec;
+
+  // Hero Video & Poster
+  const videoPlayer = $("#hero-video-player");
+  const videoSource = $("#hero-video-source");
+  if (videoPlayer && videoSource) {
+    const targetVideo = settings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
+    const targetPoster = settings.heroPosterUrl || "/sodfa-promo-poster.jpg";
+    if (videoSource.getAttribute("src") !== targetVideo) {
+      videoSource.setAttribute("src", targetVideo);
+      videoPlayer.load();
+      videoPlayer.play().catch(() => {});
+    }
+    if (videoPlayer.getAttribute("poster") !== targetPoster) {
+      videoPlayer.setAttribute("poster", targetPoster);
+    }
+  }
+
+  // Ordering & Contact Links
+  const orderWhatsApp = $("#order-whatsapp-link");
+  const orderPhone = $("#order-phone-link");
+  const footerWhatsApp = $("#footer-whatsapp-link");
+  const footerPhone = $("#footer-phone-link");
+  const contactLinksWrap = $("#ordering-contact-links");
+  const footerContactWrap = $("#footer-contact-links");
+
+  const wa = settings.defaultWhatsapp ? settings.defaultWhatsapp.replace(/\D/g, "") : "";
+  const ph = settings.defaultPhone || "";
+
+  if (wa) {
+    const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(`مرحبًا ${settings.brandName || "ضَفّة"}، أود الاستفسار عن الساعات المتوفرة.`)}`;
+    if (orderWhatsApp) { orderWhatsApp.href = waUrl; orderWhatsApp.hidden = false; }
+    if (footerWhatsApp) { footerWhatsApp.href = waUrl; footerWhatsApp.hidden = false; }
+  } else {
+    if (orderWhatsApp) orderWhatsApp.hidden = true;
+    if (footerWhatsApp) footerWhatsApp.hidden = true;
+  }
+
+  if (ph) {
+    if (orderPhone) { orderPhone.href = `tel:${ph}`; orderPhone.hidden = false; }
+    if (footerPhone) { footerPhone.href = `tel:${ph}`; footerPhone.hidden = false; }
+  } else {
+    if (orderPhone) orderPhone.hidden = true;
+    if (footerPhone) footerPhone.hidden = true;
+  }
+
+  const hasContacts = Boolean(wa || ph);
+  if (contactLinksWrap) contactLinksWrap.hidden = !hasContacts;
+  if (footerContactWrap) footerContactWrap.hidden = !hasContacts;
+}
+
+// ----------------------------------------------------
+// 2. FILTERING & SORTING LOGIC
 // ----------------------------------------------------
 function matchesCategory(product, catId) {
   if (catId === "all") return true;
@@ -53,39 +150,39 @@ function matchesCategory(product, catId) {
   if (catId === "classic-dress") return product.categoryId === "classic-dress" || product.style === "classic";
   if (catId === "sport-chrono") return product.categoryId === "sport-chrono" || product.style === "chronograph" || product.style === "sport";
   if (catId === "smart-hybrid") return product.categoryId === "smart-hybrid" || product.style === "smart";
-  return product.categoryId === catId;
+  return product.categoryId === catId || (product.category && product.category.includes(catId));
 }
 
 function getFilteredProducts() {
   let list = allProducts.filter((product) => {
-    // 1. Category
+    // 1. Category Filter
     if (!matchesCategory(product, activeCategory)) return false;
 
-    // 2. Search query (name, description, brand, category)
+    // 2. Search Query Filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim();
       const name = (product.name || "").toLowerCase();
       const desc = (product.description || "").toLowerCase();
       const cat = (product.category || "").toLowerCase();
-      const style = (product.style || "").toLowerCase();
-      if (!name.includes(q) && !desc.includes(q) && !cat.includes(q) && !style.includes(q)) {
+      const spec = (product.shortSpec || "").toLowerCase();
+      if (!name.includes(q) && !desc.includes(q) && !cat.includes(q) && !spec.includes(q)) {
         return false;
       }
     }
 
-    // 3. Quick filters
+    // 3. Quick Filter Chips
     if (activeFilters.has("sale") && (!product.discountActive || !product.discountPercent)) {
       return false;
     }
     if (activeFilters.has("leather")) {
       const desc = (product.description || "").toLowerCase();
-      const specs = (product.specifications || []).map(s => s.value).join(" ").toLowerCase();
-      if (!desc.includes("جلد") && !specs.includes("جلد")) return false;
+      const spec = (product.shortSpec || "").toLowerCase();
+      if (!desc.includes("جلد") && !spec.includes("جلد")) return false;
     }
     if (activeFilters.has("steel")) {
       const desc = (product.description || "").toLowerCase();
-      const specs = (product.specifications || []).map(s => s.value).join(" ").toLowerCase();
-      if (!desc.includes("ستيل") && !desc.includes("فولاذ") && !specs.includes("ستيل") && !specs.includes("فولاذ")) return false;
+      const spec = (product.shortSpec || "").toLowerCase();
+      if (!desc.includes("ستيل") && !desc.includes("فولاذ") && !spec.includes("ستيل") && !spec.includes("فولاذ")) return false;
     }
 
     return true;
@@ -93,9 +190,17 @@ function getFilteredProducts() {
 
   // Sorting
   if (activeSort === "price-asc") {
-    list.sort((a, b) => (a.salePrice || a.basePrice) - (b.salePrice || b.basePrice));
+    list.sort((a, b) => {
+      const pA = (a.discountActive && a.discountPercent > 0) ? (a.salePrice || a.basePrice) : a.basePrice;
+      const pB = (b.discountActive && b.discountPercent > 0) ? (b.salePrice || b.basePrice) : b.basePrice;
+      return pA - pB;
+    });
   } else if (activeSort === "price-desc") {
-    list.sort((a, b) => (b.salePrice || b.basePrice) - (a.salePrice || a.basePrice));
+    list.sort((a, b) => {
+      const pA = (a.discountActive && a.discountPercent > 0) ? (a.salePrice || a.basePrice) : a.basePrice;
+      const pB = (b.discountActive && b.discountPercent > 0) ? (b.salePrice || b.basePrice) : b.basePrice;
+      return pB - pA;
+    });
   } else if (activeSort === "discount") {
     list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0));
   }
@@ -104,13 +209,13 @@ function getFilteredProducts() {
 }
 
 // ----------------------------------------------------
-// 2. CATEGORY TABS RENDERING
+// 3. CATEGORY TABS RENDERING
 // ----------------------------------------------------
 function renderCategoryTabs() {
   const container = $("#catalog-category-tabs");
   if (!container) return;
 
-  container.innerHTML = categories.map((cat) => {
+  container.innerHTML = allCategories.map((cat) => {
     const count = allProducts.filter((p) => matchesCategory(p, cat.id)).length;
     const isSelected = activeCategory === cat.id;
     return `
@@ -120,8 +225,8 @@ function renderCategoryTabs() {
         role="tab" 
         aria-selected="${isSelected}"
         data-category="${cat.id}">
-        <span class="tab-icon" aria-hidden="true">${cat.icon}</span>
-        <span class="tab-name">${cat.name}</span>
+        <span class="tab-icon" aria-hidden="true">${cat.icon || "⌚"}</span>
+        <span class="tab-name">${safeText(cat.name)}</span>
         <span class="tab-count">${new Intl.NumberFormat("ar-EG").format(count)}</span>
       </button>
     `;
@@ -129,50 +234,55 @@ function renderCategoryTabs() {
 }
 
 // ----------------------------------------------------
-// 3. PRODUCT CARDS RENDERING
+// 4. BESPOKE WATCH PRODUCT CARD RENDERING
+// (Clean Horology Aesthetic: No Red Banner, Equal Height, Interactive Swatches)
 // ----------------------------------------------------
-function renderPriceMarkup(product) {
+function renderPriceRow(product) {
   const basePrice = Number(product.basePrice);
   const discountPercent = Number(product.discountPercent) || 0;
   const salePrice = Number(product.salePrice);
-  const discountActive = Boolean(product.discountActive) && discountPercent > 0;
+  const discountActive = Boolean(product.discountActive) && discountPercent > 0 && Number.isFinite(salePrice);
+  const currentPrice = discountActive ? salePrice : basePrice;
 
-  if (discountActive && Number.isFinite(salePrice)) {
-    const countdown = product.discountEndOn
-      ? `<small class="discount-countdown" data-promotion-countdown data-discount-end="${safeText(product.discountEndOn)}" aria-label="الوقت المتبقي"></small>`
-      : "";
-    return `
-      <div class="product-price product-price-discounted">
-        <span class="price-before"><del>${formatEgp(basePrice)} <small>ج.م</small></del></span>
-        <span class="sale-badge">خصم ${formatEgp(discountPercent)}%</span>
-        <div class="sale-price-bubble">
-          <small>السعر بعد الخصم</small>
-          <strong class="price-after">${formatEgp(salePrice)} <small>ج.م</small></strong>
-        </div>
-        ${countdown}
+  const countdownMarkup = (discountActive && product.discountEndOn)
+    ? `<span class="timer-pill" data-promotion-countdown data-discount-end="${safeText(product.discountEndOn)}" aria-label="الوقت المتبقي"></span>`
+    : "";
+
+  return `
+    <div class="card-pricing-row">
+      <div class="pricing-main">
+        <strong class="price-current">${formatEgp(currentPrice)} <small>ج.م</small></strong>
+        ${discountActive ? `<del class="price-original">${formatEgp(basePrice)} <small>ج.م</small></del>` : ""}
       </div>
-    `;
-  }
-
-  return `<p class="product-price">${formatEgp(basePrice)} <small>ج.م</small></p>`;
+      ${discountActive ? `
+        <div class="pricing-tags">
+          <span class="discount-pill">خصم ${formatEgp(discountPercent)}%</span>
+          ${countdownMarkup}
+        </div>
+      ` : ""}
+    </div>
+  `;
 }
 
 function renderProductCard(product, index) {
   const hasImages = Array.isArray(product.images) && product.images.length > 0;
   const coverImage = product.imageUrl || (hasImages ? product.images[0].imageUrl : "/sodfa-promo-poster.jpg");
-  const badgeMarkup = product.badge ? `<span class="product-card-badge">${safeText(product.badge)}</span>` : "";
+  const badgeMarkup = product.badge ? `<span class="product-status-tag">${safeText(product.badge)}</span>` : "";
 
-  // Color Swatch preview dots
+  // Interactive Color Swatches
   let swatchesHtml = "";
   if (hasImages && product.images.length > 1) {
     swatchesHtml = `
-      <div class="card-swatches" role="group" aria-label="ألوان الساعة المتاحة">
+      <div class="card-swatches" role="group" aria-label="ألوان الساعة">
         ${product.images.map((img, i) => `
           <button 
             type="button" 
             class="swatch-dot ${i === 0 ? "is-selected" : ""}" 
             title="${safeText(img.colorLabel || `لون ${i+1}`)}" 
-            data-swatch-index="${i}" 
+            data-action="switch-card-swatch"
+            data-image-index="${i}" 
+            data-image-url="${safeText(img.imageUrl)}"
+            data-color-label="${safeText(img.colorLabel || "")}"
             data-product-id="${safeText(product.id)}"
             aria-label="${safeText(img.colorLabel || `لون ${i+1}`)}">
           </button>
@@ -181,42 +291,47 @@ function renderProductCard(product, index) {
     `;
   }
 
-  const specSnippet = (product.specifications && product.specifications[0]) 
-    ? `${product.specifications[0].value} • ${product.specifications[2]?.value || "دقة عالية"}`
-    : "ساعة أصلية فاخرة";
+  const spec1Line = product.shortSpec 
+    || (product.specifications && product.specifications[0] ? `${product.specifications[0].value} • ${product.specifications[2]?.value || "دقة عالية"}` : "ساعة أصلية فاخرة");
 
   return `
     <article class="product-card" data-product-id="${safeText(product.id)}">
+      <!-- Studio Framing with 4:5 Aspect Ratio -->
       <div class="product-visual">
+        <div class="visual-corner-badges">
+          <span class="category-pill">${safeText(product.category || "ساعة فاخرة")}</span>
+          <span class="index-pill">#${String(index + 1).padStart(2, "0")}</span>
+        </div>
         ${badgeMarkup}
-        <button type="button" class="product-visual-btn" data-action="quick-view" data-product-id="${safeText(product.id)}" aria-label="عرض تفاصيل ومواصفات ${safeText(product.name)}">
-          <img class="product-image" src="${safeText(coverImage)}" alt="${safeText(product.imageAlt || product.name)}" loading="lazy" />
+        <button type="button" class="product-visual-btn" data-action="quick-view" data-product-id="${safeText(product.id)}" aria-label="عرض مواصفات ${safeText(product.name)}">
+          <img class="product-image" id="card-img-${safeText(product.id)}" src="${safeText(coverImage)}" alt="${safeText(product.imageAlt || product.name)}" loading="lazy" />
         </button>
-        <span class="product-index">${String(index + 1).padStart(2, "0")}</span>
       </div>
 
+      <!-- Card Body with Fixed Structure & Equal Height -->
       <div class="product-details">
         <div class="product-header-group">
-          <span class="product-category-tag">${safeText(product.category || "ساعة صُدْفَة")}</span>
           <h3 class="product-title">
             <button type="button" class="product-title-btn" data-action="quick-view" data-product-id="${safeText(product.id)}">
               ${safeText(product.name)}
             </button>
           </h3>
-          <p class="product-spec-snippet">${safeText(specSnippet)}</p>
+          <p class="product-spec-line">${safeText(spec1Line)}</p>
           ${swatchesHtml}
         </div>
 
-        <div class="product-price-section">
-          ${renderPriceMarkup(product)}
+        <div class="product-pricing-wrap">
+          ${renderPriceRow(product)}
         </div>
 
         <div class="card-actions-row">
-          <button type="button" class="card-details-btn" data-action="quick-view" data-product-id="${safeText(product.id)}">
-            المواصفات <span aria-hidden="true">←</span>
-          </button>
           <button type="button" class="card-add-cart-btn button button-primary" data-action="add-to-cart" data-product-id="${safeText(product.id)}">
-            أضف للحقيبة 👜
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            <span>أضف للحقيبة</span>
+          </button>
+          <button type="button" class="card-details-btn button button-quiet" data-action="quick-view" data-product-id="${safeText(product.id)}">
+            <span>المواصفات</span>
+            <span aria-hidden="true">←</span>
           </button>
         </div>
       </div>
@@ -244,7 +359,7 @@ function renderCatalog() {
   const hasActiveFilters = searchQuery !== "" || activeCategory !== "all" || activeFilters.size > 0 || activeSort !== "featured";
   if (resetBtn) resetBtn.hidden = !hasActiveFilters;
 
-  // Empty state if 0 results
+  // Empty State if no matches
   if (filtered.length === 0) {
     grid.innerHTML = `
       <div class="empty-state">
@@ -263,28 +378,20 @@ function renderCatalog() {
 }
 
 // ----------------------------------------------------
-// 4. SHOPPING CART FUNCTIONALITY
+// 5. SHOPPING CART FUNCTIONALITY
 // ----------------------------------------------------
 function updateCartBadge() {
   const badge = $("#cart-badge");
   const countText = $("#cart-items-count-text");
-  const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
   if (badge) {
-    badge.textContent = String(totalCount);
-    badge.classList.toggle("has-items", totalCount > 0);
+    badge.textContent = new Intl.NumberFormat("ar-EG").format(totalCount);
+    badge.classList.toggle("is-active", totalCount > 0);
   }
   if (countText) {
-    countText.textContent = `${new Intl.NumberFormat("ar-EG").format(totalCount)} قطع`;
+    countText.textContent = `${new Intl.NumberFormat("ar-EG").format(totalCount)} قطعة`;
   }
-}
-
-function calculateCartTotals() {
-  const subtotal = cart.reduce((sum, item) => {
-    const price = Number(item.product.salePrice || item.product.basePrice);
-    return sum + price * item.quantity;
-  }, 0);
-  return { subtotal, total: subtotal };
 }
 
 function renderCartDrawer() {
@@ -294,187 +401,213 @@ function renderCartDrawer() {
   const subtotalEl = $("#cart-subtotal-amount");
   const totalEl = $("#cart-total-amount");
 
+  if (!list) return;
+
   updateCartBadge();
 
   if (cart.length === 0) {
-    if (list) list.innerHTML = "";
-    if (emptyView) emptyView.hidden = false;
-    if (footer) footer.hidden = true;
+    list.innerHTML = "";
+    emptyView?.removeAttribute("hidden");
+    footer?.setAttribute("hidden", "");
     return;
   }
 
-  if (emptyView) emptyView.hidden = true;
-  if (footer) footer.hidden = false;
+  emptyView?.setAttribute("hidden", "");
+  footer?.removeAttribute("hidden");
 
-  const { subtotal, total } = calculateCartTotals();
-  if (subtotalEl) subtotalEl.textContent = `${formatEgp(subtotal)} ج.م`;
-  if (totalEl) totalEl.textContent = `${formatEgp(total)} ج.م`;
+  let subtotal = 0;
 
-  if (list) {
-    list.innerHTML = cart.map((item, index) => {
-      const price = Number(item.product.salePrice || item.product.basePrice);
-      const image = item.selectedImage || item.product.imageUrl || "/sodfa-promo-poster.jpg";
-      const variantText = item.selectedColor ? `<span class="cart-item-variant">${safeText(item.selectedColor)}</span>` : "";
-
-      return `
-        <div class="cart-item-card" data-cart-index="${index}">
-          <div class="cart-item-thumb">
-            <img src="${safeText(image)}" alt="${safeText(item.product.name)}" />
-          </div>
-          <div class="cart-item-info">
-            <h4>${safeText(item.product.name)}</h4>
-            ${variantText}
-            <div class="cart-item-price">${formatEgp(price)} ج.م</div>
-            <div class="cart-item-qty-row">
-              <div class="quantity-control quantity-control-sm">
-                <button type="button" data-action="cart-minus" data-cart-index="${index}" aria-label="تقليل الكمية">−</button>
-                <span>${new Intl.NumberFormat("ar-EG").format(item.quantity)}</span>
-                <button type="button" data-action="cart-plus" data-cart-index="${index}" aria-label="زيادة الكمية">+</button>
-              </div>
-              <button type="button" class="cart-item-remove-btn" data-action="cart-remove" data-cart-index="${index}" aria-label="حذف الساعة من الحقيبة">
-                إزالة
-              </button>
+  list.innerHTML = cart.map((item, index) => {
+    const itemTotal = Number(item.price) * Number(item.quantity);
+    subtotal += itemTotal;
+    return `
+      <div class="cart-item" data-cart-index="${index}">
+        <img class="cart-item-img" src="${safeText(item.image)}" alt="${safeText(item.name)}" />
+        <div class="cart-item-info">
+          <h4 class="cart-item-title">${safeText(item.name)}</h4>
+          ${item.color ? `<span class="cart-item-color">اللون: ${safeText(item.color)}</span>` : ""}
+          <div class="cart-item-price-row">
+            <span class="cart-item-unit-price">${formatEgp(item.price)} ج.م</span>
+            <div class="cart-qty-stepper">
+              <button type="button" class="cart-qty-btn" data-action="cart-minus" data-cart-index="${index}" aria-label="تقليل">−</button>
+              <span class="cart-qty-val">${item.quantity}</span>
+              <button type="button" class="cart-qty-btn" data-action="cart-plus" data-cart-index="${index}" aria-label="زيادة">+</button>
             </div>
           </div>
         </div>
-      `;
-    }).join("");
+        <button type="button" class="cart-remove-btn" data-action="cart-remove" data-cart-index="${index}" aria-label="إزالة الساعة">✕</button>
+      </div>
+    `;
+  }).join("");
+
+  if (subtotalEl) subtotalEl.textContent = `${formatEgp(subtotal)} ج.م`;
+  if (totalEl) totalEl.textContent = `${formatEgp(subtotal)} ج.م`;
+}
+
+function openCartDrawer() {
+  renderCartDrawer();
+  const drawer = $("#cart-drawer");
+  if (drawer) {
+    drawer.hidden = false;
+    document.body.classList.add("modal-open");
+    setTimeout(() => drawer.classList.add("is-open"), 10);
   }
 }
 
-function addToCart(product, selectedImage = "", selectedColor = "", qty = 1) {
-  const chosenColor = selectedColor || (product.images?.[0]?.colorLabel || "");
-  const chosenImage = selectedImage || (product.images?.[0]?.imageUrl || product.imageUrl || "");
+function closeCartDrawer() {
+  const drawer = $("#cart-drawer");
+  if (drawer) {
+    drawer.classList.remove("is-open");
+    setTimeout(() => {
+      drawer.hidden = true;
+      document.body.classList.remove("modal-open");
+    }, 280);
+  }
+}
 
-  // Check if identical item with same color is already in cart
-  const existing = cart.find(
-    (item) => item.product.id === product.id && item.selectedColor === chosenColor
-  );
+function addToCart(product, chosenImage = "", chosenColor = "", qty = 1) {
+  const hasImages = Array.isArray(product.images) && product.images.length > 0;
+  const image = chosenImage || product.imageUrl || (hasImages ? product.images[0].imageUrl : "");
+  const color = chosenColor || (hasImages && product.images[0] ? product.images[0].colorLabel : "");
 
-  if (existing) {
-    existing.quantity += qty;
+  const effectivePrice = (product.discountActive && Number(product.discountPercent) > 0)
+    ? Number(product.salePrice)
+    : Number(product.basePrice);
+
+  const existingIndex = cart.findIndex((item) => item.id === product.id && (item.color || "") === color);
+
+  if (existingIndex > -1) {
+    cart[existingIndex].quantity += qty;
   } else {
     cart.push({
-      product,
-      selectedImage: chosenImage,
-      selectedColor: chosenColor,
+      id: product.id,
+      name: product.name,
+      price: effectivePrice,
+      basePrice: Number(product.basePrice),
+      image: image,
+      color: color,
       quantity: qty,
     });
   }
 
   saveCart(cart);
-  renderCartDrawer();
-  openCartDrawer();
-  showToast(`✓ أضيفت «${product.name}» إلى حقيبة التسوق.`);
-}
-
-function openCartDrawer() {
-  const drawer = $("#cart-drawer");
-  if (!drawer) return;
-  drawer.hidden = false;
-  setTimeout(() => drawer.classList.add("is-open"), 10);
-  document.body.style.overflow = "hidden";
-}
-
-function closeCartDrawer() {
-  const drawer = $("#cart-drawer");
-  if (!drawer) return;
-  drawer.classList.remove("is-open");
-  setTimeout(() => {
-    drawer.hidden = true;
-    document.body.style.overflow = "";
-  }, 220);
+  updateCartBadge();
+  showToast(`تمت إضافة «${product.name}» إلى حقيبة التسوق بنجاح ✓`);
 }
 
 // ----------------------------------------------------
-// 5. RICH PRODUCT DETAIL MODAL
+// 6. RICH PRODUCT DETAIL MODAL
 // ----------------------------------------------------
-function openProductModal(product) {
-  modalSelectedProduct = product;
+function openProductModal(productId) {
+  const product = allProducts.find((p) => p.id === productId);
+  if (!product) return;
+
+  modalProduct = product;
   modalSelectedImageIndex = 0;
   modalQuantity = 1;
 
   const modal = $("#product-detail-modal");
-  if (!modal) return;
-
-  const mainImg = $("#modal-main-image");
-  const swatches = $("#modal-swatches");
-  const nameEl = $("#modal-product-name");
-  const catEl = $("#modal-product-category");
-  const priceWrap = $("#modal-price-wrap");
-  const descEl = $("#modal-product-description");
-  const specsList = $("#modal-specs-list");
+  const modalName = $("#modal-product-name");
+  const modalCategory = $("#modal-product-category");
+  const modalPrice = $("#modal-price-wrap");
+  const modalDesc = $("#modal-product-description");
+  const modalSpecs = $("#modal-specs-list");
+  const modalImage = $("#modal-main-image");
+  const modalSwatches = $("#modal-swatches");
   const qtyDisplay = $("#modal-qty-display");
   const whatsappBtn = $("#modal-whatsapp-btn");
 
+  if (modalName) modalName.textContent = product.name;
+  if (modalCategory) modalCategory.textContent = product.category || "ساعة فاخرة";
+  if (modalDesc) modalDesc.textContent = product.description || "";
+  if (modalPrice) modalPrice.innerHTML = renderPriceRow(product);
+  if (qtyDisplay) qtyDisplay.textContent = "1";
+
+  // Gallery Swatches
   const images = Array.isArray(product.images) && product.images.length > 0
     ? product.images
-    : [{ imageUrl: product.imageUrl || "/sodfa-promo-poster.jpg", colorLabel: "الأساسي", imageAlt: product.name }];
+    : [{ imageUrl: product.imageUrl, colorLabel: "الأصلي" }];
 
-  mainImg.src = images[0].imageUrl;
-  mainImg.alt = images[0].imageAlt || product.name;
-  nameEl.textContent = product.name;
-  catEl.textContent = product.category || "ساعة صُدْفَة";
-  descEl.textContent = product.description || "ساعة راقية بتفاصيل عالية الدقة.";
-  priceWrap.innerHTML = renderPriceMarkup(product);
-  qtyDisplay.textContent = "1";
+  if (modalImage) {
+    modalImage.src = images[0]?.imageUrl || product.imageUrl;
+    modalImage.alt = product.name;
+  }
 
-  // Specs List
-  if (product.specifications && product.specifications.length > 0) {
-    specsList.innerHTML = product.specifications.map((s) => `
-      <div class="spec-row">
+  if (modalSwatches) {
+    if (images.length > 1) {
+      modalSwatches.innerHTML = images.map((img, idx) => `
+        <button 
+          type="button" 
+          class="modal-swatch-thumb ${idx === 0 ? "is-active" : ""}" 
+          data-index="${idx}" 
+          aria-label="${safeText(img.colorLabel || `لون ${idx+1}`)}">
+          <img src="${safeText(img.imageUrl)}" alt="" />
+          <span>${safeText(img.colorLabel || `خيار ${idx+1}`)}</span>
+        </button>
+      `).join("");
+      modalSwatches.hidden = false;
+    } else {
+      modalSwatches.innerHTML = "";
+      modalSwatches.hidden = true;
+    }
+  }
+
+  // Specifications
+  if (modalSpecs) {
+    const specs = Array.isArray(product.specifications) && product.specifications.length > 0
+      ? product.specifications
+      : [
+          { label: "الموديل", value: product.name },
+          { label: "التصنيف", value: product.category || "كلاسيك" },
+          { label: "الضمان", value: "سنتان شامل" },
+        ];
+    modalSpecs.innerHTML = specs.map((s) => `
+      <div class="modal-spec-row">
         <dt>${safeText(s.label)}</dt>
         <dd>${safeText(s.value)}</dd>
       </div>
     `).join("");
-  } else {
-    specsList.innerHTML = `
-      <div class="spec-row"><dt>الضمان</dt><dd>سنتان شاملتان</dd></div>
-      <div class="spec-row"><dt>التوصيل</dt><dd>معاينة مجانية عند الاستلام</dd></div>
-    `;
   }
 
-  // Gallery Swatches
-  swatches.innerHTML = images.map((img, i) => `
-    <button type="button" class="modal-swatch-thumb ${i === 0 ? "is-selected" : ""}" data-image-index="${i}">
-      <img src="${safeText(img.imageUrl)}" alt="" />
-      <span>${safeText(img.colorLabel || `لون ${i+1}`)}</span>
-    </button>
-  `).join("");
-
-  // WhatsApp Order Link
-  const phone = publicContacts.whatsappNumber.replace(/\D/g, "");
-  if (phone) {
-    const msg = encodeURIComponent(`مرحبًا صُدْفَة، أرغب بالاستفسار عن طلب ساعة ${product.name}. ممكن تفاصيل الشحن والتوفر؟`);
-    whatsappBtn.href = `https://wa.me/${phone}?text=${msg}`;
-    whatsappBtn.hidden = false;
-  } else {
-    whatsappBtn.hidden = true;
+  // Direct WhatsApp Button inside modal
+  if (whatsappBtn) {
+    const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
+    if (wa) {
+      const msg = encodeURIComponent(`مرحبًا ${currentSettings.brandName || "ضَفّة"}، أود طلب ساعة: ${product.name} (السعر: ${formatEgp(product.salePrice || product.basePrice)} ج.م).`);
+      whatsappBtn.href = `https://wa.me/${wa}?text=${msg}`;
+      whatsappBtn.hidden = false;
+    } else {
+      whatsappBtn.hidden = true;
+    }
   }
 
-  modal.hidden = false;
-  setTimeout(() => modal.classList.add("is-open"), 10);
-  document.body.style.overflow = "hidden";
+  if (modal) {
+    modal.hidden = false;
+    document.body.classList.add("modal-open");
+    setTimeout(() => modal.classList.add("is-open"), 10);
+  }
 }
 
 function closeProductModal() {
   const modal = $("#product-detail-modal");
-  if (!modal) return;
-  modal.classList.remove("is-open");
-  setTimeout(() => {
-    modal.hidden = true;
-    document.body.style.overflow = "";
-  }, 220);
+  if (modal) {
+    modal.classList.remove("is-open");
+    setTimeout(() => {
+      modal.hidden = true;
+      document.body.classList.remove("modal-open");
+    }, 280);
+  }
 }
 
 // ----------------------------------------------------
-// 6. CHECKOUT FLOW & ORDER SUBMISSION
+// 7. COMPLETE CHECKOUT FLOW MODAL
 // ----------------------------------------------------
 function openCheckoutModal() {
   if (cart.length === 0) {
-    showToast("حقيبة التسوق فارغة!", false);
+    showToast("حقيبة التسوق فارغة حاليًا.", false);
     return;
   }
+
   closeCartDrawer();
 
   const modal = $("#checkout-modal");
@@ -482,179 +615,167 @@ function openCheckoutModal() {
   const successView = $("#checkout-success-view");
   const itemsSummary = $("#checkout-items-summary");
   const finalTotal = $("#checkout-final-total");
-  const errorBox = $("#checkout-error");
+  const errorEl = $("#checkout-error");
 
-  if (!modal) return;
-  formView.hidden = false;
-  successView.hidden = true;
-  if (errorBox) errorBox.hidden = true;
+  if (formView) formView.hidden = false;
+  if (successView) successView.hidden = true;
+  if (errorEl) errorEl.hidden = true;
 
-  const { total } = calculateCartTotals();
-  if (finalTotal) finalTotal.textContent = `${formatEgp(total)} ج.م`;
-
+  let subtotal = 0;
   if (itemsSummary) {
-    itemsSummary.innerHTML = cart.map((item) => `
-      <div class="summary-item-line">
-        <span class="summary-item-title">${safeText(item.product.name)} × ${new Intl.NumberFormat("ar-EG").format(item.quantity)} ${item.selectedColor ? `(${safeText(item.selectedColor)})` : ""}</span>
-        <strong class="summary-item-cost">${formatEgp(Number(item.product.salePrice || item.product.basePrice) * item.quantity)} ج.م</strong>
-      </div>
-    `).join("");
+    itemsSummary.innerHTML = cart.map((item) => {
+      const itemTot = Number(item.price) * Number(item.quantity);
+      subtotal += itemTot;
+      return `
+        <div class="checkout-item-line">
+          <span>${safeText(item.name)} × ${item.quantity} ${item.color ? `(${safeText(item.color)})` : ""}</span>
+          <strong>${formatEgp(itemTot)} ج.م</strong>
+        </div>
+      `;
+    }).join("");
   }
 
-  modal.hidden = false;
-  setTimeout(() => modal.classList.add("is-open"), 10);
-  document.body.style.overflow = "hidden";
+  if (finalTotal) finalTotal.textContent = `${formatEgp(subtotal)} ج.م`;
+
+  if (modal) {
+    modal.hidden = false;
+    document.body.classList.add("modal-open");
+    setTimeout(() => modal.classList.add("is-open"), 10);
+  }
 }
 
 function closeCheckoutModal() {
   const modal = $("#checkout-modal");
-  if (!modal) return;
-  modal.classList.remove("is-open");
-  setTimeout(() => {
-    modal.hidden = true;
-    document.body.style.overflow = "";
-  }, 220);
+  if (modal) {
+    modal.classList.remove("is-open");
+    setTimeout(() => {
+      modal.hidden = true;
+      document.body.classList.remove("modal-open");
+    }, 280);
+  }
 }
 
 function handleCheckoutSubmit(e) {
   e.preventDefault();
-  const name = $("#checkout-name").value.trim();
-  const phone = $("#checkout-phone").value.trim();
-  const gov = $("#checkout-governorate").value;
-  const city = $("#checkout-city").value.trim();
-  const address = $("#checkout-address").value.trim();
-  const notes = $("#checkout-notes").value.trim();
-  const errorBox = $("#checkout-error");
+
+  const name = $("#checkout-name")?.value.trim();
+  const phone = $("#checkout-phone")?.value.trim();
+  const gov = $("#checkout-governorate")?.value;
+  const city = $("#checkout-city")?.value.trim();
+  const address = $("#checkout-address")?.value.trim();
+  const notes = $("#checkout-notes")?.value.trim() || "لا توجد ملاحظات";
+  const errorEl = $("#checkout-error");
+
+  // Validate Egyptian Mobile
+  const normalizedPhone = phone.replace(/[\s-]/g, "");
+  const isValidPhone = /^(\+20|0)?1[0125]\d{8}$/.test(normalizedPhone);
 
   if (!name || !phone || !gov || !city || !address) {
-    errorBox.textContent = "يرجى ملء جميع الحقول المطلوبة (*).";
-    errorBox.hidden = false;
+    if (errorEl) {
+      errorEl.textContent = "يرجى استيفاء جميع الحقول المطلوبة للمتابعة.";
+      errorEl.hidden = false;
+    }
     return;
   }
 
-  // Generate unique order ID
-  const orderId = `SDF-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-  const { total } = calculateCartTotals();
-
-  // Populate Success View
-  $("#success-order-id").textContent = orderId;
-  $("#success-summary-card").innerHTML = `
-    <div class="success-card-row"><span>المشتري:</span><strong>${safeText(name)}</strong></div>
-    <div class="success-card-row"><span>رقم الهاتف:</span><strong dir="ltr">${safeText(phone)}</strong></div>
-    <div class="success-card-row"><span>العنوان:</span><strong>${safeText(gov)} — ${safeText(city)}، ${safeText(address)}</strong></div>
-    <div class="success-card-row"><span>إجمالي الفاتورة:</span><strong>${formatEgp(total)} ج.م (شامل الشحن والدفع عند الاستلام)</strong></div>
-  `;
-
-  // WhatsApp Immediate Confirmation Link
-  const cleanPhone = publicContacts.whatsappNumber.replace(/\D/g, "");
-  const orderItemsText = cart.map(i => `• ${i.product.name} (عدد ${i.quantity})`).join("\n");
-  const waMsg = encodeURIComponent(
-    `مرحبًا صُدْفَة، تم تثبيت طلبي رقم ${orderId}:\n${orderItemsText}\nالإجمالي: ${total} ج.م\nالاسم: ${name}\nالمحافظة: ${gov}\nالعنوان: ${city} - ${address}\nيرجى تأكيد الشحن.`
-  );
-  const waLink = $("#success-whatsapp-confirm");
-  if (waLink) {
-    waLink.href = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : `https://wa.me/?text=${waMsg}`;
+  if (!isValidPhone) {
+    if (errorEl) {
+      errorEl.textContent = "يرجى كتابة رقم هاتف مصري صحيح يبدأ بـ 010 أو 011 أو 012 أو 015.";
+      errorEl.hidden = false;
+    }
+    return;
   }
 
-  // Clear Cart
+  if (errorEl) errorEl.hidden = true;
+
+  // Order Calculations
+  const orderId = `DAF-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // Success View Display
+  $("#checkout-form-view")?.setAttribute("hidden", "");
+  const successView = $("#checkout-success-view");
+  const successOrderNum = $("#success-order-id");
+  const successSummary = $("#success-summary-card");
+  const waConfirmBtn = $("#success-whatsapp-confirm");
+
+  if (successOrderNum) successOrderNum.textContent = orderId;
+
+  if (successSummary) {
+    successSummary.innerHTML = `
+      <div class="success-details-grid">
+        <div><strong>العميل:</strong> ${safeText(name)}</div>
+        <div><strong>الهاتف:</strong> ${safeText(phone)}</div>
+        <div><strong>المحافظة:</strong> ${safeText(gov)} — ${safeText(city)}</div>
+        <div><strong>العنوان:</strong> ${safeText(address)}</div>
+        <div><strong>إجمالي المبلغ:</strong> <b style="color:var(--copper); font-size:16px;">${formatEgp(subtotal)} ج.م</b></div>
+      </div>
+      <div class="success-items-list" style="margin-top:12px; border-top:1px solid var(--line); padding-top:10px;">
+        <strong>المنتجات:</strong>
+        ${cart.map(c => `<div>• ${safeText(c.name)} (${c.quantity} قطع) ${c.color ? `- لون ${safeText(c.color)}` : ""}</div>`).join("")}
+      </div>
+    `;
+  }
+
+  // Pre-fill WhatsApp message for instant dispatch
+  if (waConfirmBtn) {
+    const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
+    const itemsText = cart.map(c => `• ${c.name} (${c.quantity} قطعة) ${c.color ? `لون ${c.color}` : ""}`).join("\n");
+    const waMessage = encodeURIComponent(
+      `مرحبًا ${currentSettings.brandName || "ضَفّة"}، أؤكد طلب الشراء:\n` +
+      `رقم الطلب: ${orderId}\n` +
+      `الاسم: ${name}\n` +
+      `الهاتف: ${phone}\n` +
+      `العنوان: ${gov}، ${city}، ${address}\n` +
+      `المنتجات:\n${itemsText}\n` +
+      `الإجمالي: ${formatEgp(subtotal)} ج.م (الدفع عند الاستلام)\n` +
+      `ملاحظات: ${notes}`
+    );
+    waConfirmBtn.href = wa ? `https://wa.me/${wa}?text=${waMessage}` : "#";
+  }
+
+  if (successView) successView.hidden = false;
+
+  // Clear Cart after successful order
   cart = [];
   saveCart(cart);
   updateCartBadge();
-
-  // Show Success View
-  $("#checkout-form-view").hidden = true;
-  $("#checkout-success-view").hidden = false;
 }
 
 // ----------------------------------------------------
-// 7. CONTACT LINKS & PUBLIC SETTINGS
+// 8. INITIALIZE STOREFRONT & BIND GLOBAL EVENTS
 // ----------------------------------------------------
-function setContactLink(selector, href, label) {
-  const link = $(selector);
-  if (!link) return;
-  link.hidden = !href;
-  if (href) {
-    link.href = href;
-    link.textContent = label;
-  } else {
-    link.removeAttribute("href");
-  }
-}
-
-function renderContactLinks(settings = {}) {
-  const phone = String(settings.phoneNumber || "+201000000000").trim();
-  const whatsapp = String(settings.whatsappNumber || "+201000000000").trim();
-  publicContacts = { phoneNumber: phone, whatsappNumber: whatsapp };
-
-  const whatsappDigits = whatsapp.replace(/\D/g, "");
-  const whatsappUrl = whatsappDigits ? `https://wa.me/${whatsappDigits}` : "";
-  const phoneUrl = phone ? `tel:${phone}` : "";
-
-  setContactLink("#order-whatsapp-link", whatsappUrl, `واتساب: ${whatsapp}`);
-  setContactLink("#order-phone-link", phoneUrl, `اتصال: ${phone}`);
-  setContactLink("#footer-whatsapp-link", whatsappUrl, `واتساب: ${whatsapp}`);
-  setContactLink("#footer-phone-link", phoneUrl, `اتصال: ${phone}`);
-
-  const hasContact = Boolean(whatsappUrl || phoneUrl);
-  const orderLinks = $("#ordering-contact-links");
-  const footerLinks = $("#footer-contact-links");
-  if (orderLinks) orderLinks.hidden = !hasContact;
-  if (footerLinks) footerLinks.hidden = !hasContact;
-}
-
-// ----------------------------------------------------
-// 8. INITIALIZATION & EVENT LISTENERS
-// ----------------------------------------------------
-async function initStorefront() {
-  // Try fetching dynamic database products from backend API if available
-  try {
-    const [productsRes, settingsRes] = await Promise.allSettled([
-      fetch("/api/products", { headers: { Accept: "application/json" } }).then(r => r.ok ? r.json() : null),
-      fetch("/api/settings", { headers: { Accept: "application/json" } }).then(r => r.ok ? r.json() : null),
-    ]);
-
-    if (settingsRes.status === "fulfilled" && settingsRes.value?.settings) {
-      renderContactLinks(settingsRes.value.settings);
-    } else {
-      renderContactLinks({});
-    }
-
-    if (productsRes.status === "fulfilled" && productsRes.value?.products?.length > 0) {
-      // Merge backend database products with rich inventory
-      const dbProducts = productsRes.value.products;
-      const dbIds = new Set(dbProducts.map(p => p.id));
-      const remainingInitial = initialProducts.filter(p => !dbIds.has(p.id));
-      allProducts = [...dbProducts, ...remainingInitial];
-      schedulePromotionRefresh(allProducts, productsRes.value.serverNow);
-    } else {
-      allProducts = initialProducts;
-      schedulePromotionRefresh(allProducts, new Date().toISOString());
-    }
-  } catch {
-    allProducts = initialProducts;
-    renderContactLinks({});
-  }
-
-  // Render Category Tabs & Initial Catalog Grid
+function initStorefront() {
+  applyStoreSettings(currentSettings);
   renderCategoryTabs();
   renderCatalog();
-  renderCartDrawer();
   updateCartBadge();
 
-  // Flagship Timepiece Feature in Hero
-  const flagship = allProducts.find(p => p.isFlagship) || allProducts[0];
-  if (flagship) {
-    $("#hero-flagship-name").textContent = flagship.name;
-    $("#hero-flagship-cta")?.addEventListener("click", () => openProductModal(flagship));
-  }
+  // Try fetching API if backend is running, otherwise retain curated inventory
+  fetch("/api/products", { headers: { Accept: "application/json" } })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (data && Array.isArray(data.products) && data.products.length > 0) {
+        // Merge API products preserving rich curated data
+        const apiMap = new Map(data.products.map(p => [p.id, p]));
+        allProducts = allProducts.map(p => apiMap.has(p.id) ? { ...p, ...apiMap.get(p.id) } : p);
+        schedulePromotionRefresh(allProducts, data.serverNow);
+        renderCatalog();
+        renderCategoryTabs();
+      }
+    })
+    .catch(() => {
+      // Backend offline: flawless local operation
+    });
 }
 
-// Global Event Listeners
+// Global Event Handlers
 document.addEventListener("DOMContentLoaded", () => {
   initStorefront();
-  $("#year").textContent = new Date().getFullYear();
+  const yearEl = $("#year");
+  if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-  // 1. Search Input
+  // 1. Live Search Input
   const searchInput = $("#header-search-input");
   const searchClear = $("#header-search-clear");
   if (searchInput) {
@@ -719,41 +840,64 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // 6. Product Card Interactions (Swatches, Quick View, Add to Cart)
+  // 6. Product Card Interactions: Swatches, Quick-View, Direct Add-to-Cart
   $("#catalog-grid")?.addEventListener("click", (e) => {
-    // Color Swatch dot hover/click
-    const swatch = e.target.closest(".swatch-dot");
-    if (swatch) {
-      const card = swatch.closest(".product-card");
-      const productId = swatch.dataset.productId;
-      const index = Number(swatch.dataset.swatchIndex);
-      const product = allProducts.find(p => p.id === productId);
-      if (card && product && product.images[index]) {
-        card.querySelector(".product-image").src = product.images[index].imageUrl;
-        card.querySelectorAll(".swatch-dot").forEach((dot, idx) => dot.classList.toggle("is-selected", idx === index));
+    // Interactive Swatch Click on Card
+    const swatchBtn = e.target.closest('[data-action="switch-card-swatch"]');
+    if (swatchBtn) {
+      const productId = swatchBtn.dataset.productId;
+      const imgUrl = swatchBtn.dataset.imageUrl;
+      const card = swatchBtn.closest(".product-card");
+      if (card && imgUrl) {
+        const imgEl = card.querySelector(".product-image");
+        if (imgEl) imgEl.src = imgUrl;
+        card.querySelectorAll(".swatch-dot").forEach(dot => dot.classList.toggle("is-selected", dot === swatchBtn));
       }
       return;
     }
 
-    // Quick View Modal
+    // Quick-View Details
     const quickViewBtn = e.target.closest('[data-action="quick-view"]');
     if (quickViewBtn) {
       const productId = quickViewBtn.dataset.productId;
-      const product = allProducts.find(p => p.id === productId);
-      if (product) openProductModal(product);
+      if (productId) openProductModal(productId);
       return;
     }
 
-    // Direct Add to Cart
+    // Direct Add-to-Cart from Card
     const addCartBtn = e.target.closest('[data-action="add-to-cart"]');
     if (addCartBtn) {
       const productId = addCartBtn.dataset.productId;
       const product = allProducts.find(p => p.id === productId);
       if (product) {
-        addToCart(product);
+        const card = addCartBtn.closest(".product-card");
+        const activeSwatch = card?.querySelector(".swatch-dot.is-selected");
+        const chosenImg = activeSwatch?.dataset.imageUrl || product.imageUrl;
+        const chosenColor = activeSwatch?.dataset.colorLabel || "";
+        addToCart(product, chosenImg, chosenColor, 1);
       }
       return;
     }
+  });
+
+  // Hover on Swatches switches image seamlessly
+  $("#catalog-grid")?.addEventListener("mouseover", (e) => {
+    const swatchBtn = e.target.closest('[data-action="switch-card-swatch"]');
+    if (swatchBtn) {
+      const imgUrl = swatchBtn.dataset.imageUrl;
+      const card = swatchBtn.closest(".product-card");
+      if (card && imgUrl) {
+        const imgEl = card.querySelector(".product-image");
+        if (imgEl) imgEl.src = imgUrl;
+        card.querySelectorAll(".swatch-dot").forEach(dot => dot.classList.toggle("is-selected", dot === swatchBtn));
+      }
+    }
+  });
+
+  // Flagship Hero Timepiece CTA
+  $("#hero-flagship-cta")?.addEventListener("click", () => {
+    const flagship = allProducts.find(p => p.isFlagship) || allProducts[0];
+    if (flagship) openProductModal(flagship.id);
   });
 
   // 7. Cart Drawer Open / Close
@@ -764,8 +908,9 @@ document.addEventListener("DOMContentLoaded", () => {
     closeCartDrawer();
     window.location.hash = "#catalog";
   });
+  $("#cart-checkout-button")?.addEventListener("click", openCheckoutModal);
 
-  // 8. Cart Items Quantity & Removal
+  // 8. Cart Items Quantity & Removal Steppers
   $("#cart-items-list")?.addEventListener("click", (e) => {
     const minusBtn = e.target.closest('[data-action="cart-minus"]');
     const plusBtn = e.target.closest('[data-action="cart-plus"]');
@@ -795,61 +940,65 @@ document.addEventListener("DOMContentLoaded", () => {
     if (removeBtn) {
       const idx = Number(removeBtn.dataset.cartIndex);
       if (cart[idx]) {
+        const name = cart[idx].name;
         cart.splice(idx, 1);
         saveCart(cart);
         renderCartDrawer();
+        showToast(`تمت إزالة «${name}» من الحقيبة.`);
       }
       return;
     }
   });
 
-  // 9. Proceed to Checkout Trigger
-  $("#cart-checkout-button")?.addEventListener("click", openCheckoutModal);
-
-  // 10. Product Modal Controls
+  // 9. Product Modal Details & Controls
   $("#modal-close")?.addEventListener("click", closeProductModal);
   $("#modal-backdrop")?.addEventListener("click", closeProductModal);
 
+  // Modal Gallery Swatches
   $("#modal-swatches")?.addEventListener("click", (e) => {
-    const swatchThumb = e.target.closest(".modal-swatch-thumb");
-    if (!swatchThumb || !modalSelectedProduct) return;
-    const index = Number(swatchThumb.dataset.imageIndex);
-    modalSelectedImageIndex = index;
-    const images = modalSelectedProduct.images || [];
-    if (images[index]) {
-      $("#modal-main-image").src = images[index].imageUrl;
-      $$(".modal-swatch-thumb").forEach((s, idx) => s.classList.toggle("is-selected", idx === index));
+    const thumb = e.target.closest(".modal-swatch-thumb");
+    if (!thumb || !modalProduct) return;
+    const idx = Number(thumb.dataset.index);
+    modalSelectedImageIndex = idx;
+    const images = Array.isArray(modalProduct.images) ? modalProduct.images : [];
+    if (images[idx]) {
+      const mainImg = $("#modal-main-image");
+      if (mainImg) mainImg.src = images[idx].imageUrl;
+      $$(".modal-swatch-thumb").forEach(t => t.classList.toggle("is-active", t === thumb));
     }
   });
 
+  // Modal Quantity
   $("#modal-qty-minus")?.addEventListener("click", () => {
     if (modalQuantity > 1) {
       modalQuantity -= 1;
-      $("#modal-qty-display").textContent = String(modalQuantity);
+      $("#modal-qty-display").textContent = modalQuantity;
+    }
+  });
+  $("#modal-qty-plus")?.addEventListener("click", () => {
+    if (modalQuantity < 10) {
+      modalQuantity += 1;
+      $("#modal-qty-display").textContent = modalQuantity;
     }
   });
 
-  $("#modal-qty-plus")?.addEventListener("click", () => {
-    modalQuantity += 1;
-    $("#modal-qty-display").textContent = String(modalQuantity);
-  });
-
+  // Modal Add to Cart
   $("#modal-add-cart-btn")?.addEventListener("click", () => {
-    if (!modalSelectedProduct) return;
-    const images = modalSelectedProduct.images || [];
-    const selectedImg = images[modalSelectedImageIndex]?.imageUrl || modalSelectedProduct.imageUrl;
+    if (!modalProduct) return;
+    const images = Array.isArray(modalProduct.images) ? modalProduct.images : [];
+    const selectedImg = images[modalSelectedImageIndex]?.imageUrl || modalProduct.imageUrl;
     const selectedColor = images[modalSelectedImageIndex]?.colorLabel || "";
-    addToCart(modalSelectedProduct, selectedImg, selectedColor, modalQuantity);
+    addToCart(modalProduct, selectedImg, selectedColor, modalQuantity);
     closeProductModal();
   });
 
-  // 11. Checkout Form & Modal Controls
+  // 10. Checkout Form & Modal Controls
   $("#checkout-close")?.addEventListener("click", closeCheckoutModal);
   $("#checkout-backdrop")?.addEventListener("click", closeCheckoutModal);
   $("#checkout-form")?.addEventListener("submit", handleCheckoutSubmit);
   $("#success-continue-btn")?.addEventListener("click", closeCheckoutModal);
 
-  // 12. ESC key closes open modals
+  // 11. ESC Key closes open overlays
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeCartDrawer();
@@ -858,7 +1007,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Mobile Menu Toggle
+  // 12. Mobile Menu Toggle
   const menuBtn = $(".menu-toggle");
   const nav = $("#site-nav");
   menuBtn?.addEventListener("click", () => {
@@ -875,4 +1024,15 @@ document.addEventListener("DOMContentLoaded", () => {
   if (new URLSearchParams(window.location.search).get("openCart") === "true") {
     setTimeout(openCartDrawer, 150);
   }
+
+  // 13. Real-Time Settings & Catalog Sync from Admin Portal
+  window.addEventListener("daffa:settings-updated", (e) => {
+    applyStoreSettings(e.detail);
+  });
+
+  window.addEventListener("daffa:products-updated", (e) => {
+    allProducts = e.detail;
+    renderCatalog();
+    renderCategoryTabs();
+  });
 });

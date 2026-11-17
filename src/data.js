@@ -1,3 +1,5 @@
+// Public contact numbers and products are loaded from the managed database.
+// Do not place real contact details or product records in this browser-side module.
 // Sodfa Watch Catalog - Centralized E-Commerce Data Store & Inventory
 // Complete preservation of all watch products, categories, variants, and specifications.
 
@@ -175,8 +177,9 @@ function hashCode(str = "") {
 export const initialProducts = [
   {
     id: "sodfa-001-heritage-chrono",
-    name: "صُدْفَة هيريتدج كرونوغراف",
-    brand: "صُدْفَة",
+    name: "ضَفّة هيريتدج كرونوغراف",
+    shortSpec: "41.5 مم • كوارتز ياباني • كرونوغراف",
+    brand: "ضَفّة",
     category: "رياضية وكرونوغراف",
     categoryId: "sport-chrono",
     gender: "men",
@@ -260,8 +263,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-002-classic-onyx",
-    name: "صُدْفَة كلاسيك أونيكس",
-    brand: "صُدْفَة",
+    name: "ضَفّة كلاسيك أونيكس",
+    shortSpec: "39 مم • كوارتز سويسري • سُمك 7.4 مم",
+    brand: "ضَفّة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -325,8 +329,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-003-rose-meridian",
-    name: "صُدْفَة روز ميريديان",
-    brand: "صُدْفَة",
+    name: "ضَفّة روز ميريديان",
+    shortSpec: "34 مم • صدف لؤلؤي • مطلي ذهب وردي",
+    brand: "ضَفّة",
     category: "نسائي",
     categoryId: "women",
     gender: "women",
@@ -394,8 +399,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-004-verdi-grand",
-    name: "صُدْفَة فيردي جراند",
-    brand: "صُدْفَة",
+    name: "ضَفّة فيردي جراند",
+    shortSpec: "40 مم • زمردي Sunburst • نافذة تاريخ",
+    brand: "ضَفّة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -465,8 +471,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-005-navigator-diver",
-    name: "صُدْفَة نافيجاتور دايفر",
-    brand: "صُدْفَة",
+    name: "ضَفّة نافيجاتور دايفر",
+    shortSpec: "42 مم • غواصين 200م • إطار سيراميك",
+    brand: "ضَفّة",
     category: "رياضية وكرونوغراف",
     categoryId: "sport-chrono",
     gender: "men",
@@ -532,8 +539,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-006-aura-minimalist",
-    name: "صُدْفَة أورا سليم",
-    brand: "صُدْفَة",
+    name: "ضَفّة أورا سليم",
+    shortSpec: "32 مم • مينيملست • سُمك فائق النحافة",
+    brand: "ضَفّة",
     category: "نسائي",
     categoryId: "women",
     gender: "women",
@@ -599,8 +607,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-007-stellaris-automatic",
-    name: "صُدْفَة سيلاريس أوتوماتيك",
-    brand: "صُدْفَة",
+    name: "ضَفّة سيلاريس أوتوماتيك",
+    shortSpec: "41 مم • حركة أوتوماتيكية • ظهر زجاجي",
+    brand: "ضَفّة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -669,8 +678,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-008-platinum-hybrid",
-    name: "صُدْفَة بلاتينيوم هايبرد الذكية",
-    brand: "صُدْفَة",
+    name: "ضَفّة بلاتينيوم هايبرد الذكية",
+    shortSpec: "42 مم • عقارب ميكانيكية + شاشة ذكية",
+    brand: "ضَفّة",
     category: "ذكية وهجينة",
     categoryId: "smart-hybrid",
     gender: "unisex",
@@ -741,8 +751,9 @@ export const initialProducts = [
   // Legacy / Test Product compatibility preservation
   {
     id: "123e4567-e89b-42d3-a456-426614174000",
-    name: "ساعة صُدْفَة كلاسيكية أصلية",
-    brand: "صُدْفَة",
+    name: "ساعة ضَفّة كلاسيكية أصلية",
+    shortSpec: "40 مم • ستانلس ستيل • كلاسيك",
+    brand: "ضَفّة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -787,17 +798,71 @@ export const initialProducts = [
   },
 ];
 
-export const storeSettings = {
-  shippingDetails: "سعر الساعة شامل الشحن إلى كافة المحافظات. تُضاف رسوم إضافية لمحافظات جنوب مصر ومرسى مطروح والغردقة.",
-  exchangeDetails: "حق الاستبدال أو الاسترجاع خلال 14 يومًا، وحق رد القيمة خلال 30 يومًا في حالة العيب وفق لوائح جهاز حماية المستهلك المصري.",
+export const defaultStoreSettings = {
+  brandName: "ضَفّة",
+  brandSubtitle: "سَاعَةٌ لِكُلِّ لَحْظَةٍ",
+  announcement: "شحن مجاني لكافة المحافظات • الدفع عند الاستلام بعد المعاينة والفحص",
+  heroHeadline: "كل لحظة حلوة\nتستاهل وقتها.",
+  heroDescription: "ساعات مختارة بعناية فائقة، تجمع بين دقة صناعة الساعات العالمية وجمال الخطوط المعاصرة. اقتنِ قطعة تعبّر عن هويتك اليومية.",
+  heroVideoUrl: "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4",
+  heroPosterUrl: "/sodfa-promo-poster.jpg",
+  featuredTag: "القطعة المميزة",
+  featuredName: "ضَفّة هيريتدج كرونوغراف",
+  featuredSpec: "سافاير • مقاومة 100م • ستيل 316L",
   defaultPhone: "+201000000000",
   defaultWhatsapp: "+201000000000",
+  shippingDetails: "سعر الساعة شامل الشحن إلى كافة المحافظات. تُضاف رسوم إضافية لمحافظات جنوب مصر ومرسى مطروح والغردقة.",
+  exchangeDetails: "حق الاستبدال أو الاسترجاع خلال 14 يومًا، وحق رد القيمة خلال 30 يومًا في حالة العيب وفق لوائح جهاز حماية المستهلك المصري.",
 };
+
+export const storeSettings = defaultStoreSettings;
+
+export function getStoreSettings() {
+  try {
+    const raw = localStorage.getItem("daffa_store_settings") || localStorage.getItem("sodfa_store_settings");
+    if (raw) {
+      return { ...defaultStoreSettings, ...JSON.parse(raw) };
+    }
+  } catch {
+    // Fallback
+  }
+  return { ...defaultStoreSettings };
+}
+
+export function saveStoreSettings(settings) {
+  try {
+    localStorage.setItem("daffa_store_settings", JSON.stringify(settings));
+    window.dispatchEvent(new CustomEvent("daffa:settings-updated", { detail: settings }));
+  } catch {
+    // Storage quota
+  }
+}
+
+export function getStoredCategories() {
+  try {
+    const raw = localStorage.getItem("daffa_custom_categories");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return categories;
+}
+
+export function saveStoredCategories(cats) {
+  try {
+    localStorage.setItem("daffa_custom_categories", JSON.stringify(cats));
+    window.dispatchEvent(new CustomEvent("daffa:categories-updated", { detail: cats }));
+  } catch {}
+}
+
+// Kept empty for legacy imports only; the active catalog comes from /api/products or stored catalog.
+export const products = [];
 
 // Central catalog state management
 export function getStoredProducts() {
   try {
-    const local = localStorage.getItem("sodfa_custom_products");
+    const local = localStorage.getItem("daffa_custom_products") || localStorage.getItem("sodfa_custom_products");
     if (local) {
       const parsed = JSON.parse(local);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -812,7 +877,8 @@ export function getStoredProducts() {
 
 export function saveStoredProducts(products) {
   try {
-    localStorage.setItem("sodfa_custom_products", JSON.stringify(products));
+    localStorage.setItem("daffa_custom_products", JSON.stringify(products));
+    window.dispatchEvent(new CustomEvent("daffa:products-updated", { detail: products }));
   } catch {
     // Ignore storage quota
   }
@@ -821,7 +887,7 @@ export function saveStoredProducts(products) {
 // Shopping Cart Persistence
 export function getCart() {
   try {
-    const raw = localStorage.getItem("sodfa_cart");
+    const raw = localStorage.getItem("daffa_cart") || localStorage.getItem("sodfa_cart");
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -830,7 +896,7 @@ export function getCart() {
 
 export function saveCart(cartItems) {
   try {
-    localStorage.setItem("sodfa_cart", JSON.stringify(cartItems));
+    localStorage.setItem("daffa_cart", JSON.stringify(cartItems));
   } catch {
     // Ignore
   }

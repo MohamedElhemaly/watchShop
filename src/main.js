@@ -7,7 +7,15 @@ import {
   getStoredProducts,
   getStoreSettings,
   getStoredCategories,
+  getTickerItems,
+  addOrder,
 } from "./data.js";
+import {
+  calculateDiscountedPrice,
+  calculateFlexibleDiscount,
+  formatDiscountLabel,
+  formatEgpNumber,
+} from "./pricing.js";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
 
 // DOM Selector Helpers
@@ -56,8 +64,144 @@ function showToast(message, isSuccess = true) {
 }
 
 // ----------------------------------------------------
-// 1. APPLY STORE SETTINGS (HERO, VIDEO, ANNOUNCEMENT)
+// 0. PRICE & DISCOUNT CALCULATION HELPERS
 // ----------------------------------------------------
+function getEffectiveProductPrice(product) {
+  if (!product) return 0;
+  const basePrice = Number(product.basePrice) || 0;
+  if (!product.discountActive) return basePrice;
+
+  if (product.discountType === "fixed") {
+    const val = Number(product.discountValue || 0);
+    return val > 0 ? Math.max(0, basePrice - val) : basePrice;
+  }
+  if (product.discountType === "percent") {
+    const pct = Number(product.discountValue || product.discountPercent || 0);
+    return pct > 0 ? calculateFlexibleDiscount(basePrice, "percent", pct) : basePrice;
+  }
+  if (Number(product.discountPercent) > 0) {
+    return Number(product.salePrice) || calculateFlexibleDiscount(basePrice, "percent", Number(product.discountPercent));
+  }
+  return basePrice;
+}
+
+function getDiscountBadgeLabel(product) {
+  if (!product || !product.discountActive) return "";
+  if (product.discountType === "fixed") {
+    return formatDiscountLabel("fixed", product.discountValue);
+  }
+  if (product.discountType === "percent") {
+    return formatDiscountLabel("percent", product.discountValue || product.discountPercent);
+  }
+  if (Number(product.discountPercent) > 0) {
+    return `خصم ${formatEgp(product.discountPercent)}%`;
+  }
+  return "";
+}
+
+// ----------------------------------------------------
+// SCROLLING NEWS TICKER RENDERING
+// ----------------------------------------------------
+function renderNewsTicker() {
+  const tickerBar = $("#news-ticker-bar");
+  const track = $("#ticker-track");
+  if (!tickerBar || !track) return;
+
+  const isEnabled = currentSettings.tickerEnabled !== false;
+  if (!isEnabled) {
+    tickerBar.hidden = true;
+    return;
+  }
+
+  tickerBar.hidden = false;
+
+  const speed = currentSettings.tickerSpeed || "medium";
+  const duration = speed === "slow" ? "38s" : speed === "fast" ? "16s" : "26s";
+  track.style.setProperty("--ticker-duration", duration);
+
+  const items = getTickerItems();
+  if (!items || items.length === 0) {
+    tickerBar.hidden = true;
+    return;
+  }
+
+  const segmentHtml = `
+    <div class="ticker-segment" aria-hidden="true">
+      ${items.map((item) => `
+        <span class="ticker-item">
+          <span>${safeText(item)}</span>
+          <span class="ticker-divider">✦</span>
+        </span>
+      `).join("")}
+    </div>
+  `;
+
+  track.innerHTML = segmentHtml + segmentHtml;
+}
+
+// ----------------------------------------------------
+// STORE OWNER BACKGROUND NOTIFICATIONS
+// ----------------------------------------------------
+async function notifyStoreOwner(order, settings = currentSettings) {
+  const tasks = [];
+
+  // 1. Email notification via Web3Forms
+  if (settings.emailNotificationsEnabled && settings.web3formsKey) {
+    const emailPayload = {
+      access_key: settings.web3formsKey,
+      subject: `طلب شراء جديد #${order.id} من متجر ضَفّة`,
+      from_name: "متجر ضَفّة للساعات",
+      order_id: order.id,
+      customer_name: order.customerName,
+      phone: order.phone,
+      governorate: order.governorate,
+      city: order.city,
+      address: order.address,
+      notes: order.notes,
+      total: `${formatEgp(order.totalAmount)} ج.م`,
+      items: order.items.map((i) => `${i.name} (عدد: ${i.quantity}, سعر: ${i.price} ج.م)`).join(" | "),
+    };
+
+    tasks.push(
+      fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(emailPayload),
+      }).catch((err) => console.warn("Email dispatch error:", err))
+    );
+  }
+
+  // 2. Telegram Bot notification
+  if (settings.telegramNotificationsEnabled && settings.telegramBotToken && settings.telegramChatId) {
+    const itemsLines = order.items
+      .map((i) => `• <b>${safeText(i.name)}</b> × ${i.quantity} ${i.color ? `(${safeText(i.color)})` : ""} — ${formatEgp(i.price * i.quantity)} ج.م`)
+      .join("\n");
+
+    const tgMessage = `🔔 <b>طلب شراء جديد في متجر ضَفّة</b>\n\n` +
+      `<b>رقم الطلب:</b> <code>#${order.id}</code>\n` +
+      `<b>العميل:</b> ${safeText(order.customerName)}\n` +
+      `<b>الهاتف:</b> <code>${safeText(order.phone)}</code>\n` +
+      `<b>المحافظة:</b> ${safeText(order.governorate)} — ${safeText(order.city)}\n` +
+      `<b>العنوان:</b> ${safeText(order.address)}\n\n` +
+      `<b>المنتجات:</b>\n${itemsLines}\n\n` +
+      `<b>الإجمالي:</b> <b>${formatEgp(order.totalAmount)} ج.م</b> (الدفع عند الاستلام)\n` +
+      `<b>الملاحظات:</b> ${safeText(order.notes || "لا توجد")}`;
+
+    tasks.push(
+      fetch(`https://api.telegram.org/bot${encodeURIComponent(settings.telegramBotToken)}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: settings.telegramChatId,
+          text: tgMessage,
+          parse_mode: "HTML",
+        }),
+      }).catch((err) => console.warn("Telegram dispatch error:", err))
+    );
+  }
+
+  Promise.allSettled(tasks);
+}
 function applyStoreSettings(settings = currentSettings) {
   currentSettings = settings;
 
@@ -138,6 +282,9 @@ function applyStoreSettings(settings = currentSettings) {
   const hasContacts = Boolean(wa || ph);
   if (contactLinksWrap) contactLinksWrap.hidden = !hasContacts;
   if (footerContactWrap) footerContactWrap.hidden = !hasContacts;
+
+  // News Ticker
+  renderNewsTicker();
 }
 
 // ----------------------------------------------------
@@ -190,19 +337,15 @@ function getFilteredProducts() {
 
   // Sorting
   if (activeSort === "price-asc") {
-    list.sort((a, b) => {
-      const pA = (a.discountActive && a.discountPercent > 0) ? (a.salePrice || a.basePrice) : a.basePrice;
-      const pB = (b.discountActive && b.discountPercent > 0) ? (b.salePrice || b.basePrice) : b.basePrice;
-      return pA - pB;
-    });
+    list.sort((a, b) => getEffectiveProductPrice(a) - getEffectiveProductPrice(b));
   } else if (activeSort === "price-desc") {
-    list.sort((a, b) => {
-      const pA = (a.discountActive && a.discountPercent > 0) ? (a.salePrice || a.basePrice) : a.basePrice;
-      const pB = (b.discountActive && b.discountPercent > 0) ? (b.salePrice || b.basePrice) : b.basePrice;
-      return pB - pA;
-    });
+    list.sort((a, b) => getEffectiveProductPrice(b) - getEffectiveProductPrice(a));
   } else if (activeSort === "discount") {
-    list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0));
+    list.sort((a, b) => {
+      const discA = a.discountActive ? (Number(a.basePrice) - getEffectiveProductPrice(a)) : 0;
+      const discB = b.discountActive ? (Number(b.basePrice) - getEffectiveProductPrice(b)) : 0;
+      return discB - discA;
+    });
   }
 
   return list;
@@ -238,11 +381,10 @@ function renderCategoryTabs() {
 // (Clean Horology Aesthetic: No Red Banner, Equal Height, Interactive Swatches)
 // ----------------------------------------------------
 function renderPriceRow(product) {
-  const basePrice = Number(product.basePrice);
-  const discountPercent = Number(product.discountPercent) || 0;
-  const salePrice = Number(product.salePrice);
-  const discountActive = Boolean(product.discountActive) && discountPercent > 0 && Number.isFinite(salePrice);
-  const currentPrice = discountActive ? salePrice : basePrice;
+  const basePrice = Number(product.basePrice) || 0;
+  const currentPrice = getEffectiveProductPrice(product);
+  const discountActive = Boolean(product.discountActive) && currentPrice < basePrice;
+  const discountLabel = getDiscountBadgeLabel(product);
 
   const countdownMarkup = (discountActive && product.discountEndOn)
     ? `<span class="timer-pill" data-promotion-countdown data-discount-end="${safeText(product.discountEndOn)}" aria-label="الوقت المتبقي"></span>`
@@ -254,9 +396,9 @@ function renderPriceRow(product) {
         <strong class="price-current">${formatEgp(currentPrice)} <small>ج.م</small></strong>
         ${discountActive ? `<del class="price-original">${formatEgp(basePrice)} <small>ج.م</small></del>` : ""}
       </div>
-      ${discountActive ? `
+      ${discountActive && discountLabel ? `
         <div class="pricing-tags">
-          <span class="discount-pill">خصم ${formatEgp(discountPercent)}%</span>
+          <span class="discount-pill">${safeText(discountLabel)}</span>
           ${countdownMarkup}
         </div>
       ` : ""}
@@ -454,13 +596,15 @@ function openCartDrawer() {
   }
 }
 
-function closeCartDrawer() {
+function closeCartDrawer(keepModalOpen = false) {
   const drawer = $("#cart-drawer");
   if (drawer) {
     drawer.classList.remove("is-open");
     setTimeout(() => {
       drawer.hidden = true;
-      document.body.classList.remove("modal-open");
+      if (!keepModalOpen && !$(".checkout-modal.is-open") && !$(".product-modal.is-open")) {
+        document.body.classList.remove("modal-open");
+      }
     }, 280);
   }
 }
@@ -470,9 +614,7 @@ function addToCart(product, chosenImage = "", chosenColor = "", qty = 1) {
   const image = chosenImage || product.imageUrl || (hasImages ? product.images[0].imageUrl : "");
   const color = chosenColor || (hasImages && product.images[0] ? product.images[0].colorLabel : "");
 
-  const effectivePrice = (product.discountActive && Number(product.discountPercent) > 0)
-    ? Number(product.salePrice)
-    : Number(product.basePrice);
+  const effectivePrice = getEffectiveProductPrice(product);
 
   const existingIndex = cart.findIndex((item) => item.id === product.id && (item.color || "") === color);
 
@@ -608,7 +750,7 @@ function openCheckoutModal() {
     return;
   }
 
-  closeCartDrawer();
+  closeCartDrawer(true);
 
   const modal = $("#checkout-modal");
   const formView = $("#checkout-form-view");
@@ -651,6 +793,9 @@ function closeCheckoutModal() {
     setTimeout(() => {
       modal.hidden = true;
       document.body.classList.remove("modal-open");
+      $("#checkout-form-view")?.removeAttribute("hidden");
+      $("#checkout-success-view")?.setAttribute("hidden", "");
+      $("#checkout-form")?.reset();
     }, 280);
   }
 }
@@ -667,7 +812,7 @@ function handleCheckoutSubmit(e) {
   const errorEl = $("#checkout-error");
 
   // Validate Egyptian Mobile
-  const normalizedPhone = phone.replace(/[\s-]/g, "");
+  const normalizedPhone = phone ? phone.replace(/[\s-]/g, "") : "";
   const isValidPhone = /^(\+20|0)?1[0125]\d{8}$/.test(normalizedPhone);
 
   if (!name || !phone || !gov || !city || !address) {
@@ -689,17 +834,45 @@ function handleCheckoutSubmit(e) {
   if (errorEl) errorEl.hidden = true;
 
   // Order Calculations
-  const orderId = `DAF-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const orderId = `DAF-${Math.floor(1000 + Math.random() * 9000)}`;
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // Success View Display
+  const orderData = {
+    id: orderId,
+    customerName: name,
+    phone: phone,
+    governorate: gov,
+    city: city,
+    address: address,
+    notes: notes,
+    totalAmount: subtotal,
+    items: cart.map((c) => ({
+      id: c.id,
+      name: c.name,
+      price: c.price,
+      quantity: c.quantity,
+      color: c.color || "",
+      image: c.image || "",
+    })),
+    status: "new",
+    createdAt: new Date().toISOString(),
+    isRead: false,
+  };
+
+  // 1. Save order to persistent store
+  addOrder(orderData);
+
+  // 2. Fire background notifications (Telegram / Web3Forms) without blocking UI
+  notifyStoreOwner(orderData, currentSettings);
+
+  // 3. Success View Display
   $("#checkout-form-view")?.setAttribute("hidden", "");
   const successView = $("#checkout-success-view");
   const successOrderNum = $("#success-order-id");
   const successSummary = $("#success-summary-card");
   const waConfirmBtn = $("#success-whatsapp-confirm");
 
-  if (successOrderNum) successOrderNum.textContent = orderId;
+  if (successOrderNum) successOrderNum.textContent = `#${orderId}`;
 
   if (successSummary) {
     successSummary.innerHTML = `
@@ -708,11 +881,12 @@ function handleCheckoutSubmit(e) {
         <div><strong>الهاتف:</strong> ${safeText(phone)}</div>
         <div><strong>المحافظة:</strong> ${safeText(gov)} — ${safeText(city)}</div>
         <div><strong>العنوان:</strong> ${safeText(address)}</div>
-        <div><strong>إجمالي المبلغ:</strong> <b style="color:var(--copper); font-size:16px;">${formatEgp(subtotal)} ج.م</b></div>
+        <div><strong>طريقة السداد:</strong> الدفع نقدًا عند الاستلام بعد الفحص والمعاينة</div>
+        <div><strong>إجمالي المستحق:</strong> <b style="color:var(--copper); font-size:16px;">${formatEgp(subtotal)} ج.م</b></div>
       </div>
-      <div class="success-items-list" style="margin-top:12px; border-top:1px solid var(--line); padding-top:10px;">
-        <strong>المنتجات:</strong>
-        ${cart.map(c => `<div>• ${safeText(c.name)} (${c.quantity} قطع) ${c.color ? `- لون ${safeText(c.color)}` : ""}</div>`).join("")}
+      <div class="success-items-list" style="margin-top:14px; border-top:1px solid var(--line); padding-top:12px;">
+        <strong style="color:var(--teal-950); display:block; margin-bottom:6px;">القطع المطلوبة:</strong>
+        ${orderData.items.map((c) => `<div>• <b>${safeText(c.name)}</b> (${c.quantity} قطعة) ${c.color ? `- لون ${safeText(c.color)}` : ""} — <span style="font-family:var(--font-digits); font-weight:700;">${formatEgp(c.price * c.quantity)} ج.م</span></div>`).join("")}
       </div>
     `;
   }
@@ -720,10 +894,10 @@ function handleCheckoutSubmit(e) {
   // Pre-fill WhatsApp message for instant dispatch
   if (waConfirmBtn) {
     const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
-    const itemsText = cart.map(c => `• ${c.name} (${c.quantity} قطعة) ${c.color ? `لون ${c.color}` : ""}`).join("\n");
+    const itemsText = orderData.items.map((c) => `• ${c.name} (${c.quantity} قطعة) ${c.color ? `لون ${c.color}` : ""}`).join("\n");
     const waMessage = encodeURIComponent(
       `مرحبًا ${currentSettings.brandName || "ضَفّة"}، أؤكد طلب الشراء:\n` +
-      `رقم الطلب: ${orderId}\n` +
+      `رقم الطلب: #${orderId}\n` +
       `الاسم: ${name}\n` +
       `الهاتف: ${phone}\n` +
       `العنوان: ${gov}، ${city}، ${address}\n` +
@@ -1034,5 +1208,9 @@ document.addEventListener("DOMContentLoaded", () => {
     allProducts = e.detail;
     renderCatalog();
     renderCategoryTabs();
+  });
+
+  window.addEventListener("daffa:ticker-updated", () => {
+    renderNewsTicker();
   });
 });

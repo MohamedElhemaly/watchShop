@@ -101,10 +101,19 @@
         <!-- Dashboard Navigation Tabs -->
         <nav class="admin-nav-tabs" role="tablist" aria-label="أقسام الإدارة">
           <button class="admin-tab-btn is-active" type="button" data-tab="products" role="tab" aria-selected="true">
-            ⌚ إدارة الساعات والكتالوج
+            ⌚ الساعات والكتالوج
+          </button>
+          <button class="admin-tab-btn" type="button" data-tab="orders" role="tab" aria-selected="false">
+            📦 طلبات العملاء <span id="admin-orders-counter-badge" class="nav-counter-badge" hidden>0</span>
           </button>
           <button class="admin-tab-btn" type="button" data-tab="hero-settings" role="tab" aria-selected="false">
-            🎬 الواجهة والفيديو والإعلانات
+            🎬 الواجهة والفيديو
+          </button>
+          <button class="admin-tab-btn" type="button" data-tab="ticker" role="tab" aria-selected="false">
+            📢 شريط الأخبار المتحرك
+          </button>
+          <button class="admin-tab-btn" type="button" data-tab="notifications" role="tab" aria-selected="false">
+            🔔 إشعارات المالك الفورية
           </button>
           <button class="admin-tab-btn" type="button" data-tab="categories" role="tab" aria-selected="false">
             🗂️ إدارة التصنيفات
@@ -177,14 +186,22 @@
                   <textarea id="edit-description" rows="4" placeholder="اكتب وصف الساعة؛ يمكنك كتابة كل مواصفة فنية في سطر مستقل"></textarea>
                 </label>
 
-                <div class="form-row-2">
+                <div class="form-row-3">
                   <label class="form-field">
-                    <span>السعر الأصلي (ج.م) <b>*</b></span>
+                    <span>السعر الأساسي (ج.م) <b>*</b></span>
                     <input id="edit-base-price" type="number" min="1" step="1" required placeholder="مثال: 3500" />
                   </label>
                   <label class="form-field">
-                    <span>نسبة الخصم %</span>
-                    <input id="edit-discount-percent" type="number" min="0" max="99" step="1" value="0" />
+                    <span>نوع التخفيض</span>
+                    <select id="edit-discount-type">
+                      <option value="none" selected>بدون خصم</option>
+                      <option value="percent">نسبة مئوية (%)</option>
+                      <option value="fixed">مبلغ ثابت (ج.م)</option>
+                    </select>
+                  </label>
+                  <label class="form-field" id="discount-val-wrap">
+                    <span id="discount-val-label">قيمة الخصم</span>
+                    <input id="edit-discount-value" type="number" min="0" step="1" value="0" placeholder="0" />
                   </label>
                 </div>
 
@@ -260,6 +277,33 @@
           </div>
         </section>
 
+        <!-- TAB: ORDERS MANAGEMENT -->
+        <section id="tab-orders" class="admin-tab-content">
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="orders-header-wrap">
+                <div>
+                  <span class="admin-kicker">سجل العمليات والشحن</span>
+                  <h2>إدارة ومتابعة طلبات العملاء</h2>
+                  <p>تصفح كل طلبات الشراء المسجلة، عدّل حالة الشحن، أو تواصل مع العميل بضغطة زر عبر واتساب.</p>
+                </div>
+                <div class="orders-filter-chips">
+                  <button class="orders-filter-btn is-active" type="button" data-order-filter="all">الكل (<span id="count-orders-all">0</span>)</button>
+                  <button class="orders-filter-btn" type="button" data-order-filter="new">جديد (<span id="count-orders-new">0</span>)</button>
+                  <button class="orders-filter-btn" type="button" data-order-filter="confirmed">مؤكد</button>
+                  <button class="orders-filter-btn" type="button" data-order-filter="shipped">تم الشحن</button>
+                  <button class="orders-filter-btn" type="button" data-order-filter="delivered">تم التسليم</button>
+                  <button class="orders-filter-btn" type="button" data-order-filter="cancelled">ملغي</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="admin-orders-list" class="admin-orders-list" aria-live="polite">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </section>
+
         <!-- TAB 2: HERO, VIDEO & BANNER SETTINGS -->
         <section id="tab-hero-settings" class="admin-tab-content">
           <div class="settings-card">
@@ -329,7 +373,123 @@
           </div>
         </section>
 
-        <!-- TAB 3: CATEGORIES MANAGEMENT -->
+        <!-- TAB: SCROLLING NEWS TICKER -->
+        <section id="tab-ticker" class="admin-tab-content">
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="admin-kicker">الشريط المتحرك العلوي</span>
+              <h2>إدارة شريط الأخبار والإعلانات (News Ticker)</h2>
+              <p>تحكّم في تشغيل الشريط التمريري اللانهائي، سرعة حركته، وإضافة أو حذف النصوص والإعلانات المعروضة.</p>
+            </div>
+
+            <form id="ticker-settings-form" class="settings-form-layout">
+              <div class="form-row-2">
+                <label class="admin-checkbox-label" style="align-self:center;">
+                  <input id="setting-ticker-enabled" type="checkbox" checked />
+                  <span><strong>تفعيل شريط الأخبار المتحرك في أعلى الموقع</strong></span>
+                </label>
+                <label class="form-field">
+                  <span>سرعة حركة الشريط التمريري</span>
+                  <select id="setting-ticker-speed">
+                    <option value="slow">بطيء (38 ثانية)</option>
+                    <option value="medium" selected>متوسط (26 ثانية - موصى به)</option>
+                    <option value="fast">سريع (16 ثانية)</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="ticker-items-management">
+                <h3 style="font-size:15px; margin:16px 0 8px; color:var(--teal-950);">الجمل والعبارات المعروضة في الشريط</h3>
+                <div class="add-ticker-item-row">
+                  <input id="new-ticker-item-input" type="text" placeholder="اكتب عبارة ترويجية جديدة ثم اضغط إضافة (مثال: شحن سريع...)" />
+                  <button id="add-ticker-item-btn" class="admin-button admin-button-primary" type="button">+ إضافة العبارة</button>
+                </div>
+
+                <div id="admin-ticker-items-list" class="ticker-items-list">
+                  <!-- Rendered dynamically -->
+                </div>
+              </div>
+
+              <button class="admin-button admin-button-primary" type="submit" style="width: fit-content; margin-top:14px;">
+                حفظ إعدادات الشريط المتحرك <span aria-hidden="true">✓</span>
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- TAB: INSTANT STORE OWNER NOTIFICATIONS -->
+        <section id="tab-notifications" class="admin-tab-content">
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="admin-kicker">التنبيهات الفورية</span>
+              <h2>إعدادات إشعارات الطلبات الفورية لمالك المتجر</h2>
+              <p>احصل على تنبيه فوري بالهاتف المحمول أو البريد الإلكتروني في نفس لحظة قيام أي عميل بطلب ساعة من المتجر، دون تأخير.</p>
+            </div>
+
+            <form id="notifications-settings-form" class="settings-form-layout">
+              <!-- Channel 1: Telegram Bot -->
+              <div class="notification-channel-box">
+                <div class="channel-header-row">
+                  <div>
+                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">💬 قناة تيليجرام الفورية (الأسرع والأسهل)</h3>
+                    <p style="margin:4px 0 0; font-size:12px; color:var(--ink-muted);">تصلك رسالة بكل تفاصيل الطلب على هاتفك فورًا عبر بوت تيليجرام مجاني.</p>
+                  </div>
+                  <label class="admin-checkbox-label">
+                    <input id="setting-tg-enabled" type="checkbox" />
+                    <span>تفعيل تنبيهات تيليجرام</span>
+                  </label>
+                </div>
+
+                <div class="form-row-2" style="margin-top:12px;">
+                  <label class="form-field">
+                    <span>رمز البوت (Telegram Bot Token)</span>
+                    <input id="setting-tg-token" type="text" placeholder="مثال: 7123456789:AAH..." dir="ltr" />
+                  </label>
+                  <label class="form-field">
+                    <span>معرّف المحادثة (Telegram Chat ID)</span>
+                    <input id="setting-tg-chat-id" type="text" placeholder="مثال: 123456789" dir="ltr" />
+                  </label>
+                </div>
+              </div>
+
+              <!-- Channel 2: Email Webhook (Web3Forms / Formspree) -->
+              <div class="notification-channel-box" style="margin-top:16px;">
+                <div class="channel-header-row">
+                  <div>
+                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">✉️ إشعارات البريد الإلكتروني (Web3Forms / Formspree)</h3>
+                    <p style="margin:4px 0 0; font-size:12px; color:var(--ink-muted);">إرسال تفاصيل كل طلب إلى بريدك الإلكتروني الشخصي مباشرة.</p>
+                  </div>
+                  <label class="admin-checkbox-label">
+                    <input id="setting-email-enabled" type="checkbox" />
+                    <span>تفعيل تنبيهات البريد</span>
+                  </label>
+                </div>
+
+                <div class="form-row-2" style="margin-top:12px;">
+                  <label class="form-field">
+                    <span>مفتاح الوصول (Web3Forms Access Key)</span>
+                    <input id="setting-web3forms-key" type="text" placeholder="مثال: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" dir="ltr" />
+                  </label>
+                  <label class="form-field">
+                    <span>البريد الإلكتروني المخصص للاستلام (مرجع)</span>
+                    <input id="setting-owner-email" type="email" placeholder="owner@example.com" dir="ltr" />
+                  </label>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px;">
+                <button class="admin-button admin-button-primary" type="submit">
+                  حفظ إعدادات الإشعارات <span aria-hidden="true">✓</span>
+                </button>
+                <button id="test-notification-btn" class="admin-button admin-button-quiet" type="button">
+                  🚀 إرسال إشعار تجريبي الآن
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- TAB: CATEGORIES MANAGEMENT -->
         <section id="tab-categories" class="admin-tab-content">
           <div class="settings-card">
             <div class="settings-card-header">
@@ -371,7 +531,7 @@
           </div>
         </section>
 
-        <!-- TAB 4: CONTACTS & POLICIES -->
+        <!-- TAB: CONTACTS & POLICIES -->
         <section id="tab-settings" class="admin-tab-content">
           <div class="settings-card">
             <div class="settings-card-header">

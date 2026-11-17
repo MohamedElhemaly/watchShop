@@ -13,10 +13,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <!-- Top Announcement Bar -->
-    <aside class="announcement" aria-label="إعلان المتجر">
-      <span class="announcement-dot" aria-hidden="true"></span>
-      <span id="site-announcement-text">شحن مجاني لكافة المحافظات • دفع عند الاستلام مع حق الفحص والمعاينة قبل السداد</span>
+    <!-- Continuous Scrolling News Ticker Bar -->
+    <aside id="news-ticker-bar" class="news-ticker-bar" aria-label="شريط الأخبار والإعلانات">
+      <div class="ticker-track-wrap">
+        <div class="ticker-track" id="ticker-track">
+          <!-- Populated dynamically via renderNewsTicker -->
+        </div>
+      </div>
     </aside>
 
     <!-- Sticky Main Header -->
@@ -425,10 +428,14 @@
 
         <div id="checkout-success-view" class="checkout-success-view" hidden>
           <div class="success-icon-wrap" aria-hidden="true">✓</div>
-          <h2>تم استلام طلبك بنجاح!</h2>
-          <p class="success-order-num">رقم الطلب: <strong id="success-order-id">DAF-2026-0000</strong></p>
+          <h2>تم استلام وتأكيد طلبك بنجاح!</h2>
+          <p class="success-order-num">رقم مرجع الطلب: <strong id="success-order-id">#DAF-1042</strong></p>
+          <div class="success-timeline-pill">
+            <span aria-hidden="true">🚚</span>
+            <span>موعد التوصيل المتوقع: خلال 2 إلى 4 أيام عمل</span>
+          </div>
           <p class="success-desc">
-            شكرًا لثقتك في ضَفّة. سنبدأ بتجهيز ساعتك فورًا، وسيتواصل معك مندوب التوصيل لتحديد موعد التسليم والمعاينة.
+            شكرًا لاختيارك ضَفّة. تم تسجيل طلبك وسيتواصل معك مندوب التوصيل لتحديد موعد التسليم والمعاينة قبل السداد.
           </p>
           <div id="success-summary-card" class="success-summary-card"></div>
           <div class="success-actions">

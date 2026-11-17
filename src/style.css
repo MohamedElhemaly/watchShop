@@ -98,8 +98,77 @@ a {
 }
 
 /* --------------------------------------------------------------------------
-   Top Announcement Bar
+   Infinite-Loop RTL News Ticker Bar
    -------------------------------------------------------------------------- */
+.news-ticker-bar {
+  background: var(--teal-950);
+  color: var(--cream-50);
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(246, 243, 235, 0.08);
+  overflow: hidden;
+  position: relative;
+  height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.news-ticker-bar[hidden] {
+  display: none !important;
+}
+
+.ticker-track-wrap {
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  position: relative;
+  user-select: none;
+}
+
+.ticker-track {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: ticker-scroll-rtl var(--ticker-duration, 26s) linear infinite;
+}
+
+.ticker-track-wrap:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes ticker-scroll-rtl {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(50%);
+  }
+}
+
+.ticker-segment {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 14px;
+  color: var(--cream-50);
+  letter-spacing: 0.01em;
+}
+
+.ticker-divider {
+  color: var(--copper);
+  font-size: 11px;
+  opacity: 0.9;
+  display: inline-block;
+}
+
+/* Fallback announcement bar */
 .announcement {
   background: var(--teal-950);
   color: var(--cream-50);
@@ -1465,10 +1534,19 @@ a {
 /* --------------------------------------------------------------------------
    Modals (Product Detail & Checkout)
    -------------------------------------------------------------------------- */
-.product-modal, .checkout-modal {
+.product-modal {
   position: fixed;
   inset: 0;
   z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.checkout-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
   display: grid;
   place-items: center;
   padding: 20px;
@@ -1503,7 +1581,9 @@ a {
   padding: 32px clamp(20px, 4vw, 40px);
 }
 
-.product-modal.is-open .modal-card, .checkout-modal.is-open .modal-card {
+.product-modal.is-open .modal-card,
+.checkout-modal.is-open .checkout-card,
+.checkout-modal.is-open .modal-card {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
@@ -1819,58 +1899,109 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  padding: 8px 0;
 }
 
 .success-icon-wrap {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: var(--success-bg);
+  border: 1px solid var(--success-border);
   color: var(--success-ink);
   display: grid;
   place-items: center;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 800;
 }
 
 .checkout-success-view h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--teal-950);
 }
 
 .success-order-num {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--copper);
   margin: 0;
+  font-family: var(--font-digits);
+  font-weight: 700;
 }
 
 .success-desc {
   font-size: 13px;
   color: var(--ink-muted);
-  max-width: 480px;
+  max-width: 500px;
   margin: 0;
+  line-height: 1.6;
+}
+
+.success-timeline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: var(--teal-50);
+  border: 1px solid rgba(26, 104, 99, 0.2);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--teal-800);
 }
 
 .success-summary-card {
   width: 100%;
   background: var(--cream-50);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 16px;
+  border-radius: 8px;
+  padding: 18px 20px;
   text-align: right;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.8;
+}
+
+.success-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 16px;
+}
+
+.success-details-grid strong {
+  color: var(--teal-950);
+  margin-inline-end: 4px;
+}
+
+.success-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .success-actions {
   display: flex;
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 14px;
   flex-wrap: wrap;
   justify-content: center;
+  width: 100%;
+}
+
+.success-whatsapp-btn {
+  background: #25d366 !important;
+  color: #ffffff !important;
+  border-color: #25d366 !important;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(37, 211, 102, 0.25);
+  flex: 1 1 240px;
+}
+
+.success-whatsapp-btn:hover {
+  background: #1ebc59 !important;
+  border-color: #1ebc59 !important;
+  color: #ffffff !important;
 }
 
 /* Site Floating Toast */

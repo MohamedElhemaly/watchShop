@@ -813,7 +813,42 @@ export const defaultStoreSettings = {
   defaultWhatsapp: "+201000000000",
   shippingDetails: "سعر الساعة شامل الشحن إلى كافة المحافظات. تُضاف رسوم إضافية لمحافظات جنوب مصر ومرسى مطروح والغردقة.",
   exchangeDetails: "حق الاستبدال أو الاسترجاع خلال 14 يومًا، وحق رد القيمة خلال 30 يومًا في حالة العيب وفق لوائح جهاز حماية المستهلك المصري.",
+  // Notification Settings (Dual-Channel: Email & Telegram)
+  notificationEmail: "",
+  web3formsKey: "",
+  telegramBotToken: "",
+  telegramChatId: "",
+  emailNotificationsEnabled: false,
+  telegramNotificationsEnabled: false,
+  // News Ticker Settings
+  tickerEnabled: true,
+  tickerSpeed: "medium", // slow: 35s, medium: 22s, fast: 14s
 };
+
+export const defaultTickerItems = [
+  "شحن مجاني لكافة محافظات مصر • متاح المعاينة والفحص الدقيق قبل السداد للمندوب",
+  "ضمان رسمي شامل لمدة عامين على جميع الساعات الأصلية مع استبدال فوري",
+  "خصومات حصرية بمناسبة إطلاق تشكيلة ساعات ضَفّة 2026 الفاخرة",
+  "توصيل سريع وموثوق خلال 2 إلى 4 أيام عمل لباب منزلك مباشرة",
+];
+
+export function getTickerItems() {
+  try {
+    const raw = localStorage.getItem("daffa_ticker_items");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return defaultTickerItems;
+}
+
+export function saveTickerItems(items) {
+  try {
+    localStorage.setItem("daffa_ticker_items", JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent("daffa:ticker-updated", { detail: items }));
+  } catch {}
+}
 
 export const storeSettings = defaultStoreSettings;
 
@@ -836,6 +871,59 @@ export function saveStoreSettings(settings) {
   } catch {
     // Storage quota
   }
+}
+
+// Orders State Management
+export function getOrders() {
+  try {
+    const raw = localStorage.getItem("daffa_orders");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveOrders(orders) {
+  try {
+    localStorage.setItem("daffa_orders", JSON.stringify(orders));
+    window.dispatchEvent(new CustomEvent("daffa:orders-updated", { detail: orders }));
+  } catch {}
+}
+
+export function addOrder(orderData) {
+  const orders = getOrders();
+  const newOrder = {
+    ...orderData,
+    id: orderData.id || `DAF-${Date.now().toString().slice(-4)}`,
+    status: orderData.status || "new", // "new" | "confirmed" | "shipped" | "delivered" | "cancelled"
+    createdAt: orderData.createdAt || new Date().toISOString(),
+    isRead: false,
+  };
+  orders.unshift(newOrder);
+  saveOrders(orders);
+  return newOrder;
+}
+
+export function updateOrderStatus(orderId, status) {
+  const orders = getOrders();
+  const idx = orders.findIndex((o) => o.id === orderId);
+  if (idx > -1) {
+    orders[idx].status = status;
+    orders[idx].isRead = true;
+    saveOrders(orders);
+  }
+}
+
+export function markOrdersAsRead() {
+  const orders = getOrders();
+  let changed = false;
+  orders.forEach((o) => {
+    if (!o.isRead) {
+      o.isRead = true;
+      changed = true;
+    }
+  });
+  if (changed) saveOrders(orders);
 }
 
 export function getStoredCategories() {

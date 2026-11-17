@@ -849,6 +849,325 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: var(--sale-solid);
 }
 
+/* Nav Counter Badge */
+.nav-counter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--copper);
+  color: #ffffff;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-inline-start: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Orders Dashboard Styles
+   -------------------------------------------------------------------------- */
+.orders-header-wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.orders-filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.orders-filter-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line-strong);
+  background: var(--cream-100);
+  color: var(--teal-950);
+  font-size: 12px;
+  font-weight: 700;
+  transition: all var(--transition-fast);
+}
+
+.orders-filter-btn:hover {
+  background: var(--cream-200);
+}
+
+.orders-filter-btn.is-active {
+  background: var(--teal-950);
+  border-color: var(--teal-950);
+  color: #ffffff;
+}
+
+.admin-orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.admin-order-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.admin-order-card.is-unread {
+  border-inline-start: 4px solid var(--copper);
+  background: #fffdfb;
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-subtle);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.order-id-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--teal-950);
+}
+
+.order-id-block strong {
+  font-family: var(--font-digits);
+  color: var(--copper);
+  letter-spacing: 0.02em;
+}
+
+.order-date-text {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.unread-tag {
+  background: var(--copper-tint);
+  color: var(--copper);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.order-status-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.order-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.status-new {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.status-confirmed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-shipped {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.status-delivered {
+  background: var(--success-bg);
+  color: var(--success-ink);
+}
+
+.status-cancelled {
+  background: var(--sale-bg);
+  color: var(--sale-ink);
+}
+
+.admin-order-status-select {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--cream-50);
+  color: var(--teal-950);
+}
+
+.order-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.order-customer-box, .order-items-box {
+  background: var(--cream-50);
+  border: 1px solid var(--line-subtle);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 12px;
+}
+
+.order-customer-box h4, .order-items-box h4 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--teal-950);
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 6px;
+}
+
+.order-customer-box p {
+  margin: 4px 0;
+  color: var(--ink);
+}
+
+.order-customer-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-subtle);
+}
+
+.admin-whatsapp-contact-btn {
+  background: #25d366 !important;
+  color: #ffffff !important;
+  border-color: #25d366 !important;
+  font-weight: 700;
+}
+
+.admin-whatsapp-contact-btn:hover {
+  background: #1ebc59 !important;
+}
+
+.order-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.order-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.order-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--teal-950);
+}
+
+.order-total-row strong {
+  font-family: var(--font-digits);
+  color: var(--copper);
+  font-size: 15px;
+}
+
+/* ----------------------------------------------------
+   News Ticker Management Styles
+   ---------------------------------------------------- */
+.ticker-items-management {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.add-ticker-item-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.add-ticker-item-row input {
+  flex: 1;
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.ticker-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ticker-admin-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--cream-50);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.ticker-item-num {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--copper);
+  min-width: 20px;
+  text-align: center;
+}
+
+.ticker-item-content {
+  flex: 1;
+  font-size: 13px;
+  color: var(--teal-950);
+  font-weight: 600;
+}
+
+.ticker-item-btns {
+  display: flex;
+  gap: 6px;
+}
+
+/* ----------------------------------------------------
+   Notification Channel Boxes
+   ---------------------------------------------------- */
+.notification-channel-box {
+  background: var(--cream-50);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+
+.channel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 /* --------------------------------------------------------------------------
    Responsive Breakpoints for Admin
    -------------------------------------------------------------------------- */
@@ -858,6 +1177,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   }
 
   .form-row-2, .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .order-details-grid {
     grid-template-columns: 1fr;
   }
 }

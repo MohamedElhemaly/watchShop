@@ -244,7 +244,7 @@ function applyStoreSettings(settings = currentSettings) {
     if (videoSource.getAttribute("src") !== targetVideo) {
       videoSource.setAttribute("src", targetVideo);
       videoPlayer.load();
-      videoPlayer.play().catch(() => {});
+      videoPlayer.play().catch(() => { });
     }
     if (videoPlayer.getAttribute("poster") !== targetPoster) {
       videoPlayer.setAttribute("poster", targetPoster);
@@ -368,7 +368,6 @@ function renderCategoryTabs() {
         role="tab" 
         aria-selected="${isSelected}"
         data-category="${cat.id}">
-        <span class="tab-icon" aria-hidden="true">${cat.icon || "⌚"}</span>
         <span class="tab-name">${safeText(cat.name)}</span>
         <span class="tab-count">${new Intl.NumberFormat("ar-EG").format(count)}</span>
       </button>
@@ -377,18 +376,14 @@ function renderCategoryTabs() {
 }
 
 // ----------------------------------------------------
-// 4. BESPOKE WATCH PRODUCT CARD RENDERING
-// (Clean Horology Aesthetic: No Red Banner, Equal Height, Interactive Swatches)
+// 4. BESPOKE WATCH PRODUCT CARD RENDERING (2026 UNIFIED SYSTEM)
+// (Clean Horology Aesthetic: Zero-Crop Studio Container, Equal Height, Minimal Typography)
 // ----------------------------------------------------
 function renderPriceRow(product) {
   const basePrice = Number(product.basePrice) || 0;
   const currentPrice = getEffectiveProductPrice(product);
   const discountActive = Boolean(product.discountActive) && currentPrice < basePrice;
   const discountLabel = getDiscountBadgeLabel(product);
-
-  const countdownMarkup = (discountActive && product.discountEndOn)
-    ? `<span class="timer-pill" data-promotion-countdown data-discount-end="${safeText(product.discountEndOn)}" aria-label="الوقت المتبقي"></span>`
-    : "";
 
   return `
     <div class="card-pricing-row">
@@ -397,83 +392,104 @@ function renderPriceRow(product) {
         ${discountActive ? `<del class="price-original">${formatEgp(basePrice)} <small>ج.م</small></del>` : ""}
       </div>
       ${discountActive && discountLabel ? `
-        <div class="pricing-tags">
-          <span class="discount-pill">${safeText(discountLabel)}</span>
-          ${countdownMarkup}
-        </div>
+        <span class="discount-pill">${safeText(discountLabel)}</span>
       ` : ""}
     </div>
   `;
 }
 
+function getSwatchColor(label) {
+  if (!label) return "#8F9E9B";
+  const l = String(label).toLowerCase();
+  if (l.includes("ذهب") || l.includes("gold")) return "#C5A059";
+  if (l.includes("فض") || l.includes("silver")) return "#B0B7BD";
+  if (l.includes("كحل") || l.includes("أزرق") || l.includes("blue") || l.includes("navy")) return "#1B2A4A";
+  if (l.includes("أسود") || l.includes("black")) return "#1A1A1A";
+  if (l.includes("بيج") || l.includes("رمل") || l.includes("sand")) return "#BFA58A";
+  if (l.includes("رماد") || l.includes("grey") || l.includes("gray")) return "#747D8C";
+  if (l.includes("أخضر") || l.includes("زمرد") || l.includes("green")) return "#0E4D40";
+  if (l.includes("روز") || l.includes("ورد") || l.includes("rose")) return "#E0A899";
+  if (l.includes("بني") || l.includes("brown")) return "#4A2C11";
+  return "#8F9E9B";
+}
+
 function renderProductCard(product, index) {
   const hasImages = Array.isArray(product.images) && product.images.length > 0;
   const coverImage = product.imageUrl || (hasImages ? product.images[0].imageUrl : "/sodfa-promo-poster.jpg");
-  const badgeMarkup = product.badge ? `<span class="product-status-tag">${safeText(product.badge)}</span>` : "";
 
-  // Interactive Color Swatches
+  // Single understated top-right tag
+  const tagText = product.badge || (product.isFlagship ? "الإصدار المميز" : "");
+  const tagMarkup = tagText ? `<span class="product-top-tag">${safeText(tagText)}</span>` : "";
+
+  // Interactive circular color swatches (w-4 h-4 rounded-full ring-offset-2)
   let swatchesHtml = "";
   if (hasImages && product.images.length > 1) {
     swatchesHtml = `
-      <div class="card-swatches" role="group" aria-label="ألوان الساعة">
+      <div class="card-swatches" role="group" aria-label="خيارات الألوان">
         ${product.images.map((img, i) => `
           <button 
             type="button" 
             class="swatch-dot ${i === 0 ? "is-selected" : ""}" 
-            title="${safeText(img.colorLabel || `لون ${i+1}`)}" 
+            style="background-color: ${getSwatchColor(img.colorLabel)};"
+            title="${safeText(img.colorLabel || `لون ${i + 1}`)}" 
             data-action="switch-card-swatch"
             data-image-index="${i}" 
             data-image-url="${safeText(img.imageUrl)}"
             data-color-label="${safeText(img.colorLabel || "")}"
             data-product-id="${safeText(product.id)}"
-            aria-label="${safeText(img.colorLabel || `لون ${i+1}`)}">
+            aria-label="${safeText(img.colorLabel || `لون ${i + 1}`)}">
           </button>
         `).join("")}
       </div>
     `;
   }
 
-  const spec1Line = product.shortSpec 
+  const spec1Line = product.shortSpec
     || (product.specifications && product.specifications[0] ? `${product.specifications[0].value} • ${product.specifications[2]?.value || "دقة عالية"}` : "ساعة أصلية فاخرة");
 
   return `
     <article class="product-card" data-product-id="${safeText(product.id)}">
-      <!-- Studio Framing with 4:5 Aspect Ratio -->
+      <!-- Studio Showcase Container with 4:5 Aspect Ratio & Zero-Crop Object-Contain -->
       <div class="product-visual">
-        <div class="visual-corner-badges">
-          <span class="category-pill">${safeText(product.category || "ساعة فاخرة")}</span>
-          <span class="index-pill">#${String(index + 1).padStart(2, "0")}</span>
-        </div>
-        ${badgeMarkup}
+        ${tagMarkup}
         <button type="button" class="product-visual-btn" data-action="quick-view" data-product-id="${safeText(product.id)}" aria-label="عرض مواصفات ${safeText(product.name)}">
-          <img class="product-image" id="card-img-${safeText(product.id)}" src="${safeText(coverImage)}" alt="${safeText(product.imageAlt || product.name)}" loading="lazy" />
+          <img 
+            class="product-image" 
+            id="card-img-${safeText(product.id)}" 
+            src="${safeText(coverImage)}" 
+            alt="${safeText(product.imageAlt || product.name)}" 
+            loading="lazy" 
+          />
         </button>
       </div>
 
-      <!-- Card Body with Fixed Structure & Equal Height -->
+      <!-- Clean Card Body & Typography with Equal Height -->
       <div class="product-details">
-        <div class="product-header-group">
+        <!-- Row 1: Title + Swatches Aligned Opposite -->
+        <div class="product-row-title-swatches">
           <h3 class="product-title">
             <button type="button" class="product-title-btn" data-action="quick-view" data-product-id="${safeText(product.id)}">
               ${safeText(product.name)}
             </button>
           </h3>
-          <p class="product-spec-line">${safeText(spec1Line)}</p>
           ${swatchesHtml}
         </div>
 
+        <!-- Row 2: Concise 1-line Technical Specs -->
+        <p class="product-spec-line">${safeText(spec1Line)}</p>
+
+        <!-- Row 3: Pricing & Clean Discount Pill -->
         <div class="product-pricing-wrap">
           ${renderPriceRow(product)}
         </div>
 
+        <!-- Row 4: Unified 2026 Action Buttons -->
         <div class="card-actions-row">
           <button type="button" class="card-add-cart-btn button button-primary" data-action="add-to-cart" data-product-id="${safeText(product.id)}">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             <span>أضف للحقيبة</span>
           </button>
           <button type="button" class="card-details-btn button button-quiet" data-action="quick-view" data-product-id="${safeText(product.id)}">
             <span>المواصفات</span>
-            <span aria-hidden="true">←</span>
           </button>
         </div>
       </div>
@@ -682,9 +698,9 @@ function openProductModal(productId) {
           type="button" 
           class="modal-swatch-thumb ${idx === 0 ? "is-active" : ""}" 
           data-index="${idx}" 
-          aria-label="${safeText(img.colorLabel || `لون ${idx+1}`)}">
+          aria-label="${safeText(img.colorLabel || `لون ${idx + 1}`)}">
           <img src="${safeText(img.imageUrl)}" alt="" />
-          <span>${safeText(img.colorLabel || `خيار ${idx+1}`)}</span>
+          <span>${safeText(img.colorLabel || `خيار ${idx + 1}`)}</span>
         </button>
       `).join("");
       modalSwatches.hidden = false;
@@ -699,10 +715,10 @@ function openProductModal(productId) {
     const specs = Array.isArray(product.specifications) && product.specifications.length > 0
       ? product.specifications
       : [
-          { label: "الموديل", value: product.name },
-          { label: "التصنيف", value: product.category || "كلاسيك" },
-          { label: "الضمان", value: "سنتان شامل" },
-        ];
+        { label: "الموديل", value: product.name },
+        { label: "التصنيف", value: product.category || "كلاسيك" },
+        { label: "الضمان", value: "سنتان شامل" },
+      ];
     modalSpecs.innerHTML = specs.map((s) => `
       <div class="modal-spec-row">
         <dt>${safeText(s.label)}</dt>
@@ -944,7 +960,7 @@ function initStorefront() {
 }
 
 // Global Event Handlers
-document.addEventListener("DOMContentLoaded", () => {
+function initApp() {
   initStorefront();
   const yearEl = $("#year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
@@ -1213,4 +1229,10 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("daffa:ticker-updated", () => {
     renderNewsTicker();
   });
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}

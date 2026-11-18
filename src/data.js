@@ -4,12 +4,12 @@
 // Complete preservation of all watch products, categories, variants, and specifications.
 
 export const categories = [
-  { id: "all", name: "جميع الساعات", slug: "all", icon: "⌚" },
-  { id: "men", name: "رجالي", slug: "men", icon: "👔" },
-  { id: "women", name: "نسائي", slug: "women", icon: "✨" },
-  { id: "classic-dress", name: "كلاسيك ورسمية", slug: "classic-dress", icon: "🏛️" },
-  { id: "sport-chrono", name: "رياضية وكرونوغراف", slug: "sport-chrono", icon: "⏱️" },
-  { id: "smart-hybrid", name: "ذكية وهجينة", slug: "smart-hybrid", icon: "⚡" },
+  { id: "all", name: "كل الساعات", slug: "all", icon: "" },
+  { id: "men", name: "رجالية", slug: "men", icon: "" },
+  { id: "women", name: "نسائية", slug: "women", icon: "" },
+  { id: "classic-dress", name: "كلاسيك ورسمية", slug: "classic-dress", icon: "" },
+  { id: "sport-chrono", name: "رياضية وكرونوغراف", slug: "sport-chrono", icon: "" },
+  { id: "smart-hybrid", name: "ذكية وهجينة", slug: "smart-hybrid", icon: "" },
 ];
 
 // Helper to generate bespoke, ultra-sharp vector watch illustrations for studio presentation

@@ -944,7 +944,7 @@ function renderDashboard() {
   populateContactsAndPolicies();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function initAdminApp() {
   updateAuthViews();
 
   $("#admin-login-form")?.addEventListener("submit", handleLoginSubmit);
@@ -1030,4 +1030,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Contacts Form
   $("#store-contacts-form")?.addEventListener("submit", handleContactsSubmit);
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAdminApp);
+} else {
+  initAdminApp();
+}

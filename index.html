@@ -61,30 +61,27 @@
     </header>
 
     <main>
-      <!-- Hero Section with Clean Video & Flagship Timepiece Feature -->
+      <!-- Hero Section with Clean Portrait Video & Editorial Layout -->
       <section class="hero" id="home" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow"><span></span> تشكيلة 2026 الحصرية</p>
+          <p class="eyebrow"><span></span> لكل وقت حكاية</p>
           <h1 id="hero-title">كل لحظة حلوة<br /><em>تستاهل وقتها.</em></h1>
           <p id="hero-description" class="hero-description">
-            ساعات مختارة بعناية فائقة، تجمع بين دقة صناعة الساعات العالمية وجمال الخطوط المعاصرة. اقتنِ قطعة تعبّر عن هويتك اليومية.
+            ساعات مختارة بعناية فائقة، بتفاصيل بسيطة تكمّل يومك وتعبّر عن هويتك اليومية.
           </p>
 
-          <div class="hero-flagship-pill">
-            <span class="flagship-tag" id="hero-flagship-tag">القطعة المميزة</span>
-            <strong id="hero-flagship-name">ضَفّة هيريتدج كرونوغراف</strong>
-            <span class="flagship-sep">•</span>
-            <span class="flagship-spec" id="hero-flagship-spec">سافاير • مقاومة 100م • ستيل 316L</span>
-          </div>
-
           <div class="hero-actions">
-            <a class="button button-light" href="#catalog">تصفّح التشكيلة <span aria-hidden="true">←</span></a>
-            <button id="hero-flagship-cta" class="button hero-quick-view-btn" type="button">تفاصيل القطعة المميزة</button>
+            <a class="button button-light" href="#catalog">تصفح التشكيلة <span aria-hidden="true">←</span></a>
+            <span class="hero-note">اختيارات أنيقة بأسعار مناسبة</span>
           </div>
         </div>
 
-        <!-- Hero Video Player in Editorial Frame -->
+        <!-- Hero Video Player in Editorial Portrait Frame -->
         <div class="hero-art" role="group" aria-label="فيديو برومو ضَفّة">
+          <div class="art-caption art-caption-top">
+            <span id="hero-art-caption-index">01 / لحظتك</span>
+            <span id="hero-art-caption-title">تشكيلة ضَفّة</span>
+          </div>
           <video
             id="hero-video-player"
             class="hero-video"
@@ -103,10 +100,7 @@
             />
             متصفحك لا يدعم تشغيل الفيديو.
           </video>
-          <div class="art-caption">
-            <span id="hero-art-caption-index">01 / لحظتك</span>
-            <span id="hero-art-caption-title">تشكيلة ضَفّة</span>
-          </div>
+          <div class="hero-art-scrim" aria-hidden="true"></div>
         </div>
 
         <div class="hero-bottom">
@@ -125,35 +119,38 @@
           <p>استكشف موديلات ضَفّة المصنوعة بحرفية واقتنِ ساعتك مباشرة مع إمكانية المعاينة والفحص قبل الاستلام.</p>
         </div>
 
-        <!-- Interactive Filter & Category Navigation Bar -->
+        <!-- Architectural Two-Row Toolbar: Category Tabs (Top) + Filters & Sort (Bottom) -->
         <div class="catalog-toolbar">
-          <div id="catalog-category-tabs" class="catalog-category-tabs" role="tablist" aria-label="تصنيفات الساعات">
-            <!-- Rendered dynamically -->
+          <div class="catalog-toolbar-row-top">
+            <div id="catalog-category-tabs" class="catalog-category-tabs" role="tablist" aria-label="تصنيفات الساعات">
+              <!-- Rendered dynamically without emojis -->
+            </div>
           </div>
 
-          <div class="catalog-controls">
-            <div class="catalog-sort-wrap">
-              <label for="catalog-sort">الترتيب:</label>
-              <select id="catalog-sort">
-                <option value="featured">المميز والموصى به</option>
-                <option value="price-asc">السعر: من الأقل للأعلى</option>
-                <option value="price-desc">السعر: من الأعلى للأقل</option>
-                <option value="discount">أكبر نسبة تخفيض</option>
-              </select>
-            </div>
-
+          <div class="catalog-toolbar-row-bottom">
             <div class="catalog-quick-filters">
               <button class="filter-chip" type="button" data-filter="sale">عروض وتخفيضات</button>
               <button class="filter-chip" type="button" data-filter="leather">سوار جلد</button>
               <button class="filter-chip" type="button" data-filter="steel">سوار ستيل</button>
             </div>
-          </div>
-        </div>
 
-        <!-- Live Results Count & Active Search Banner -->
-        <div id="catalog-status-bar" class="catalog-status-bar" aria-live="polite">
-          <span id="catalog-results-count">جارٍ تحميل التشكيلة…</span>
-          <button id="catalog-reset-filters" class="reset-filters-btn" type="button" hidden>إلغاء التصفية والبحث ↺</button>
+            <div class="catalog-toolbar-end">
+              <div id="catalog-status-bar" class="catalog-status-bar" aria-live="polite">
+                <span id="catalog-results-count">جارٍ تحميل التشكيلة…</span>
+                <button id="catalog-reset-filters" class="reset-filters-btn" type="button" hidden>إلغاء التصفية ↺</button>
+              </div>
+
+              <div class="catalog-sort-wrap">
+                <label for="catalog-sort">الترتيب:</label>
+                <select id="catalog-sort">
+                  <option value="featured">المميز والموصى به</option>
+                  <option value="price-asc">السعر: من الأقل للأعلى</option>
+                  <option value="price-desc">السعر: من الأعلى للأقل</option>
+                  <option value="discount">أكبر نسبة تخفيض</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Product Cards Grid -->

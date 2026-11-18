@@ -289,7 +289,7 @@
             <span>الإجمالي النهائي للدفع</span>
             <strong id="cart-total-amount">0 ج.م</strong>
           </div>
-          <p class="cart-notice">الدفع نقدًا عند الاستلام بعد المعاينة والفحص</p>
+          <p class="cart-notice">الدفع نقدًا عند الاستلام بعد المعاينة والفحص • التوصيل <strong class="dynamic-delivery-timeline">خلال 2 إلى 4 أيام عمل</strong></p>
           <button id="cart-checkout-button" class="button button-primary cart-checkout-button" type="button">
             متابعة إتمام الطلب <span aria-hidden="true">←</span>
           </button>
@@ -313,6 +313,9 @@
             <span id="modal-product-category" class="modal-category-badge"></span>
             <h2 id="modal-product-name"></h2>
             <div id="modal-price-wrap" class="modal-price-wrap" aria-live="polite"></div>
+            <div class="modal-delivery-pill" style="margin: 6px 0 10px; font-size: 12px; color: var(--teal-900); display: flex; align-items: center; gap: 6px;">
+              <span aria-hidden="true">🚚</span> توصيل سريع <strong class="dynamic-delivery-timeline">خلال 2 إلى 4 أيام عمل</strong> مع حق الفحص قبل الاستلام
+            </div>
             <p id="modal-product-description" class="modal-description"></p>
 
             <div class="modal-specs-wrap">
@@ -411,7 +414,7 @@
                 <strong id="checkout-final-total">0 ج.م</strong>
               </div>
               <div class="payment-guarantee">
-                <span>🛡️ الدفع نقدًا عند الاستلام • يحق لك فتح الشحنة وفحص الساعة قبل دفع أي مبلغ</span>
+                <span>🛡️ الدفع نقدًا عند الاستلام • التوصيل <strong id="checkout-delivery-timeline" class="dynamic-delivery-timeline">خلال 2 إلى 4 أيام عمل</strong> مع حق الفحص والمعاينة</span>
               </div>
             </div>
 
@@ -429,7 +432,7 @@
           <p class="success-order-num">رقم مرجع الطلب: <strong id="success-order-id">#DAF-1042</strong></p>
           <div class="success-timeline-pill">
             <span aria-hidden="true">🚚</span>
-            <span>موعد التوصيل المتوقع: خلال 2 إلى 4 أيام عمل</span>
+            <span id="success-delivery-timeline">موعد التوصيل المتوقع: <strong class="dynamic-delivery-timeline">خلال 2 إلى 4 أيام عمل</strong> لباب منزلك</span>
           </div>
           <p class="success-desc">
             شكرًا لاختيارك ضَفّة. تم تسجيل طلبك وسيتواصل معك مندوب التوصيل لتحديد موعد التسليم والمعاينة قبل السداد.

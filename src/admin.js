@@ -14,6 +14,22 @@ import {
   markOrdersAsRead,
   getTickerItems,
   saveTickerItems,
+  getAdminSession,
+  setAdminSession,
+  clearAdminSession,
+  hasPermission,
+  verifyAdminCredentials,
+  recoverPasswordWithKey,
+  changeUserPassword,
+  getAdminUsers,
+  createAdminUser,
+  updateAdminUser,
+  deleteAdminUser,
+  resetUserPassword,
+  getMasterRecoveryKey,
+  regenerateMasterRecoveryKey,
+  formatDeliveryTimeline,
+  ADMIN_PERMISSIONS,
 } from "./data.js";
 import {
   calculateDiscountedPrice,
@@ -63,33 +79,41 @@ function showToast(message, isError = false) {
 }
 
 // ----------------------------------------------------
-// 1. AUTHENTICATION CONTROLS
+// 1. AUTHENTICATION CONTROLS & RBAC SESSIONS
 // ----------------------------------------------------
-const AUTH_KEY = "daffa_admin_auth";
-
-function isAuthenticated() {
-  return localStorage.getItem(AUTH_KEY) === "true";
-}
-
-function setAuthenticated(status) {
-  if (status) {
-    localStorage.setItem(AUTH_KEY, "true");
-  } else {
-    localStorage.removeItem(AUTH_KEY);
-  }
-  updateAuthViews();
+function getCurrentSession() {
+  return getAdminSession();
 }
 
 function updateAuthViews() {
-  const isAuth = isAuthenticated();
+  const session = getCurrentSession();
+  const isAuth = Boolean(session);
   const loginView = $("#admin-login-view");
   const dashboardView = $("#admin-dashboard-view");
   const headerActions = $("#admin-header-actions");
+  const headerUserRole = $("#header-user-role-badge");
+  const headerUserName = $("#header-user-name");
+  const signedInUserEl = $("#admin-signed-in-user");
 
   if (isAuth) {
     if (loginView) loginView.hidden = true;
     if (dashboardView) dashboardView.hidden = false;
     if (headerActions) headerActions.hidden = false;
+
+    // Display user identity in top bar
+    const isSuper = session.role === "super_admin";
+    if (headerUserName) headerUserName.textContent = session.fullName || session.username;
+    if (headerUserRole) {
+      headerUserRole.textContent = isSuper ? "المدير العام" : "مشرف";
+      headerUserRole.className = `user-role-badge ${isSuper ? "" : "is-regular"}`;
+    }
+    if (signedInUserEl) {
+      signedInUserEl.textContent = `مسجّل الدخول: ${session.fullName || session.username} (${isSuper ? "المدير العام" : "مشرف النظام"})`;
+    }
+
+    // Apply granular permissions across tabs and actions
+    applyPermissionVisibility(session);
+
     renderDashboard();
   } else {
     if (loginView) loginView.hidden = false;
@@ -100,30 +124,251 @@ function updateAuthViews() {
 
 function handleLoginSubmit(e) {
   e.preventDefault();
-  const user = $("#login-username")?.value.trim();
-  const pass = $("#login-password")?.value.trim();
+  const username = $("#login-username")?.value.trim();
+  const password = $("#login-password")?.value.trim();
+  const rememberMe = $("#login-remember-me")?.checked ?? true;
   const errBox = $("#login-error");
 
-  // Authentication validation (Default credentials: admin / daffa2026)
-  if (user === "admin" && (pass === "daffa2026" || pass === "admin" || pass.length >= 6)) {
-    if (errBox) errBox.hidden = true;
-    setAuthenticated(true);
-    showToast("تم تسجيل الدخول بنجاح. أهلاً بك في لوحة تحكم ضَفّة ✓");
-  } else {
+  if (errBox) errBox.hidden = true;
+
+  if (!username || !password) {
+    if (errBox) {
+      errBox.textContent = "يرجى إدخال اسم المستخدم وكلمة المرور.";
+      errBox.hidden = false;
+    }
+    return;
+  }
+
+  const result = verifyAdminCredentials(username, password);
+  if (!result) {
     if (errBox) {
       errBox.textContent = "بيانات الدخول غير صحيحة. يرجى التأكد من اسم المستخدم وكلمة المرور.";
       errBox.hidden = false;
     }
+    return;
   }
+
+  if (result.error) {
+    if (errBox) {
+      errBox.textContent = result.error;
+      errBox.hidden = false;
+    }
+    return;
+  }
+
+  const sessionData = {
+    userId: result.id,
+    username: result.username,
+    fullName: result.fullName,
+    role: result.role,
+    loggedInAt: new Date().toISOString(),
+  };
+
+  setAdminSession(sessionData, rememberMe);
+  updateAuthViews();
+  showToast(`أهلاً بك يا ${result.fullName || result.username} في لوحة تحكم ضَفّة ✓`);
 }
 
 function handleLogout() {
-  setAuthenticated(false);
+  clearAdminSession();
+  updateAuthViews();
   showToast("تم تسجيل الخروج بنجاح.");
 }
 
+function initPasswordToggle() {
+  const toggleBtn = $("#login-password-toggle");
+  const passInput = $("#login-password");
+  if (!toggleBtn || !passInput) return;
+
+  toggleBtn.addEventListener("click", () => {
+    const isPassword = passInput.type === "password";
+    passInput.type = isPassword ? "text" : "password";
+    toggleBtn.textContent = isPassword ? "🔒" : "👁️";
+    toggleBtn.setAttribute("aria-label", isPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور");
+  });
+}
+
+function initPasswordRecoveryFlow() {
+  const mainCard = $("#login-card-main");
+  const recoveryCard = $("#login-card-recovery");
+  const openRecoveryBtn = $("#btn-open-recovery");
+  const backToLoginBtn = $("#btn-back-to-login");
+  const recoveryForm = $("#admin-recovery-form");
+  const errBox = $("#recovery-error");
+  const successBox = $("#recovery-success");
+
+  openRecoveryBtn?.addEventListener("click", () => {
+    if (mainCard) mainCard.hidden = true;
+    if (recoveryCard) recoveryCard.hidden = false;
+    if (errBox) errBox.hidden = true;
+    if (successBox) successBox.hidden = true;
+    recoveryForm?.reset();
+  });
+
+  backToLoginBtn?.addEventListener("click", () => {
+    if (recoveryCard) recoveryCard.hidden = true;
+    if (mainCard) mainCard.hidden = false;
+  });
+
+  recoveryForm?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (errBox) errBox.hidden = true;
+    if (successBox) successBox.hidden = true;
+
+    const username = $("#recovery-username")?.value.trim();
+    const key = $("#recovery-key")?.value.trim();
+    const newPass = $("#recovery-new-password")?.value.trim();
+    const confirmPass = $("#recovery-confirm-password")?.value.trim();
+
+    if (newPass !== confirmPass) {
+      if (errBox) {
+        errBox.textContent = "كلمتا المرور غير متطابقتين.";
+        errBox.hidden = false;
+      }
+      return;
+    }
+
+    try {
+      const updatedUser = recoverPasswordWithKey(username, key, newPass);
+      if (successBox) {
+        successBox.textContent = "تم استعادة الحساب وتعيين كلمة المرور بنجاح! يتم تسجيل الدخول الآن...";
+        successBox.hidden = false;
+      }
+
+      const sessionData = {
+        userId: updatedUser.id,
+        username: updatedUser.username,
+        fullName: updatedUser.fullName,
+        role: updatedUser.role,
+        loggedInAt: new Date().toISOString(),
+      };
+
+      setTimeout(() => {
+        setAdminSession(sessionData, true);
+        if (recoveryCard) recoveryCard.hidden = true;
+        if (mainCard) mainCard.hidden = false;
+        updateAuthViews();
+        showToast("تم الدخول بنجاح بكلمة المرور الجديدة ✓");
+      }, 800);
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message || "حدث خطأ أثناء استعادة كلمة المرور.";
+        errBox.hidden = false;
+      }
+    }
+  });
+}
+
 // ----------------------------------------------------
-// 2. DASHBOARD KPI STATS & TABS
+// 2. PERMISSIONS ENFORCEMENT & TAB GATING
+// ----------------------------------------------------
+function applyPermissionVisibility(session) {
+  if (!session) return;
+  const isSuper = session.role === "super_admin";
+  const permissions = session.permissions || {};
+
+  let firstVisibleTab = null;
+  let activeTabIsVisible = false;
+
+  $$(".admin-tab-btn").forEach((btn) => {
+    const perm = btn.dataset.permission;
+    const superOnly = btn.dataset.superOnly === "true";
+
+    let allowed = true;
+    if (superOnly && !isSuper) {
+      allowed = false;
+    } else if (perm && !isSuper) {
+      allowed = Boolean(permissions[perm]);
+    }
+
+    btn.hidden = !allowed;
+    btn.style.display = allowed ? "" : "none";
+
+    if (allowed) {
+      if (!firstVisibleTab) firstVisibleTab = btn.dataset.tab;
+      if (btn.classList.contains("is-active")) activeTabIsVisible = true;
+    }
+  });
+
+  // If current active tab is inaccessible, switch to first allowed tab
+  if (!activeTabIsVisible && firstVisibleTab) {
+    switchTab(firstVisibleTab);
+  }
+
+  // Orders: disable action dropdowns if not manage_orders
+  const canManageOrders = isSuper || Boolean(permissions.manage_orders);
+  $$(".admin-order-status-select").forEach((sel) => {
+    sel.disabled = !canManageOrders;
+  });
+
+  // Products: hide add/save/delete buttons if not manage_products
+  const canManageProducts = isSuper || Boolean(permissions.manage_products);
+  const newProductBtn = $("#admin-new-product-btn");
+  if (newProductBtn) newProductBtn.style.display = canManageProducts ? "" : "none";
+  const productSaveBtn = $("#product-save-btn");
+  if (productSaveBtn) productSaveBtn.disabled = !canManageProducts;
+  const productDeleteBtn = $("#product-delete-btn");
+  if (productDeleteBtn && !canManageProducts) productDeleteBtn.style.display = "none";
+  $$(".admin-edit-btn").forEach((b) => {
+    if (!canManageProducts) b.style.display = "none";
+  });
+
+  // Categories: hide add form and delete buttons if not manage_categories
+  const canManageCategories = isSuper || Boolean(permissions.manage_categories);
+  const addCatForm = $("#add-category-form");
+  if (addCatForm) addCatForm.style.display = canManageCategories ? "" : "none";
+  $$('[data-action="delete-category"]').forEach((b) => {
+    if (!canManageCategories) b.style.display = "none";
+  });
+
+  // Storefront & News Ticker: disable submit if not manage_storefront
+  const canManageStorefront = isSuper || Boolean(permissions.manage_storefront);
+  const heroFormSubmit = $("#hero-settings-form button[type='submit']");
+  if (heroFormSubmit) heroFormSubmit.disabled = !canManageStorefront;
+  const tickerFormSubmit = $("#ticker-settings-form button[type='submit']");
+  if (tickerFormSubmit) tickerFormSubmit.disabled = !canManageStorefront;
+
+  // Delivery & Notifications: disable submit if not manage_delivery_settings
+  const canManageDelivery = isSuper || Boolean(permissions.manage_delivery_settings);
+  const deliverySubmit = $("#delivery-settings-form button[type='submit']");
+  if (deliverySubmit) deliverySubmit.disabled = !canManageDelivery;
+  const notifSubmit = $("#notifications-settings-form button[type='submit']");
+  if (notifSubmit) notifSubmit.disabled = !canManageDelivery;
+
+  // Master recovery key card (Super Admin only)
+  const masterRecoveryCard = $("#card-master-recovery");
+  if (masterRecoveryCard) {
+    masterRecoveryCard.hidden = !isSuper;
+    masterRecoveryCard.style.display = isSuper ? "" : "none";
+  }
+}
+
+function switchTab(tabName) {
+  $$(".admin-tab-btn").forEach((b) => {
+    const isSelected = b.dataset.tab === tabName;
+    b.classList.toggle("is-active", isSelected);
+    b.setAttribute("aria-selected", String(isSelected));
+  });
+  $$(".admin-tab-content").forEach((panel) => {
+    panel.classList.toggle("is-active", panel.id === `tab-${tabName}`);
+  });
+
+  if (tabName === "orders") {
+    markOrdersAsRead();
+    orders = getOrders();
+    updateOrdersBadge();
+    renderOrdersList();
+  } else if (tabName === "admin-users") {
+    renderAdminUsersTable();
+  } else if (tabName === "delivery") {
+    populateDeliverySettings();
+  } else if (tabName === "account-security") {
+    populateAccountSecurity();
+  }
+}
+
+// ----------------------------------------------------
+// 3. DASHBOARD KPI STATS & TABS
 // ----------------------------------------------------
 function updateKpiStats() {
   const totalEl = $("#stat-total-watches");
@@ -147,28 +392,13 @@ function initTabs() {
   $$(".admin-tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tabName = btn.dataset.tab;
-      $$(".admin-tab-btn").forEach((b) => {
-        const isSelected = b === btn;
-        b.classList.toggle("is-active", isSelected);
-        b.setAttribute("aria-selected", String(isSelected));
-      });
-      $$(".admin-tab-content").forEach((panel) => {
-        panel.classList.toggle("is-active", panel.id === `tab-${tabName}`);
-      });
-
-      // If opening orders tab, mark orders as read
-      if (tabName === "orders") {
-        markOrdersAsRead();
-        orders = getOrders();
-        updateOrdersBadge();
-        renderOrdersList();
-      }
+      switchTab(tabName);
     });
   });
 }
 
 // ----------------------------------------------------
-// 3. PRODUCTS MANAGEMENT & FLEXIBLE DISCOUNTS (CRUD)
+// 4. PRODUCTS MANAGEMENT & FLEXIBLE DISCOUNTS (CRUD)
 // ----------------------------------------------------
 function renderCategoryOptions() {
   const catSelect = $("#edit-category");
@@ -196,6 +426,9 @@ function renderProductsList() {
     listEl.innerHTML = `<div class="admin-empty-state"><p>لا توجد ساعات في هذا العرض.</p></div>`;
     return;
   }
+
+  const session = getCurrentSession();
+  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_products));
 
   listEl.innerHTML = filtered.map((product) => {
     const isSelected = editingProductId === product.id;
@@ -230,9 +463,11 @@ function renderProductsList() {
           </div>
         </div>
         <div class="admin-item-actions">
-          <button type="button" class="admin-button admin-button-small admin-edit-btn" data-action="edit-product" data-product-id="${product.id}">
-            تعديل ✎
-          </button>
+          ${canManage ? `
+            <button type="button" class="admin-button admin-button-small admin-edit-btn" data-action="edit-product" data-product-id="${product.id}">
+              تعديل ✎
+            </button>
+          ` : ""}
         </div>
       </article>
     `;
@@ -275,7 +510,6 @@ function loadProductIntoEditor(productId) {
   $("#edit-description").value = product.description || "";
   $("#edit-base-price").value = product.basePrice || "";
 
-  // Flexible discount populating
   const discType = product.discountType || (Number(product.discountPercent) > 0 ? "percent" : "none");
   const discVal = product.discountValue !== undefined ? product.discountValue : (product.discountPercent || 0);
   $("#edit-discount-type").value = discType;
@@ -286,7 +520,6 @@ function loadProductIntoEditor(productId) {
   $("#edit-discount-reason").value = product.discountReason || "";
   $("#edit-image-url").value = product.imageUrl || "";
 
-  // Variants to text representation
   if (Array.isArray(product.images) && product.images.length > 0) {
     const varText = product.images.map((img) => `${img.colorLabel || "لون"}: ${img.imageUrl}`).join(", ");
     $("#edit-variants").value = varText;
@@ -356,6 +589,11 @@ function updatePricePreview() {
 function handleProductFormSubmit(e) {
   e.preventDefault();
 
+  if (!hasPermission("manage_products")) {
+    showToast("ليس لديك صلاحية لإضافة أو تعديل الساعات.", true);
+    return;
+  }
+
   const id = $("#edit-product-id").value || `daffa-${Date.now()}`;
   const name = $("#edit-name").value.trim();
   const categoryId = $("#edit-category").value;
@@ -385,7 +623,6 @@ function handleProductFormSubmit(e) {
     return;
   }
 
-  // Parse color variants
   let images = [];
   if (variantsRaw) {
     images = variantsRaw.split(",").map((v, idx) => {
@@ -403,7 +640,6 @@ function handleProductFormSubmit(e) {
   const categoryObj = categories.find((c) => c.id === categoryId);
   const categoryName = categoryObj ? categoryObj.name : "ساعة فاخرة";
 
-  // Flexible price calculation
   let salePrice = basePrice;
   let discountPercent = 0;
   const discountActive = discountType !== "none" && discountValue > 0;
@@ -416,7 +652,6 @@ function handleProductFormSubmit(e) {
     discountPercent = basePrice > 0 ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0;
   }
 
-  // Build Updated Product Record
   const productData = {
     id,
     name,
@@ -470,6 +705,11 @@ function handleProductFormSubmit(e) {
 }
 
 function handleProductDelete() {
+  if (!hasPermission("manage_products")) {
+    showToast("ليس لديك صلاحية لحذف الساعات.", true);
+    return;
+  }
+
   if (!editingProductId) return;
   const product = products.find((p) => p.id === editingProductId);
   if (!product) return;
@@ -491,7 +731,7 @@ function handleProductDelete() {
 }
 
 // ----------------------------------------------------
-// 4. ORDERS DASHBOARD MANAGEMENT
+// 5. ORDERS DASHBOARD MANAGEMENT
 // ----------------------------------------------------
 function updateOrdersBadge() {
   const unreadCount = orders.filter((o) => !o.isRead).length;
@@ -526,6 +766,9 @@ function renderOrdersList() {
     return;
   }
 
+  const session = getCurrentSession();
+  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_orders));
+
   const statusLabels = {
     new: "جديد",
     confirmed: "تم التأكيد",
@@ -549,7 +792,7 @@ function renderOrdersList() {
           </div>
           <div class="order-status-select-wrap">
             <span class="order-status-badge status-${safeText(order.status)}">${statusLabels[order.status] || order.status}</span>
-            <select class="admin-order-status-select" data-action="change-order-status" data-order-id="${safeText(order.id)}">
+            <select class="admin-order-status-select" data-action="change-order-status" data-order-id="${safeText(order.id)}" ${canManage ? "" : "disabled"}>
               <option value="new" ${order.status === "new" ? "selected" : ""}>جديد</option>
               <option value="confirmed" ${order.status === "confirmed" ? "selected" : ""}>تم التأكيد</option>
               <option value="shipped" ${order.status === "shipped" ? "selected" : ""}>تم الشحن</option>
@@ -564,7 +807,7 @@ function renderOrdersList() {
             <h4>بيانات العميل والتوصيل</h4>
             <p><strong>الاسم:</strong> ${safeText(order.customerName)}</p>
             <p><strong>الهاتف:</strong> <code dir="ltr">${safeText(order.phone)}</code></p>
-            <p><strong>العنوان:</strong> ${safeText(order.governorate)} — ${safeText(order.city)}، ${safeText(order.address)}</p>
+            <p><strong>العنوان:</strong> ${safeText(order.governorate)} — ${safeText(order.city || "")}، ${safeText(order.address)}</p>
             ${order.notes ? `<p><strong>ملاحظات:</strong> <em>${safeText(order.notes)}</em></p>` : ""}
             <div class="order-customer-actions">
               <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="admin-button admin-button-small admin-whatsapp-contact-btn">
@@ -582,13 +825,13 @@ function renderOrdersList() {
               ${(order.items || []).map((i) => `
                 <div class="order-item-row">
                   <span>• ${safeText(i.name)} × ${i.quantity} ${i.color ? `(${safeText(i.color)})` : ""}</span>
-                  <strong>${formatEgp(i.price * i.quantity)} ج.م</strong>
+                  <strong>${formatEgp((i.unitPrice !== undefined ? i.unitPrice : i.price) * i.quantity)}</strong>
                 </div>
               `).join("")}
             </div>
             <div class="order-total-row">
               <span>الإجمالي المستحق (عند الاستلام):</span>
-              <strong>${formatEgp(order.totalAmount)} ج.م</strong>
+              <strong>${formatEgp(order.totalAmount)}</strong>
             </div>
           </div>
         </div>
@@ -598,6 +841,10 @@ function renderOrdersList() {
 }
 
 function handleOrderStatusChange(orderId, newStatus) {
+  if (!hasPermission("manage_orders")) {
+    showToast("ليس لديك صلاحية لتحديث حالة الطلبات.", true);
+    return;
+  }
   updateOrderStatus(orderId, newStatus);
   orders = getOrders();
   renderOrdersList();
@@ -605,7 +852,7 @@ function handleOrderStatusChange(orderId, newStatus) {
 }
 
 // ----------------------------------------------------
-// 5. HERO, VIDEO & BANNER SETTINGS
+// 6. HERO, VIDEO & BANNER SETTINGS
 // ----------------------------------------------------
 function populateHeroSettings() {
   $("#setting-brand-name").value = storeSettings.brandName || "ضَفّة";
@@ -622,6 +869,11 @@ function populateHeroSettings() {
 
 function handleHeroSettingsSubmit(e) {
   e.preventDefault();
+
+  if (!hasPermission("manage_storefront")) {
+    showToast("ليس لديك صلاحية لتعديل إعدادات الواجهة.", true);
+    return;
+  }
 
   storeSettings = {
     ...storeSettings,
@@ -642,7 +894,7 @@ function handleHeroSettingsSubmit(e) {
 }
 
 // ----------------------------------------------------
-// 6. SCROLLING NEWS TICKER MANAGEMENT
+// 7. SCROLLING NEWS TICKER MANAGEMENT
 // ----------------------------------------------------
 function populateTickerSettings() {
   const enabledEl = $("#setting-ticker-enabled");
@@ -661,20 +913,30 @@ function renderTickerItemsList() {
     return;
   }
 
+  const session = getCurrentSession();
+  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_storefront));
+
   container.innerHTML = tickerItems.map((item, idx) => `
     <div class="ticker-admin-item-row" data-index="${idx}">
       <span class="ticker-item-num">${idx + 1}</span>
       <span class="ticker-item-content">${safeText(item)}</span>
       <div class="ticker-item-btns">
-        <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-up" data-index="${idx}" ${idx === 0 ? "disabled" : ""} title="تحريك لأعلى">↑</button>
-        <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-down" data-index="${idx}" ${idx === tickerItems.length - 1 ? "disabled" : ""} title="تحريك لأسفل">↓</button>
-        <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-ticker-item" data-index="${idx}" title="حذف">✕</button>
+        ${canManage ? `
+          <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-up" data-index="${idx}" ${idx === 0 ? "disabled" : ""} title="تحريك لأعلى">↑</button>
+          <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-down" data-index="${idx}" ${idx === tickerItems.length - 1 ? "disabled" : ""} title="تحريك لأسفل">↓</button>
+          <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-ticker-item" data-index="${idx}" title="حذف">✕</button>
+        ` : ""}
       </div>
     </div>
   `).join("");
 }
 
 function handleAddTickerItem() {
+  if (!hasPermission("manage_storefront")) {
+    showToast("ليس لديك صلاحية لتعديل شريط الأخبار.", true);
+    return;
+  }
+
   const input = $("#new-ticker-item-input");
   const text = input?.value.trim();
   if (!text) return;
@@ -687,6 +949,11 @@ function handleAddTickerItem() {
 }
 
 function handleTickerAction(action, index) {
+  if (!hasPermission("manage_storefront")) {
+    showToast("ليس لديك صلاحية لتعديل شريط الأخبار.", true);
+    return;
+  }
+
   const idx = Number(index);
   if (action === "delete-ticker-item") {
     tickerItems.splice(idx, 1);
@@ -710,6 +977,12 @@ function handleTickerAction(action, index) {
 
 function handleTickerSettingsSubmit(e) {
   e.preventDefault();
+
+  if (!hasPermission("manage_storefront")) {
+    showToast("ليس لديك صلاحية لتعديل إعدادات الشريط المتحرك.", true);
+    return;
+  }
+
   storeSettings = {
     ...storeSettings,
     tickerEnabled: $("#setting-ticker-enabled").checked,
@@ -720,7 +993,7 @@ function handleTickerSettingsSubmit(e) {
 }
 
 // ----------------------------------------------------
-// 7. STORE OWNER NOTIFICATION SETTINGS
+// 8. STORE OWNER NOTIFICATION SETTINGS
 // ----------------------------------------------------
 function populateNotificationSettings() {
   const tgEnabled = $("#setting-tg-enabled");
@@ -740,6 +1013,12 @@ function populateNotificationSettings() {
 
 function handleNotificationsSubmit(e) {
   e.preventDefault();
+
+  if (!hasPermission("manage_delivery_settings")) {
+    showToast("ليس لديك صلاحية لتعديل إعدادات الإشعارات.", true);
+    return;
+  }
+
   storeSettings = {
     ...storeSettings,
     telegramNotificationsEnabled: $("#setting-tg-enabled").checked,
@@ -788,7 +1067,7 @@ async function handleTestNotification() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: currentTgChatId,
-          text: `🚀 <b>إشعار تجريبي ناجح من متجر ضَفّة</b>\n\nقناة تنبيهات تيليجرام تعمل بنجاح واستجابة فورية.\nرقم الطلب التجريبي: <code>#${testOrder.id}</code>\nالمبلغ: <b>${formatEgp(testOrder.totalAmount)} ج.م</b>`,
+          text: `🚀 <b>إشعار تجريبي ناجح من متجر ضَفّة</b>\n\nقناة تنبيهات تيليجرام تعمل بنجاح واستجابة فورية.\nرقم الطلب التجريبي: <code>#${testOrder.id}</code>\nالمبلغ: <b>${formatEgp(testOrder.totalAmount)}</b>`,
           parse_mode: "HTML",
         }),
       });
@@ -829,11 +1108,14 @@ async function handleTestNotification() {
 }
 
 // ----------------------------------------------------
-// 8. CATEGORIES MANAGEMENT
+// 9. CATEGORIES MANAGEMENT
 // ----------------------------------------------------
 function renderCategoriesTable() {
   const tbody = $("#categories-table-body");
   if (!tbody) return;
+
+  const session = getCurrentSession();
+  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_categories));
 
   tbody.innerHTML = categories.map((cat) => {
     const count = products.filter((p) => p.categoryId === cat.id).length;
@@ -846,11 +1128,13 @@ function renderCategoriesTable() {
         <td><code>${safeText(cat.id)}</code></td>
         <td><span class="count-badge">${count} ساعة</span></td>
         <td>
-          ${isFixed ? `<small style="color:var(--ink-subtle);">افتراضي</small>` : `
-            <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-category" data-cat-id="${cat.id}">
-              حذف
-            </button>
-          `}
+          ${isFixed ? `<small style="color:var(--ink-subtle);">افتراضي</small>` : (
+            canManage ? `
+              <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-category" data-cat-id="${cat.id}">
+                حذف
+              </button>
+            ` : `<small style="color:var(--ink-subtle);">للاطلاع فقط</small>`
+          )}
         </td>
       </tr>
     `;
@@ -859,6 +1143,12 @@ function renderCategoriesTable() {
 
 function handleAddCategory(e) {
   e.preventDefault();
+
+  if (!hasPermission("manage_categories")) {
+    showToast("ليس لديك صلاحية لإضافة تصنيفات جديدة.", true);
+    return;
+  }
+
   const name = $("#new-cat-name")?.value.trim();
   const icon = $("#new-cat-icon")?.value.trim() || "⌚";
 
@@ -875,6 +1165,11 @@ function handleAddCategory(e) {
 }
 
 function handleDeleteCategory(catId) {
+  if (!hasPermission("manage_categories")) {
+    showToast("ليس لديك صلاحية لحذف التصنيفات.", true);
+    return;
+  }
+
   const cat = categories.find((c) => c.id === catId);
   if (!cat) return;
 
@@ -896,7 +1191,7 @@ function handleDeleteCategory(catId) {
 }
 
 // ----------------------------------------------------
-// 9. CONTACTS & POLICIES MANAGEMENT
+// 10. CONTACTS & POLICIES MANAGEMENT
 // ----------------------------------------------------
 function populateContactsAndPolicies() {
   $("#setting-whatsapp").value = storeSettings.defaultWhatsapp || "";
@@ -907,6 +1202,11 @@ function populateContactsAndPolicies() {
 
 function handleContactsSubmit(e) {
   e.preventDefault();
+
+  if (!hasPermission("manage_delivery_settings")) {
+    showToast("ليس لديك صلاحية لتعديل بيانات التواصل والسياسات.", true);
+    return;
+  }
 
   storeSettings = {
     ...storeSettings,
@@ -930,7 +1230,360 @@ function handleContactsSubmit(e) {
 }
 
 // ----------------------------------------------------
-// 10. INITIALIZE ADMIN PORTAL
+// 11. DEDICATED DELIVERY TIMEFRAME SETTINGS
+// ----------------------------------------------------
+function populateDeliverySettings() {
+  const minInput = $("#delivery-min-days");
+  const maxInput = $("#delivery-max-days");
+  const unitInput = $("#delivery-unit-text");
+
+  const min = storeSettings.deliveryMinDays !== undefined ? storeSettings.deliveryMinDays : 2;
+  const max = storeSettings.deliveryMaxDays !== undefined ? storeSettings.deliveryMaxDays : 4;
+  const unit = storeSettings.deliveryUnitText || "أيام عمل";
+
+  if (minInput) minInput.value = min;
+  if (maxInput) maxInput.value = max;
+  if (unitInput) unitInput.value = unit;
+
+  updateDeliveryPreview();
+}
+
+function updateDeliveryPreview() {
+  const minVal = parseInt($("#delivery-min-days")?.value, 10) || 1;
+  const maxVal = parseInt($("#delivery-max-days")?.value, 10) || 1;
+  const unitVal = $("#delivery-unit-text")?.value.trim() || "أيام عمل";
+  const previewEl = $("#delivery-preview-output");
+
+  if (previewEl) {
+    previewEl.textContent = formatDeliveryTimeline({
+      deliveryMinDays: minVal,
+      deliveryMaxDays: maxVal,
+      deliveryUnitText: unitVal,
+    });
+  }
+}
+
+function handleDeliverySettingsSubmit(e) {
+  e.preventDefault();
+
+  if (!hasPermission("manage_delivery_settings")) {
+    showToast("ليس لديك صلاحية لتعديل إعدادات التوصيل.", true);
+    return;
+  }
+
+  const minVal = Math.max(1, parseInt($("#delivery-min-days")?.value, 10) || 2);
+  const maxVal = Math.max(minVal, parseInt($("#delivery-max-days")?.value, 10) || minVal);
+  const unitVal = $("#delivery-unit-text")?.value.trim() || "أيام عمل";
+
+  storeSettings = {
+    ...storeSettings,
+    deliveryMinDays: minVal,
+    deliveryMaxDays: maxVal,
+    deliveryUnitText: unitVal,
+  };
+
+  saveStoreSettings(storeSettings);
+  updateDeliveryPreview();
+  showToast("تم حفظ إعدادات مدة التوصيل وتحديث واجهة المتجر بنجاح ✓");
+}
+
+// ----------------------------------------------------
+// 12. ADMIN USERS & RBAC MANAGEMENT (SUPER ADMIN ONLY)
+// ----------------------------------------------------
+function renderAdminUsersTable() {
+  const tbody = $("#admin-users-table-body");
+  if (!tbody) return;
+
+  const users = getAdminUsers();
+  const currentSession = getCurrentSession();
+
+  tbody.innerHTML = users.map((u) => {
+    const isSuper = u.role === "super_admin";
+    const isActive = u.status === "active";
+    const isSelf = currentSession && (currentSession.userId === u.id || currentSession.username === u.username);
+    const dateFormatted = u.createdAt ? new Date(u.createdAt).toLocaleDateString("ar-EG") : "—";
+
+    let permsSummary = "";
+    if (isSuper) {
+      permsSummary = `<span class="perm-pill" style="background:var(--teal-50); color:var(--teal-900); font-weight:700;">كافة الصلاحيات (غير مقيد)</span>`;
+    } else {
+      const permKeys = Object.entries(u.permissions || {}).filter(([_, val]) => Boolean(val)).map(([k]) => k);
+      if (permKeys.length === 0) {
+        permsSummary = `<span class="perm-pill" style="color:var(--ink-subtle);">لا توجد صلاحيات</span>`;
+      } else {
+        permsSummary = permKeys.map((k) => `<span class="perm-pill">${ADMIN_PERMISSIONS[k] || k}</span>`).join(" ");
+      }
+    }
+
+    return `
+      <tr data-user-id="${safeText(u.id)}">
+        <td><strong>${safeText(u.fullName || u.username)}</strong> ${isSelf ? `<small style="color:var(--copper);">(أنت)</small>` : ""}</td>
+        <td><code dir="ltr">${safeText(u.username)}</code></td>
+        <td>
+          <span class="${isSuper ? "role-badge-super" : "role-badge-admin"}">
+            ${isSuper ? "المدير العام" : "مشرف"}
+          </span>
+        </td>
+        <td>
+          <span class="${isActive ? "status-badge-active" : "status-badge-suspended"}">
+            ${isActive ? "نشط ✓" : "موقوف ✕"}
+          </span>
+        </td>
+        <td style="max-width: 320px;">${permsSummary}</td>
+        <td><small>${dateFormatted}</small></td>
+        <td>
+          <div class="table-actions-cell">
+            ${!isSuper ? `
+              <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="edit-user" data-user-id="${safeText(u.id)}">
+                تعديل ✎
+              </button>
+              <button type="button" class="admin-button admin-button-small ${isActive ? "admin-button-danger" : "admin-button-quiet"}" data-action="toggle-status" data-user-id="${safeText(u.id)}" data-status="${u.status}">
+                ${isActive ? "إيقاف ⏸" : "تفعيل ▶"}
+              </button>
+              <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="reset-user-pass" data-user-id="${safeText(u.id)}" data-username="${safeText(u.username)}">
+                كلمة المرور 🔑
+              </button>
+              <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-user" data-user-id="${safeText(u.id)}" data-name="${safeText(u.fullName || u.username)}">
+                حذف ✕
+              </button>
+            ` : `
+              <small style="color:var(--ink-subtle);">حساب أساسي محمي</small>
+            `}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function openAddAdminUserModal() {
+  const modal = $("#modal-admin-user");
+  const title = $("#modal-admin-user-title");
+  const form = $("#form-admin-user");
+  const passWrap = $("#admin-user-password-wrap");
+  const passInput = $("#admin-user-password");
+  const editId = $("#admin-user-edit-id");
+  const errorBox = $("#modal-admin-user-error");
+
+  if (!modal || !form) return;
+  form.reset();
+  if (editId) editId.value = "";
+  if (title) title.textContent = "إضافة مشرف جديد";
+  if (passWrap) passWrap.style.display = "";
+  if (passInput) passInput.required = true;
+  if (errorBox) errorBox.hidden = true;
+
+  $("#perm-view-orders").checked = true;
+  $("#perm-manage-orders").checked = false;
+  $("#perm-manage-products").checked = true;
+  $("#perm-manage-categories").checked = false;
+  $("#perm-manage-storefront").checked = false;
+  $("#perm-manage-delivery").checked = false;
+
+  modal.hidden = false;
+}
+
+function openEditAdminUserModal(userId) {
+  const users = getAdminUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return;
+
+  const modal = $("#modal-admin-user");
+  const title = $("#modal-admin-user-title");
+  const form = $("#form-admin-user");
+  const passWrap = $("#admin-user-password-wrap");
+  const passInput = $("#admin-user-password");
+  const editId = $("#admin-user-edit-id");
+  const errorBox = $("#modal-admin-user-error");
+
+  if (!modal || !form) return;
+  form.reset();
+  if (editId) editId.value = target.id;
+  if (title) title.textContent = `تعديل المشرف: ${target.fullName || target.username}`;
+  if (passWrap) passWrap.style.display = "none";
+  if (passInput) passInput.required = false;
+  if (errorBox) errorBox.hidden = true;
+
+  $("#admin-user-fullname").value = target.fullName || "";
+  $("#admin-user-username").value = target.username || "";
+  $("#admin-user-status").value = target.status || "active";
+
+  const perms = target.permissions || {};
+  $("#perm-view-orders").checked = Boolean(perms.view_orders);
+  $("#perm-manage-orders").checked = Boolean(perms.manage_orders);
+  $("#perm-manage-products").checked = Boolean(perms.manage_products);
+  $("#perm-manage-categories").checked = Boolean(perms.manage_categories);
+  $("#perm-manage-storefront").checked = Boolean(perms.manage_storefront);
+  $("#perm-manage-delivery").checked = Boolean(perms.manage_delivery_settings);
+
+  modal.hidden = false;
+}
+
+function closeAdminUserModal() {
+  const modal = $("#modal-admin-user");
+  if (modal) modal.hidden = true;
+}
+
+function handleSaveAdminUser(e) {
+  e.preventDefault();
+  const errorBox = $("#modal-admin-user-error");
+  if (errorBox) errorBox.hidden = true;
+
+  const editId = $("#admin-user-edit-id")?.value;
+  const fullName = $("#admin-user-fullname")?.value.trim();
+  const username = $("#admin-user-username")?.value.trim();
+  const password = $("#admin-user-password")?.value.trim();
+  const status = $("#admin-user-status")?.value;
+
+  const permissions = {
+    view_orders: $("#perm-view-orders")?.checked ?? false,
+    manage_orders: $("#perm-manage-orders")?.checked ?? false,
+    manage_products: $("#perm-manage-products")?.checked ?? false,
+    manage_categories: $("#perm-manage-categories")?.checked ?? false,
+    manage_storefront: $("#perm-manage-storefront")?.checked ?? false,
+    manage_delivery_settings: $("#perm-manage-delivery")?.checked ?? false,
+  };
+
+  try {
+    if (editId) {
+      updateAdminUser(editId, { fullName, status, permissions });
+      showToast("تم تحديث بيانات وصلاحيات المشرف بنجاح ✓");
+    } else {
+      createAdminUser({ fullName, username, password, permissions });
+      showToast("تمت إضافة المشرف الجديد بنجاح ✓");
+    }
+    closeAdminUserModal();
+    renderAdminUsersTable();
+  } catch (err) {
+    if (errorBox) {
+      errorBox.textContent = err.message || "حدث خطأ أثناء حفظ المشرف.";
+      errorBox.hidden = false;
+    }
+  }
+}
+
+function openResetPassModal(userId, username) {
+  const modal = $("#modal-admin-reset-pass");
+  const targetId = $("#reset-target-user-id");
+  const targetName = $("#reset-target-user-name");
+  const form = $("#form-admin-reset-pass");
+  const errBox = $("#modal-reset-pass-error");
+
+  if (!modal || !form) return;
+  form.reset();
+  if (targetId) targetId.value = userId;
+  if (targetName) targetName.textContent = `المشرف المستهدف: ${username}`;
+  if (errBox) errBox.hidden = true;
+
+  modal.hidden = false;
+}
+
+function closeResetPassModal() {
+  const modal = $("#modal-admin-reset-pass");
+  if (modal) modal.hidden = true;
+}
+
+function handleSaveResetPass(e) {
+  e.preventDefault();
+  const errBox = $("#modal-reset-pass-error");
+  if (errBox) errBox.hidden = true;
+
+  const userId = $("#reset-target-user-id")?.value;
+  const newPass = $("#reset-new-password")?.value.trim();
+
+  try {
+    resetUserPassword(userId, newPass);
+    showToast("تم تعيين كلمة المرور الجديدة للمشرف بنجاح ✓");
+    closeResetPassModal();
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = err.message || "فشل تعيين كلمة المرور.";
+      errBox.hidden = false;
+    }
+  }
+}
+
+// ----------------------------------------------------
+// 13. ACCOUNT & SECURITY TAB (FOR ALL ADMINS)
+// ----------------------------------------------------
+function populateAccountSecurity() {
+  const masterKeyDisplay = $("#master-recovery-key-display");
+  if (masterKeyDisplay) {
+    masterKeyDisplay.textContent = getMasterRecoveryKey();
+  }
+}
+
+function handleChangePasswordSubmit(e) {
+  e.preventDefault();
+  const errBox = $("#change-pass-error");
+  const successBox = $("#change-pass-success");
+  if (errBox) errBox.hidden = true;
+  if (successBox) successBox.hidden = true;
+
+  const currentPass = $("#change-pass-current")?.value.trim();
+  const newPass = $("#change-pass-new")?.value.trim();
+  const confirmPass = $("#change-pass-confirm")?.value.trim();
+
+  if (newPass !== confirmPass) {
+    if (errBox) {
+      errBox.textContent = "كلمة المرور الجديدة وتأكيدها غير متطابقتين.";
+      errBox.hidden = false;
+    }
+    return;
+  }
+
+  const session = getCurrentSession();
+  if (!session || !session.userId) {
+    showToast("انتهت الجلسة. يرجى تسجيل الدخول مجدداً.", true);
+    handleLogout();
+    return;
+  }
+
+  try {
+    changeUserPassword(session.userId, currentPass, newPass);
+    if (successBox) {
+      successBox.textContent = "تم تغيير كلمة المرور بنجاح ✓";
+      successBox.hidden = false;
+    }
+    $("#change-password-form")?.reset();
+    showToast("تم تحديث كلمة المرور الخاصة بك بنجاح ✓");
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = err.message || "فشل تغيير كلمة المرور.";
+      errBox.hidden = false;
+    }
+  }
+}
+
+function initRecoveryKeyActions() {
+  const copyBtn = $("#btn-copy-recovery-key");
+  const regenBtn = $("#btn-regen-recovery-key");
+  const keyDisplay = $("#master-recovery-key-display");
+
+  copyBtn?.addEventListener("click", () => {
+    const key = keyDisplay?.textContent || getMasterRecoveryKey();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(key).then(() => {
+        showToast("تم نسخ مفتاح الاسترداد إلى الحافظة 📋");
+      }).catch(() => {
+        showToast(`مفتاح الاسترداد: ${key}`);
+      });
+    } else {
+      showToast(`مفتاح الاسترداد: ${key}`);
+    }
+  });
+
+  regenBtn?.addEventListener("click", () => {
+    const ok = confirm("هل أنت متأكد من توليد مفتاح استرداد رئيسي جديد؟ المفتاح القديم لن يعمل بعد الآن.");
+    if (!ok) return;
+    const newKey = regenerateMasterRecoveryKey();
+    if (keyDisplay) keyDisplay.textContent = newKey;
+    showToast("تم توليد مفتاح استرداد جديد بنجاح ↺");
+  });
+}
+
+// ----------------------------------------------------
+// 14. INITIALIZE ADMIN PORTAL
 // ----------------------------------------------------
 function renderDashboard() {
   updateKpiStats();
@@ -942,6 +1595,8 @@ function renderDashboard() {
   populateNotificationSettings();
   renderCategoriesTable();
   populateContactsAndPolicies();
+  populateDeliverySettings();
+  populateAccountSecurity();
 }
 
 function initAdminApp() {
@@ -950,6 +1605,8 @@ function initAdminApp() {
   $("#admin-login-form")?.addEventListener("submit", handleLoginSubmit);
   $("#admin-logout-btn")?.addEventListener("click", handleLogout);
 
+  initPasswordToggle();
+  initPasswordRecoveryFlow();
   initTabs();
 
   // Products CRUD
@@ -1030,6 +1687,65 @@ function initAdminApp() {
 
   // Contacts Form
   $("#store-contacts-form")?.addEventListener("submit", handleContactsSubmit);
+
+  // Dedicated Delivery Settings
+  $("#delivery-settings-form")?.addEventListener("submit", handleDeliverySettingsSubmit);
+  $("#delivery-min-days")?.addEventListener("input", updateDeliveryPreview);
+  $("#delivery-max-days")?.addEventListener("input", updateDeliveryPreview);
+  $("#delivery-unit-text")?.addEventListener("input", updateDeliveryPreview);
+
+  // Admin Users Management (Super Admin)
+  $("#btn-create-admin-user")?.addEventListener("click", openAddAdminUserModal);
+  $("#btn-close-admin-user-modal")?.addEventListener("click", closeAdminUserModal);
+  $("#backdrop-admin-user")?.addEventListener("click", closeAdminUserModal);
+  $("#btn-cancel-admin-user")?.addEventListener("click", closeAdminUserModal);
+  $("#form-admin-user")?.addEventListener("submit", handleSaveAdminUser);
+
+  // Reset Password Modal
+  $("#btn-close-reset-pass-modal")?.addEventListener("click", closeResetPassModal);
+  $("#backdrop-admin-reset-pass")?.addEventListener("click", closeResetPassModal);
+  $("#btn-cancel-reset-pass")?.addEventListener("click", closeResetPassModal);
+  $("#form-admin-reset-pass")?.addEventListener("submit", handleSaveResetPass);
+
+  // Admin Users Table Actions Delegation
+  $("#admin-users-table-body")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const userId = btn.dataset.userId;
+
+    if (action === "edit-user") {
+      openEditAdminUserModal(userId);
+    } else if (action === "toggle-status") {
+      const currentStatus = btn.dataset.status;
+      const nextStatus = currentStatus === "active" ? "suspended" : "active";
+      try {
+        updateAdminUser(userId, { status: nextStatus });
+        renderAdminUsersTable();
+        showToast(nextStatus === "active" ? "تم تفعيل حساب المشرف بنجاح ▶" : "تم إيقاف حساب المشرف مؤقتاً ⏸");
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    } else if (action === "reset-user-pass") {
+      const username = btn.dataset.username;
+      openResetPassModal(userId, username);
+    } else if (action === "delete-user") {
+      const name = btn.dataset.name;
+      const ok = confirm(`هل أنت متأكد من حذف حساب المشرف «${name}» نهائياً؟`);
+      if (!ok) return;
+      try {
+        deleteAdminUser(userId);
+        renderAdminUsersTable();
+        showToast(`تم حذف المشرف «${name}» بنجاح.`);
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+  });
+
+  // Account & Security Form & Recovery Key Actions
+  $("#change-password-form")?.addEventListener("submit", handleChangePasswordSubmit);
+  initRecoveryKeyActions();
 }
 
 if (document.readyState === "loading") {

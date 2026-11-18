@@ -26,6 +26,10 @@
       </div>
 
       <div class="admin-header-actions" id="admin-header-actions" hidden>
+        <div class="admin-user-pill" id="admin-header-user-pill">
+          <span class="user-role-badge" id="header-user-role-badge">المدير العام</span>
+          <strong id="header-user-name">admin</strong>
+        </div>
         <a class="admin-view-store" href="/" target="_blank" rel="noopener noreferrer">
           <span>معاينة المتجر المباشر</span>
           <span aria-hidden="true">↗</span>
@@ -37,34 +41,94 @@
     <main class="admin-main">
       <!-- 1. Dedicated Admin Authentication Gate -->
       <section id="admin-login-view" class="admin-login-view" aria-labelledby="login-title">
-        <div class="login-card">
+        <div class="login-card" id="login-card-main">
           <div class="login-brand-header">
             <div class="login-icon-box">
               <img src="/sodfa-icon-v3.png" alt="" />
             </div>
-            <span class="admin-kicker">تسجيل دخول آمن</span>
+            <span class="admin-kicker">تسجيل دخول آمن • 2026</span>
             <h1 id="login-title">بوابة إدارة <em>ضَفّة</em></h1>
-            <p>أدخل بيانات اعتماد المالك للتحكم في الكتالوج، الفيديو، الواجهة، والعروض.</p>
+            <p>أدخل بيانات الاعتماد المعتمدة للوصول إلى لوحة التحكم والعمليات.</p>
           </div>
 
           <form id="admin-login-form" class="login-form">
             <label class="form-field">
-              <span>اسم المستخدم</span>
+              <span>اسم المستخدم أو البريد الإلكتروني</span>
               <input id="login-username" type="text" required placeholder="admin" autocomplete="username" />
             </label>
             <label class="form-field">
               <span>كلمة المرور</span>
-              <input id="login-password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+              <div class="password-input-wrap">
+                <input id="login-password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+                <button type="button" class="password-toggle-btn" id="login-password-toggle" aria-label="إظهار / إخفاء كلمة المرور">👁️</button>
+              </div>
             </label>
+
+            <div class="login-options-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="login-remember-me" checked />
+                <span>تذكرني على هذا الجهاز</span>
+              </label>
+              <button type="button" class="link-button" id="btn-open-recovery">نسيت كلمة المرور؟</button>
+            </div>
+
             <div id="login-error" class="form-feedback form-feedback-error" hidden></div>
+
             <button id="login-submit-btn" class="admin-button admin-button-primary" type="submit">
               دخول لوحة التحكم <span aria-hidden="true">←</span>
             </button>
           </form>
 
           <div class="login-footer-hint">
-            <small>بيانات الدخول الافتراضية للمسؤول: <code>admin</code> / <code>daffa2026</code></small>
+            <small>المشرف الافتراضي الأولي: <code>admin</code> / <code>Daffa@2026#Super</code></small>
           </div>
+        </div>
+
+        <!-- Password Recovery Card (Hidden Initially) -->
+        <div class="login-card recovery-card" id="login-card-recovery" hidden>
+          <div class="login-brand-header">
+            <div class="login-icon-box">
+              <img src="/sodfa-icon-v3.png" alt="" />
+            </div>
+            <span class="admin-kicker">استعادة كلمة المرور</span>
+            <h2>استرداد حساب الإدارة</h2>
+            <p>أدخل اسم المستخدم ومفتاح الاسترداد الرئيسي (Master Recovery Key) لتعيين كلمة مرور جديدة فوراً.</p>
+          </div>
+
+          <form id="admin-recovery-form" class="login-form">
+            <label class="form-field">
+              <span>اسم المستخدم للحساب</span>
+              <input id="recovery-username" type="text" required placeholder="admin" />
+            </label>
+
+            <label class="form-field">
+              <span>مفتاح الاسترداد الرئيسي (Master Recovery Key)</span>
+              <input id="recovery-key" type="text" required placeholder="DAFFA-RCV-XXXX-XXXX-SEC" dir="ltr" class="font-mono" />
+              <small class="field-hint">يتم استخراجه من إعدادات الأمان الخاصة بالمدير العام.</small>
+            </label>
+
+            <div class="form-row-2">
+              <label class="form-field">
+                <span>كلمة المرور الجديدة</span>
+                <input id="recovery-new-password" type="password" required minlength="6" placeholder="••••••••" />
+              </label>
+              <label class="form-field">
+                <span>تأكيد كلمة المرور الجديدة</span>
+                <input id="recovery-confirm-password" type="password" required minlength="6" placeholder="••••••••" />
+              </label>
+            </div>
+
+            <div id="recovery-error" class="form-feedback form-feedback-error" hidden></div>
+            <div id="recovery-success" class="form-feedback form-feedback-success" hidden></div>
+
+            <button id="recovery-submit-btn" class="admin-button admin-button-primary" type="submit">
+              تعيين كلمة المرور والدخول <span aria-hidden="true">✓</span>
+            </button>
+
+            <button type="button" class="admin-button admin-button-secondary" id="btn-back-to-login">
+              العودة لشاشة الدخول الرئيسية
+            </button>
+          </form>
         </div>
       </section>
 
@@ -100,26 +164,35 @@
 
         <!-- Dashboard Navigation Tabs -->
         <nav class="admin-nav-tabs" role="tablist" aria-label="أقسام الإدارة">
-          <button class="admin-tab-btn is-active" type="button" data-tab="products" role="tab" aria-selected="true">
+          <button class="admin-tab-btn is-active" type="button" data-tab="products" data-permission="manage_products" role="tab" aria-selected="true">
             ⌚ الساعات والكتالوج
           </button>
-          <button class="admin-tab-btn" type="button" data-tab="orders" role="tab" aria-selected="false">
+          <button class="admin-tab-btn" type="button" data-tab="orders" data-permission="view_orders" role="tab" aria-selected="false">
             📦 طلبات العملاء <span id="admin-orders-counter-badge" class="nav-counter-badge" hidden>0</span>
           </button>
-          <button class="admin-tab-btn" type="button" data-tab="hero-settings" role="tab" aria-selected="false">
+          <button class="admin-tab-btn" type="button" data-tab="hero-settings" data-permission="manage_storefront" role="tab" aria-selected="false">
             🎬 الواجهة والفيديو
           </button>
-          <button class="admin-tab-btn" type="button" data-tab="ticker" role="tab" aria-selected="false">
+          <button class="admin-tab-btn" type="button" data-tab="ticker" data-permission="manage_storefront" role="tab" aria-selected="false">
             📢 شريط الأخبار المتحرك
           </button>
-          <button class="admin-tab-btn" type="button" data-tab="notifications" role="tab" aria-selected="false">
+          <button class="admin-tab-btn" type="button" data-tab="delivery" data-permission="manage_delivery_settings" role="tab" aria-selected="false">
+            🚚 الشحن ومدة التوصيل
+          </button>
+          <button class="admin-tab-btn" type="button" data-tab="notifications" data-permission="manage_delivery_settings" role="tab" aria-selected="false">
             🔔 إشعارات المالك الفورية
           </button>
-          <button class="admin-tab-btn" type="button" data-tab="categories" role="tab" aria-selected="false">
+          <button class="admin-tab-btn" type="button" data-tab="categories" data-permission="manage_categories" role="tab" aria-selected="false">
             🗂️ إدارة التصنيفات
           </button>
-          <button class="admin-tab-btn" type="button" data-tab="settings" role="tab" aria-selected="false">
+          <button class="admin-tab-btn" type="button" data-tab="settings" data-permission="manage_delivery_settings" role="tab" aria-selected="false">
             ⚙️ بيانات التواصل والسياسات
+          </button>
+          <button class="admin-tab-btn" type="button" data-tab="admin-users" data-super-only="true" role="tab" aria-selected="false">
+            👥 إدارة المشرفين والصلاحيات
+          </button>
+          <button class="admin-tab-btn" type="button" data-tab="account-security" role="tab" aria-selected="false">
+            🛡️ حسابي والأمان
           </button>
         </nav>
 
@@ -568,7 +641,257 @@
             </form>
           </div>
         </section>
+
+        <!-- TAB: DEDICATED DELIVERY TIMEFRAME SETTINGS -->
+        <section id="tab-delivery" class="admin-tab-content">
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="admin-kicker">إعدادات الشحن والتوصيل</span>
+              <h2>التحكم في النطاق الزمني للتوصيل (Delivery Timeframe)</h2>
+              <p>حدّد الحد الأدنى والأقصى لأيام التوصيل ووصفها لتظهر تلقائياً وديناميكياً للعملاء في المتجر وإيصال التأكيد.</p>
+            </div>
+
+            <form id="delivery-settings-form" class="settings-form-layout">
+              <div class="form-row-2">
+                <label class="form-field">
+                  <span>الحد الأدنى لعدد الأيام (من)</span>
+                  <input id="delivery-min-days" type="number" min="1" max="30" required value="2" />
+                </label>
+                <label class="form-field">
+                  <span>الحد الأقصى لعدد الأيام (إلى)</span>
+                  <input id="delivery-max-days" type="number" min="1" max="60" required value="4" />
+                </label>
+              </div>
+
+              <label class="form-field">
+                <span>وحدة / وصف مدة التوصيل</span>
+                <input id="delivery-unit-text" type="text" required value="أيام عمل" placeholder="مثال: أيام عمل أو ساعات" />
+              </label>
+
+              <div class="delivery-preview-box">
+                <span class="delivery-preview-label">المعاينة الحية في واجهة المتجر:</span>
+                <strong id="delivery-preview-output" class="delivery-preview-text">خلال 2 إلى 4 أيام عمل</strong>
+              </div>
+
+              <button class="admin-button admin-button-primary" type="submit" style="width: fit-content;">
+                حفظ إعدادات التوصيل وتحديث المتجر <span aria-hidden="true">✓</span>
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- TAB: ADMIN USERS & PERMISSIONS MANAGEMENT (SUPER ADMIN ONLY) -->
+        <section id="tab-admin-users" class="admin-tab-content">
+          <div class="admin-card">
+            <div class="column-header-row" style="margin-bottom: 20px;">
+              <div>
+                <span class="admin-kicker">إدارة فريق العمل</span>
+                <h2>المشرفون والصلاحيات (Role-Based Access Control)</h2>
+                <p>إدارة حسابات المشرفين وتخصيص الصلاحيات بدقة لكل مشرف لمنع الوصول غير المصرح به.</p>
+              </div>
+              <button id="btn-create-admin-user" class="admin-button admin-button-primary" type="button">
+                + إضافة مشرف جديد
+              </button>
+            </div>
+
+            <div class="admin-users-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>اسم المشرف</th>
+                    <th>اسم المستخدم</th>
+                    <th>الدور</th>
+                    <th>الحالة</th>
+                    <th>الصلاحيات الممنوحة</th>
+                    <th>تاريخ الإنشاء</th>
+                    <th>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-users-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB: ACCOUNT & SECURITY (FOR ALL LOGGED IN ADMINS) -->
+        <section id="tab-account-security" class="admin-tab-content">
+          <div class="tab-layout-grid">
+            <!-- Profile Info & Password Change -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="admin-kicker">الأمان وكلمة المرور</span>
+                <h2>تغيير كلمة المرور الخاصة بحسابك</h2>
+                <p>يُنصح باستخدام كلمة مرور قوية تحتوي على أحرف وأرقام ورموز.</p>
+              </div>
+
+              <form id="change-password-form" class="settings-form-layout">
+                <label class="form-field">
+                  <span>كلمة المرور الحالية</span>
+                  <input id="change-pass-current" type="password" required placeholder="••••••••" />
+                </label>
+                <div class="form-row-2">
+                  <label class="form-field">
+                    <span>كلمة المرور الجديدة</span>
+                    <input id="change-pass-new" type="password" required minlength="6" placeholder="••••••••" />
+                  </label>
+                  <label class="form-field">
+                    <span>تأكيد كلمة المرور الجديدة</span>
+                    <input id="change-pass-confirm" type="password" required minlength="6" placeholder="••••••••" />
+                  </label>
+                </div>
+                <div id="change-pass-error" class="form-feedback form-feedback-error" hidden></div>
+                <div id="change-pass-success" class="form-feedback form-feedback-success" hidden></div>
+                <button class="admin-button admin-button-primary" type="submit" style="width: fit-content;">
+                  تحديث كلمة المرور <span aria-hidden="true">✓</span>
+                </button>
+              </form>
+            </div>
+
+            <!-- Master Recovery Key Card (Super Admin Only) -->
+            <div class="settings-card" id="card-master-recovery">
+              <div class="settings-card-header">
+                <span class="admin-kicker">الأمان المتقدم (للمدير العام فقط)</span>
+                <h2>مفتاح الاسترداد الرئيسي (Master Recovery Key)</h2>
+                <p>يسمح لك هذا المفتاح باستعادة التحكم في أي حساب مشرف أو تعيين كلمة مرور جديدة من شاشة الدخول دون الحاجة لخدمات بريد خارجية.</p>
+              </div>
+
+              <div class="recovery-key-box">
+                <code id="master-recovery-key-display" class="key-display">DAFFA-RCV-9941-K7M3-SEC</code>
+                <div class="key-actions">
+                  <button type="button" class="admin-button admin-button-secondary" id="btn-copy-recovery-key">
+                    نسخ المفتاح 📋
+                  </button>
+                  <button type="button" class="admin-button admin-button-quiet" id="btn-regen-recovery-key">
+                    توليد مفتاح جديد ↺
+                  </button>
+                </div>
+              </div>
+              <p class="field-hint" style="margin-top: 10px;">احفظ هذا المفتاح في مكان آمن وخاص بك لاسترداد حسابك دون أي وسطاء.</p>
+            </div>
+          </div>
+        </section>
       </section>
+    </main>
+
+    <!-- Modal: Add / Edit Admin User -->
+    <div id="modal-admin-user" class="admin-modal-overlay" hidden>
+      <div class="admin-modal-backdrop" id="backdrop-admin-user"></div>
+      <div class="admin-modal-card">
+        <div class="admin-modal-header">
+          <h3 id="modal-admin-user-title">إضافة مشرف جديد</h3>
+          <button type="button" class="admin-modal-close" id="btn-close-admin-user-modal">✕</button>
+        </div>
+        <form id="form-admin-user" class="settings-form-layout">
+          <input type="hidden" id="admin-user-edit-id" value="" />
+          <div class="form-row-2">
+            <label class="form-field">
+              <span>الاسم الكامل للمشرف</span>
+              <input type="text" id="admin-user-fullname" required placeholder="مثال: أحمد مصطفى" />
+            </label>
+            <label class="form-field">
+              <span>اسم المستخدم (لتسجيل الدخول)</span>
+              <input type="text" id="admin-user-username" required placeholder="ahmed_daffa" autocomplete="off" />
+            </label>
+          </div>
+          <div class="form-row-2">
+            <label class="form-field" id="admin-user-password-wrap">
+              <span>كلمة المرور الأولية</span>
+              <input type="password" id="admin-user-password" placeholder="••••••••" minlength="6" />
+              <small class="field-hint" id="admin-user-password-hint">6 أحرف/أرقام على الأقل.</small>
+            </label>
+            <label class="form-field">
+              <span>حالة الحساب</span>
+              <select id="admin-user-status">
+                <option value="active">نشط (مسموح بالدخول)</option>
+                <option value="suspended">موقوف مؤقتاً</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="permissions-section-wrap">
+            <strong class="permissions-header-label">مصفوفة الصلاحيات الممنوحة:</strong>
+            <p class="permissions-header-sub">حدّد المهام المسموح لهذا المشرف بالوصول إليها والتعديل عليها.</p>
+            <div class="permissions-grid">
+              <label class="permission-checkbox-card">
+                <input type="checkbox" id="perm-view-orders" value="view_orders" checked />
+                <div class="perm-card-text">
+                  <strong>الاطلاع على طلبات العملاء</strong>
+                  <small>استعراض الطلبات والبيانات وقائمة المنتجات</small>
+                </div>
+              </label>
+              <label class="permission-checkbox-card">
+                <input type="checkbox" id="perm-manage-orders" value="manage_orders" />
+                <div class="perm-card-text">
+                  <strong>تعديل حالة الطلبات وحذفها</strong>
+                  <small>تحديث حالة الشحن (مؤكد/مشحون/ملغي) أو حذف الطلب</small>
+                </div>
+              </label>
+              <label class="permission-checkbox-card">
+                <input type="checkbox" id="perm-manage-products" value="manage_products" checked />
+                <div class="perm-card-text">
+                  <strong>إدارة الساعات والكتالوج</strong>
+                  <small>إضافة ساعات جديدة، تعديل المواصفات، وإدارة عروض الخصم</small>
+                </div>
+              </label>
+              <label class="permission-checkbox-card">
+                <input type="checkbox" id="perm-manage-categories" value="manage_categories" />
+                <div class="perm-card-text">
+                  <strong>إدارة الأقسام والتصنيفات</strong>
+                  <small>إضافة أقسام ساعات جديدة وتعديل الأقسام القائمة</small>
+                </div>
+              </label>
+              <label class="permission-checkbox-card">
+                <input type="checkbox" id="perm-manage-storefront" value="manage_storefront" />
+                <div class="perm-card-text">
+                  <strong>تعديل الواجهة وشريط الأخبار</strong>
+                  <small>تعديل فيديو الهيرو الترويجي ونصوص شريط الأخبار المتحرك</small>
+                </div>
+              </label>
+              <label class="permission-checkbox-card">
+                <input type="checkbox" id="perm-manage-delivery" value="manage_delivery_settings" />
+                <div class="perm-card-text">
+                  <strong>مدة التوصيل والإشعارات الفورية</strong>
+                  <small>تعديل مدة التوصيل وإعدادات تنبيهات البريد وتيليجرام</small>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div id="modal-admin-user-error" class="form-feedback form-feedback-error" hidden></div>
+
+          <div class="modal-form-actions">
+            <button type="submit" class="admin-button admin-button-primary" id="btn-save-admin-user">حفظ بيانات المشرف ✓</button>
+            <button type="button" class="admin-button admin-button-secondary" id="btn-cancel-admin-user">إلغاء</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Reset Admin User Password (by Super Admin) -->
+    <div id="modal-admin-reset-pass" class="admin-modal-overlay" hidden>
+      <div class="admin-modal-backdrop" id="backdrop-admin-reset-pass"></div>
+      <div class="admin-modal-card" style="max-width: 440px;">
+        <div class="admin-modal-header">
+          <h3>تعيين كلمة مرور جديدة للمشرف</h3>
+          <button type="button" class="admin-modal-close" id="btn-close-reset-pass-modal">✕</button>
+        </div>
+        <form id="form-admin-reset-pass" class="settings-form-layout">
+          <input type="hidden" id="reset-target-user-id" value="" />
+          <p id="reset-target-user-name" style="font-size: 13px; color: var(--ink-muted); margin: 0 0 12px;"></p>
+          <label class="form-field">
+            <span>كلمة المرور الجديدة</span>
+            <input type="password" id="reset-new-password" required minlength="6" placeholder="••••••••" />
+          </label>
+          <div id="modal-reset-pass-error" class="form-feedback form-feedback-error" hidden></div>
+          <div class="modal-form-actions">
+            <button type="submit" class="admin-button admin-button-primary">حفظ كلمة المرور الجديدة ✓</button>
+            <button type="button" class="admin-button admin-button-secondary" id="btn-cancel-reset-pass">إلغاء</button>
+          </div>
+        </form>
+      </div>
+    </div>
     </main>
 
     <!-- Global Admin Toast Feedback -->

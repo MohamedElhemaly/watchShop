@@ -11,31 +11,31 @@
   --teal-800: #0f4844;
   --teal-700: #1a6863;
   --teal-100: #e3eceb;
-  --teal-50:  #f0f5f4;
+  --teal-50: #f0f5f4;
 
-  --cream-50:  #faf8f5;
+  --cream-50: #faf8f5;
   --cream-100: #f6f3eb;
   --cream-200: #ede8dc;
-  --cream:     #faf8f5;
+  --cream: #faf8f5;
 
-  --copper:      #be724c;
-  --copper-hover:#a75e39;
-  --copper-light:#ecdcd2;
+  --copper: #be724c;
+  --copper-hover: #a75e39;
+  --copper-light: #ecdcd2;
   --copper-glow: rgba(190, 114, 76, 0.18);
 
-  --ink:        #142422;
-  --ink-muted:  #425654;
+  --ink: #142422;
+  --ink-muted: #425654;
   --ink-subtle: #738a87;
-  --line:       rgba(7, 38, 36, 0.10);
-  --line-strong:rgba(7, 38, 36, 0.20);
-  --line-subtle:rgba(7, 38, 36, 0.05);
+  --line: rgba(7, 38, 36, 0.10);
+  --line-strong: rgba(7, 38, 36, 0.20);
+  --line-subtle: rgba(7, 38, 36, 0.05);
 
-  --sale-ink:    #992d1c;
-  --sale-bg:     #fbece8;
+  --sale-ink: #992d1c;
+  --sale-bg: #fbece8;
   --sale-border: #f2cbbe;
-  --sale-solid:  #be3b23;
+  --sale-solid: #be3b23;
   --success-ink: #1a6344;
-  --success-bg:  #e7f6ee;
+  --success-bg: #e7f6ee;
 
   /* Typography Scale */
   --font-arabic: "Cairo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -48,7 +48,9 @@
 }
 
 /* Base Reset & Typography */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -79,13 +81,17 @@ body.modal-open {
   overflow: hidden;
 }
 
-img, video {
+img,
+video {
   max-width: 100%;
   height: auto;
   display: block;
 }
 
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -146,6 +152,7 @@ a {
   0% {
     transform: translateX(0);
   }
+
   100% {
     transform: translateX(50%);
   }
@@ -198,8 +205,17 @@ a {
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -974,7 +990,8 @@ a {
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.swatch-dot:hover, .swatch-dot.is-selected {
+.swatch-dot:hover,
+.swatch-dot.is-selected {
   outline: none;
   transform: scale(1.15);
   box-shadow: 0 0 0 2px var(--copper);
@@ -1604,12 +1621,14 @@ a {
   transition: opacity 200ms ease;
 }
 
-.product-modal.is-open .modal-backdrop, .checkout-modal.is-open .modal-backdrop {
+.product-modal.is-open .modal-backdrop,
+.checkout-modal.is-open .modal-backdrop {
   opacity: 1;
   pointer-events: auto;
 }
 
-.modal-card, .checkout-card {
+.modal-card,
+.checkout-card {
   position: relative;
   z-index: 2;
   width: min(840px, 100%);
@@ -1852,7 +1871,9 @@ a {
   color: var(--sale-solid);
 }
 
-.checkout-field input, .checkout-field select, .checkout-field textarea {
+.checkout-field input,
+.checkout-field select,
+.checkout-field textarea {
   padding: 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
@@ -1862,7 +1883,9 @@ a {
   transition: border-color var(--transition-fast);
 }
 
-.checkout-field input:focus, .checkout-field select:focus, .checkout-field textarea:focus {
+.checkout-field input:focus,
+.checkout-field select:focus,
+.checkout-field textarea:focus {
   outline: none;
   border-color: var(--teal-700);
   box-shadow: 0 0 0 3px rgba(26, 104, 99, 0.12);
@@ -2153,7 +2176,8 @@ a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .steps-list, .policy-cards {
+  .steps-list,
+  .policy-cards {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -2227,7 +2251,8 @@ a {
     grid-template-columns: 1fr;
   }
 
-  .steps-list, .policy-cards {
+  .steps-list,
+  .policy-cards {
     grid-template-columns: 1fr;
   }
 
@@ -2248,7 +2273,10 @@ a {
 
 /* Reduced Motion Standards */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;

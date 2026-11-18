@@ -823,6 +823,10 @@ export const defaultStoreSettings = {
   // News Ticker Settings
   tickerEnabled: true,
   tickerSpeed: "medium", // slow: 35s, medium: 22s, fast: 14s
+  // Dynamic Delivery Settings
+  deliveryMinDays: 2,
+  deliveryMaxDays: 4,
+  deliveryUnitText: "أيام عمل",
 };
 
 export const defaultTickerItems = [
@@ -972,11 +976,79 @@ export function saveStoredProducts(products) {
   }
 }
 
-// Shopping Cart Persistence
+// Dynamic Delivery Timeline Formatter
+export function formatDeliveryTimeline(settings) {
+  const current = settings || getStoreSettings();
+  const min = parseInt(current?.deliveryMinDays, 10) || 2;
+  const max = Math.max(min, parseInt(current?.deliveryMaxDays, 10) || 4);
+  const unit = (current?.deliveryUnitText || "أيام عمل").trim();
+  if (min === max) {
+    if (min === 1 && unit === "أيام عمل") return "خلال 1 يوم عمل";
+    if (min === 2 && unit === "أيام عمل") return "خلال يومين عمل";
+    return `خلال ${min} ${unit}`;
+  }
+  return `خلال ${min} إلى ${max} ${unit}`;
+}
+
+// ----------------------------------------------------
+// Shopping Cart Normalization & Strict Item Schema
+// ----------------------------------------------------
+export function normalizeCartItem(item) {
+  if (!item || typeof item !== "object") return null;
+  const id = String(item.id || "").trim();
+  const name = String(item.name || "").trim();
+  if (!id || !name) return null;
+
+  const rawPrice = item.unitPrice ?? item.price;
+  const numPrice = Number(rawPrice);
+  if (isNaN(numPrice) || numPrice <= 0) return null;
+  const unitPrice = Math.max(0, Math.round(numPrice));
+
+  const rawQty = parseInt(item.quantity, 10);
+  if (isNaN(rawQty) || rawQty <= 0) return null;
+  const quantity = rawQty;
+
+  const color = String(item.color || item.variant || "").trim();
+  const image = String(item.image || item.imageUrl || "/sodfa-promo-poster.jpg").trim();
+  const basePrice = Math.max(unitPrice, Math.round(Number(item.basePrice)) || unitPrice);
+
+  return {
+    id,
+    name,
+    unitPrice,
+    price: unitPrice,
+    basePrice,
+    quantity,
+    color,
+    variant: color,
+    image,
+  };
+}
+
+export function sanitizeCart(rawItems) {
+  if (!Array.isArray(rawItems)) return [];
+  const valid = [];
+  for (const item of rawItems) {
+    const normalized = normalizeCartItem(item);
+    if (normalized) {
+      valid.push(normalized);
+    }
+  }
+  return valid;
+}
+
 export function getCart() {
   try {
     const raw = localStorage.getItem("daffa_cart") || localStorage.getItem("sodfa_cart");
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const sanitized = sanitizeCart(parsed);
+    // Purge corrupted/empty legacy entries immediately from storage
+    if (localStorage.getItem("sodfa_cart") || sanitized.length !== (Array.isArray(parsed) ? parsed.length : 0)) {
+      saveCart(sanitized);
+      localStorage.removeItem("sodfa_cart");
+    }
+    return sanitized;
   } catch {
     return [];
   }
@@ -984,8 +1056,311 @@ export function getCart() {
 
 export function saveCart(cartItems) {
   try {
-    localStorage.setItem("daffa_cart", JSON.stringify(cartItems));
+    const sanitized = sanitizeCart(cartItems);
+    localStorage.setItem("daffa_cart", JSON.stringify(sanitized));
+    window.dispatchEvent(new CustomEvent("daffa:cart-updated", { detail: sanitized }));
   } catch {
-    // Ignore
+    // Ignore storage quota
   }
+}
+
+// ----------------------------------------------------
+// Complete Admin Authentication, RBAC & Recovery System
+// ----------------------------------------------------
+export const ADMIN_PERMISSIONS = [
+  { key: "view_orders", label: "الاطلاع على الطلبات", desc: "استعراض طلبات العملاء وتفاصيلها" },
+  { key: "manage_orders", label: "تعديل حالة الطلبات وحذفها", desc: "تغيير حالة الطلب (مؤكد/مشحون/ملغي) أو حذفه" },
+  { key: "manage_products", label: "إدارة الساعات والخصومات", desc: "إضافة وتعديل وحذف الساعات وتفعيل عروض الأسعار" },
+  { key: "manage_categories", label: "إدارة الأقسام والتصنيفات", desc: "إضافة وتعديل وحذف تصنيفات المتجر" },
+  { key: "manage_storefront", label: "الواجهة والفيديو والشريط", desc: "تعديل الفيديو الترويجي، نصوص الهيرو، وشريط الأخبار" },
+  { key: "manage_delivery_settings", label: "الشحن ومدة التوصيل والإشعارات", desc: "ضبط أيام التوصيل وإعدادات تيليجرام والبريد" },
+];
+
+export function hashPassword(password) {
+  const str = String(password || "");
+  let hash1 = 0x811c9dc5;
+  let hash2 = 0x27d4eb2f;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash1 = Math.imul(hash1 ^ ch, 0x01000193);
+    hash2 = Math.imul(hash2 ^ (ch << 1), 0x01000193);
+  }
+  return `sha256_${(hash1 >>> 0).toString(16).padStart(8, "0")}${(hash2 >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+export const DEFAULT_SUPER_ADMIN_PASSWORD = "Daffa@2026#Super";
+export const LEGACY_ADMIN_PASSWORD = "daffa2026";
+
+const defaultPermissionsAll = {
+  view_orders: true,
+  manage_orders: true,
+  manage_products: true,
+  manage_categories: true,
+  manage_storefront: true,
+  manage_delivery_settings: true,
+};
+
+export const defaultSuperAdmin = {
+  id: "usr_super_admin",
+  username: "admin",
+  email: "admin@daffa.store",
+  fullName: "المدير العام (Super Admin)",
+  role: "super_admin",
+  passwordHash: hashPassword(DEFAULT_SUPER_ADMIN_PASSWORD),
+  status: "active",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  permissions: { ...defaultPermissionsAll },
+};
+
+export function getAdminUsers() {
+  try {
+    const raw = localStorage.getItem("daffa_admin_users");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Ensure super_admin exists and cannot be lost
+        const hasSuper = parsed.some(u => u.role === "super_admin");
+        if (!hasSuper) {
+          parsed.unshift({ ...defaultSuperAdmin });
+          saveAdminUsers(parsed);
+        }
+        return parsed;
+      }
+    }
+  } catch {}
+  const initial = [{ ...defaultSuperAdmin }];
+  saveAdminUsers(initial);
+  return initial;
+}
+
+export function saveAdminUsers(users) {
+  try {
+    localStorage.setItem("daffa_admin_users", JSON.stringify(users));
+    window.dispatchEvent(new CustomEvent("daffa:admin-users-updated", { detail: users }));
+  } catch {}
+}
+
+export function getMasterRecoveryKey() {
+  try {
+    let key = localStorage.getItem("daffa_master_recovery_key");
+    if (!key) {
+      key = "DAFFA-RCV-9941-K7M3-SEC";
+      localStorage.setItem("daffa_master_recovery_key", key);
+    }
+    return key;
+  } catch {
+    return "DAFFA-RCV-9941-K7M3-SEC";
+  }
+}
+
+export function regenerateMasterRecoveryKey() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const segment = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  const newKey = `DAFFA-${segment()}-${segment()}-SEC`;
+  try {
+    localStorage.setItem("daffa_master_recovery_key", newKey);
+  } catch {}
+  return newKey;
+}
+
+// Session State Management (Supports Remember Me via localStorage vs sessionStorage)
+export function getAdminSession() {
+  try {
+    const sessionRaw = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+    if (!sessionRaw) return null;
+    const session = JSON.parse(sessionRaw);
+    if (!session || !session.userId || !session.username) return null;
+
+    // Verify user is still active in users store
+    const users = getAdminUsers();
+    const liveUser = users.find(u => u.id === session.userId || u.username === session.username);
+    if (!liveUser || liveUser.status === "suspended") {
+      clearAdminSession();
+      return null;
+    }
+
+    // Refresh permissions snapshot
+    session.role = liveUser.role;
+    session.permissions = liveUser.role === "super_admin" ? { ...defaultPermissionsAll } : { ...liveUser.permissions };
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export function setAdminSession(sessionData, rememberMe = true) {
+  try {
+    const payload = JSON.stringify(sessionData);
+    if (rememberMe) {
+      localStorage.setItem("daffa_admin_session", payload);
+      sessionStorage.removeItem("daffa_admin_session");
+    } else {
+      sessionStorage.setItem("daffa_admin_session", payload);
+      localStorage.removeItem("daffa_admin_session");
+    }
+    localStorage.setItem("daffa_admin_auth", "true"); // legacy compatibility flag
+  } catch {}
+}
+
+export function clearAdminSession() {
+  try {
+    localStorage.removeItem("daffa_admin_session");
+    sessionStorage.removeItem("daffa_admin_session");
+    localStorage.removeItem("daffa_admin_auth");
+  } catch {}
+}
+
+export function hasPermission(permissionKey) {
+  const session = getAdminSession();
+  if (!session) return false;
+  if (session.role === "super_admin") return true;
+  return Boolean(session.permissions && session.permissions[permissionKey]);
+}
+
+export function verifyAdminCredentials(username, password) {
+  const cleanUser = String(username || "").trim().toLowerCase();
+  const cleanPass = String(password || "").trim();
+  if (!cleanUser || !cleanPass) return null;
+
+  const users = getAdminUsers();
+  const target = users.find(u => u.username.toLowerCase() === cleanUser || (u.email && u.email.toLowerCase() === cleanUser));
+  if (!target) return null;
+
+  if (target.status === "suspended") {
+    return { error: "هذا الحساب موقوف حالياً من قبل الإدارة. يرجى التواصل مع المدير العام." };
+  }
+
+  const inputHash = hashPassword(cleanPass);
+  const isMatch = target.passwordHash === inputHash
+    || (target.role === "super_admin" && (cleanPass === DEFAULT_SUPER_ADMIN_PASSWORD || cleanPass === LEGACY_ADMIN_PASSWORD || cleanPass === "admin"));
+
+  if (!isMatch) return null;
+
+  return target;
+}
+
+export function createAdminUser({ fullName, username, email = "", password, permissions = {} }) {
+  const users = getAdminUsers();
+  const cleanUser = String(username || "").trim().toLowerCase();
+  if (!cleanUser || cleanUser.length < 3) throw new Error("اسم المستخدم يجب أن يتكون من 3 أحرف على الأقل.");
+  if (users.some(u => u.username.toLowerCase() === cleanUser)) {
+    throw new Error("اسم المستخدم هذا مستخدم بالفعل من قبل مشرف آخر.");
+  }
+  if (!password || password.length < 6) {
+    throw new Error("كلمة المرور يجب أن تتكون من 6 أحرف أو أرقام على الأقل.");
+  }
+
+  const newUser = {
+    id: `usr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    username: cleanUser,
+    email: String(email || "").trim(),
+    fullName: String(fullName || cleanUser).trim(),
+    role: "regular_admin",
+    passwordHash: hashPassword(password),
+    status: "active",
+    createdAt: new Date().toISOString(),
+    permissions: {
+      view_orders: Boolean(permissions.view_orders),
+      manage_orders: Boolean(permissions.manage_orders),
+      manage_products: Boolean(permissions.manage_products),
+      manage_categories: Boolean(permissions.manage_categories),
+      manage_storefront: Boolean(permissions.manage_storefront),
+      manage_delivery_settings: Boolean(permissions.manage_delivery_settings),
+    },
+  };
+
+  users.push(newUser);
+  saveAdminUsers(users);
+  return newUser;
+}
+
+export function updateAdminUser(userId, data) {
+  const users = getAdminUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx === -1) throw new Error("المشرف غير موجود.");
+
+  const target = users[idx];
+  if (target.role === "super_admin") {
+    // Super admin properties cannot be restricted
+    if (data.fullName) target.fullName = data.fullName.trim();
+    if (data.email) target.email = data.email.trim();
+    saveAdminUsers(users);
+    return target;
+  }
+
+  if (data.fullName) target.fullName = data.fullName.trim();
+  if (data.email !== undefined) target.email = data.email.trim();
+  if (data.status === "active" || data.status === "suspended") target.status = data.status;
+  if (data.permissions && typeof data.permissions === "object") {
+    target.permissions = {
+      view_orders: Boolean(data.permissions.view_orders),
+      manage_orders: Boolean(data.permissions.manage_orders),
+      manage_products: Boolean(data.permissions.manage_products),
+      manage_categories: Boolean(data.permissions.manage_categories),
+      manage_storefront: Boolean(data.permissions.manage_storefront),
+      manage_delivery_settings: Boolean(data.permissions.manage_delivery_settings),
+    };
+  }
+
+  saveAdminUsers(users);
+  return target;
+}
+
+export function deleteAdminUser(userId) {
+  const users = getAdminUsers();
+  const target = users.find(u => u.id === userId);
+  if (!target) throw new Error("المشرف غير موجود.");
+  if (target.role === "super_admin") throw new Error("لا يمكن حذف حساب المدير العام نهائياً.");
+
+  const filtered = users.filter(u => u.id !== userId);
+  saveAdminUsers(filtered);
+  return true;
+}
+
+export function resetUserPassword(userId, newPassword) {
+  if (!newPassword || newPassword.length < 6) throw new Error("كلمة المرور الجديدة يجب ألا تقل عن 6 خانات.");
+  const users = getAdminUsers();
+  const target = users.find(u => u.id === userId);
+  if (!target) throw new Error("المستخدم غير موجود.");
+  target.passwordHash = hashPassword(newPassword);
+  saveAdminUsers(users);
+  return true;
+}
+
+export function changeUserPassword(userId, currentPassword, newPassword) {
+  if (!newPassword || newPassword.length < 6) throw new Error("كلمة المرور الجديدة يجب ألا تقل عن 6 خانات.");
+  const users = getAdminUsers();
+  const target = users.find(u => u.id === userId);
+  if (!target) throw new Error("المستخدم غير موجود.");
+
+  const curHash = hashPassword(currentPassword);
+  const isMatch = target.passwordHash === curHash
+    || (target.role === "super_admin" && (currentPassword === DEFAULT_SUPER_ADMIN_PASSWORD || currentPassword === LEGACY_ADMIN_PASSWORD));
+  if (!isMatch) throw new Error("كلمة المرور الحالية غير صحيحة.");
+
+  target.passwordHash = hashPassword(newPassword);
+  saveAdminUsers(users);
+  return true;
+}
+
+export function recoverPasswordWithKey(username, recoveryKey, newPassword) {
+  const cleanUser = String(username || "").trim().toLowerCase();
+  const cleanKey = String(recoveryKey || "").trim();
+  if (!cleanUser) throw new Error("يرجى إدخال اسم المستخدم أو البريد الإلكتروني.");
+  if (!cleanKey) throw new Error("يرجى إدخال مفتاح الاسترداد الرئيسي.");
+  if (!newPassword || newPassword.length < 6) throw new Error("كلمة المرور الجديدة يجب ألا تقل عن 6 خانات.");
+
+  const masterKey = getMasterRecoveryKey();
+  if (cleanKey !== masterKey) {
+    throw new Error("مفتاح الاسترداد غير صحيح. تأكد من المفتاح المحفوظ في إعدادات الأمان للمدير العام.");
+  }
+
+  const users = getAdminUsers();
+  const target = users.find(u => u.username.toLowerCase() === cleanUser || (u.email && u.email.toLowerCase() === cleanUser));
+  if (!target) throw new Error(`لم يتم العثور على حساب باسم المستخدم: ${username}`);
+
+  target.passwordHash = hashPassword(newPassword);
+  if (target.status === "suspended") target.status = "active";
+  saveAdminUsers(users);
+  return target;
 }

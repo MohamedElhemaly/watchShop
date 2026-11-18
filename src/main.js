@@ -4,10 +4,13 @@ import {
   categories as defaultCategories,
   getCart,
   saveCart,
+  sanitizeCart,
+  normalizeCartItem,
   getStoredProducts,
   getStoreSettings,
   getStoredCategories,
   getTickerItems,
+  formatDeliveryTimeline,
   addOrder,
 } from "./data.js";
 import {
@@ -282,6 +285,16 @@ function applyStoreSettings(settings = currentSettings) {
   const hasContacts = Boolean(wa || ph);
   if (contactLinksWrap) contactLinksWrap.hidden = !hasContacts;
   if (footerContactWrap) footerContactWrap.hidden = !hasContacts;
+
+  // Dynamic Delivery Timeframe Control
+  const timelineText = formatDeliveryTimeline(settings);
+  $$(".dynamic-delivery-timeline").forEach((el) => {
+    el.textContent = timelineText;
+  });
+  const checkoutTimeline = $("#checkout-delivery-timeline");
+  if (checkoutTimeline) checkoutTimeline.textContent = timelineText;
+  const successTimeline = $("#success-delivery-timeline");
+  if (successTimeline) successTimeline.innerHTML = `التوصيل المتوقع: <strong>${timelineText}</strong> لباب منزلك`;
 
   // News Ticker
   renderNewsTicker();
@@ -561,6 +574,8 @@ function renderCartDrawer() {
 
   if (!list) return;
 
+  // Purge any ghost/malformed entries
+  cart = sanitizeCart(cart);
   updateCartBadge();
 
   if (cart.length === 0) {
@@ -576,7 +591,8 @@ function renderCartDrawer() {
   let subtotal = 0;
 
   list.innerHTML = cart.map((item, index) => {
-    const itemTotal = Number(item.price) * Number(item.quantity);
+    const unitPrice = Math.max(0, Math.round(Number(item.unitPrice ?? item.price ?? 0)));
+    const itemTotal = unitPrice * item.quantity;
     subtotal += itemTotal;
     return `
       <div class="cart-item" data-cart-index="${index}">
@@ -585,7 +601,7 @@ function renderCartDrawer() {
           <h4 class="cart-item-title">${safeText(item.name)}</h4>
           ${item.color ? `<span class="cart-item-color">اللون: ${safeText(item.color)}</span>` : ""}
           <div class="cart-item-price-row">
-            <span class="cart-item-unit-price">${formatEgp(item.price)} ج.م</span>
+            <span class="cart-item-unit-price">${formatEgp(unitPrice)} ج.م</span>
             <div class="cart-qty-stepper">
               <button type="button" class="cart-qty-btn" data-action="cart-minus" data-cart-index="${index}" aria-label="تقليل">−</button>
               <span class="cart-qty-val">${item.quantity}</span>
@@ -626,25 +642,37 @@ function closeCartDrawer(keepModalOpen = false) {
 }
 
 function addToCart(product, chosenImage = "", chosenColor = "", qty = 1) {
+  if (!product || !product.id || !product.name) {
+    showToast("تعذر إضافة الساعة للحقيبة؛ بيانات الساعة غير مكتملة.", false);
+    return;
+  }
+
   const hasImages = Array.isArray(product.images) && product.images.length > 0;
-  const image = chosenImage || product.imageUrl || (hasImages ? product.images[0].imageUrl : "");
+  const image = chosenImage || product.imageUrl || (hasImages ? product.images[0].imageUrl : "/sodfa-promo-poster.jpg");
   const color = chosenColor || (hasImages && product.images[0] ? product.images[0].colorLabel : "");
 
-  const effectivePrice = getEffectiveProductPrice(product);
+  const effectivePrice = Math.max(0, Math.round(Number(getEffectiveProductPrice(product)) || 0));
+  const parsedQty = Math.max(1, parseInt(qty, 10) || 1);
 
-  const existingIndex = cart.findIndex((item) => item.id === product.id && (item.color || "") === color);
+  cart = sanitizeCart(cart);
+
+  const existingIndex = cart.findIndex((item) => item.id === String(product.id) && (item.color || "") === color);
 
   if (existingIndex > -1) {
-    cart[existingIndex].quantity += qty;
+    cart[existingIndex].quantity += parsedQty;
+    cart[existingIndex].price = effectivePrice;
+    cart[existingIndex].unitPrice = effectivePrice;
   } else {
     cart.push({
-      id: product.id,
-      name: product.name,
+      id: String(product.id),
+      name: String(product.name),
       price: effectivePrice,
-      basePrice: Number(product.basePrice),
+      unitPrice: effectivePrice,
+      basePrice: Math.max(effectivePrice, Math.round(Number(product.basePrice)) || effectivePrice),
       image: image,
       color: color,
-      quantity: qty,
+      variant: color,
+      quantity: parsedQty,
     });
   }
 
@@ -761,6 +789,7 @@ function closeProductModal() {
 // 7. COMPLETE CHECKOUT FLOW MODAL
 // ----------------------------------------------------
 function openCheckoutModal() {
+  cart = sanitizeCart(cart);
   if (cart.length === 0) {
     showToast("حقيبة التسوق فارغة حاليًا.", false);
     return;
@@ -774,15 +803,18 @@ function openCheckoutModal() {
   const itemsSummary = $("#checkout-items-summary");
   const finalTotal = $("#checkout-final-total");
   const errorEl = $("#checkout-error");
+  const checkoutTimeline = $("#checkout-delivery-timeline");
 
   if (formView) formView.hidden = false;
   if (successView) successView.hidden = true;
   if (errorEl) errorEl.hidden = true;
+  if (checkoutTimeline) checkoutTimeline.textContent = formatDeliveryTimeline(currentSettings);
 
   let subtotal = 0;
   if (itemsSummary) {
     itemsSummary.innerHTML = cart.map((item) => {
-      const itemTot = Number(item.price) * Number(item.quantity);
+      const unitPrice = Math.max(0, Math.round(Number(item.unitPrice ?? item.price ?? 0)));
+      const itemTot = unitPrice * item.quantity;
       subtotal += itemTot;
       return `
         <div class="checkout-item-line">
@@ -847,11 +879,37 @@ function handleCheckoutSubmit(e) {
     return;
   }
 
+  // Ensure cart only has valid items
+  cart = sanitizeCart(cart);
+  if (cart.length === 0) {
+    if (errorEl) {
+      errorEl.textContent = "حقيبة التسوق فارغة حالياً. أضف ساعة أولاً لإتمام الطلب.";
+      errorEl.hidden = false;
+    }
+    return;
+  }
+
   if (errorEl) errorEl.hidden = true;
 
-  // Order Calculations
+  // Strict Order Calculations & Snapshot
   const orderId = `DAF-${Math.floor(1000 + Math.random() * 9000)}`;
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const validatedItems = cart.map((c) => {
+    const unitPrice = Math.max(0, Math.round(Number(c.unitPrice ?? c.price ?? 0)));
+    const qty = Math.max(1, parseInt(c.quantity, 10) || 1);
+    return {
+      id: String(c.id).trim(),
+      name: String(c.name).trim(),
+      unitPrice: unitPrice,
+      price: unitPrice,
+      quantity: qty,
+      color: c.color || c.variant || "",
+      variant: c.variant || c.color || "",
+      image: c.image || "",
+    };
+  });
+
+  const subtotal = validatedItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+  const deliveryTimeline = formatDeliveryTimeline(currentSettings);
 
   const orderData = {
     id: orderId,
@@ -862,14 +920,8 @@ function handleCheckoutSubmit(e) {
     address: address,
     notes: notes,
     totalAmount: subtotal,
-    items: cart.map((c) => ({
-      id: c.id,
-      name: c.name,
-      price: c.price,
-      quantity: c.quantity,
-      color: c.color || "",
-      image: c.image || "",
-    })),
+    items: validatedItems,
+    deliveryTimeline: deliveryTimeline,
     status: "new",
     createdAt: new Date().toISOString(),
     isRead: false,
@@ -887,8 +939,12 @@ function handleCheckoutSubmit(e) {
   const successOrderNum = $("#success-order-id");
   const successSummary = $("#success-summary-card");
   const waConfirmBtn = $("#success-whatsapp-confirm");
+  const successTimeline = $("#success-delivery-timeline");
 
   if (successOrderNum) successOrderNum.textContent = `#${orderId}`;
+  if (successTimeline) {
+    successTimeline.innerHTML = `موعد التوصيل المتوقع: <strong>${deliveryTimeline}</strong> لباب منزلك`;
+  }
 
   if (successSummary) {
     successSummary.innerHTML = `
@@ -898,11 +954,11 @@ function handleCheckoutSubmit(e) {
         <div><strong>المحافظة:</strong> ${safeText(gov)} — ${safeText(city)}</div>
         <div><strong>العنوان:</strong> ${safeText(address)}</div>
         <div><strong>طريقة السداد:</strong> الدفع نقدًا عند الاستلام بعد الفحص والمعاينة</div>
-        <div><strong>إجمالي المستحق:</strong> <b style="color:var(--copper); font-size:16px;">${formatEgp(subtotal)} ج.م</b></div>
+        <div><strong>إجمالي المستحق:</strong> <b style="color:var(--copper); font-size:16px;">${formatEgp(orderData.totalAmount)} ج.م</b></div>
       </div>
       <div class="success-items-list" style="margin-top:14px; border-top:1px solid var(--line); padding-top:12px;">
         <strong style="color:var(--teal-950); display:block; margin-bottom:6px;">القطع المطلوبة:</strong>
-        ${orderData.items.map((c) => `<div>• <b>${safeText(c.name)}</b> (${c.quantity} قطعة) ${c.color ? `- لون ${safeText(c.color)}` : ""} — <span style="font-family:var(--font-digits); font-weight:700;">${formatEgp(c.price * c.quantity)} ج.م</span></div>`).join("")}
+        ${orderData.items.map((c) => `<div>• <b>${safeText(c.name)}</b> (${c.quantity} قطعة) ${c.color ? `- لون ${safeText(c.color)}` : ""} — <span style="font-family:var(--font-digits); font-weight:700;">${formatEgp(c.unitPrice * c.quantity)} ج.م</span></div>`).join("")}
       </div>
     `;
   }
@@ -910,15 +966,16 @@ function handleCheckoutSubmit(e) {
   // Pre-fill WhatsApp message for instant dispatch
   if (waConfirmBtn) {
     const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
-    const itemsText = orderData.items.map((c) => `• ${c.name} (${c.quantity} قطعة) ${c.color ? `لون ${c.color}` : ""}`).join("\n");
+    const itemsText = orderData.items.map((c) => `• ${c.name} (${c.quantity} قطعة) ${c.color ? `لون ${c.color}` : ""} — ${formatEgp(c.unitPrice * c.quantity)} ج.م`).join("\n");
     const waMessage = encodeURIComponent(
       `مرحبًا ${currentSettings.brandName || "ضَفّة"}، أؤكد طلب الشراء:\n` +
       `رقم الطلب: #${orderId}\n` +
       `الاسم: ${name}\n` +
       `الهاتف: ${phone}\n` +
       `العنوان: ${gov}، ${city}، ${address}\n` +
+      `مدة التوصيل: ${deliveryTimeline}\n` +
       `المنتجات:\n${itemsText}\n` +
-      `الإجمالي: ${formatEgp(subtotal)} ج.م (الدفع عند الاستلام)\n` +
+      `الإجمالي: ${formatEgp(orderData.totalAmount)} ج.م (الدفع عند الاستلام)\n` +
       `ملاحظات: ${notes}`
     );
     waConfirmBtn.href = wa ? `https://wa.me/${wa}?text=${waMessage}` : "#";

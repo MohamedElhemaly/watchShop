@@ -1,7 +1,7 @@
 import "./style.css";
 import "./product.css";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
-import { getCart, saveCart, getStoredProducts, storeSettings } from "./data.js";
+import { getCart, saveCart, sanitizeCart, getStoredProducts, getStoreSettings, formatDeliveryTimeline } from "./data.js";
 
 const $ = (selector) => document.querySelector(selector);
 const safeText = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({
@@ -266,29 +266,42 @@ function initCartActions() {
   });
 
   addBtn?.addEventListener("click", () => {
-    if (!currentProduct) return;
-    const cart = getCart();
+    if (!currentProduct || !currentProduct.id || !currentProduct.name) return;
+    let cart = sanitizeCart(getCart());
     const image = currentImages[selectedImageIndex];
     const selectedColor = image ? String(image.colorLabel || "").trim() : "";
     const selectedImg = image ? image.imageUrl : currentProduct.imageUrl;
-    const effectivePrice = (currentProduct.discountActive && Number(currentProduct.discountPercent) > 0)
-      ? Number(currentProduct.salePrice)
-      : Number(currentProduct.basePrice);
+
+    let effectivePrice = Number(currentProduct.basePrice) || 0;
+    if (currentProduct.discountActive) {
+      if (currentProduct.discountType === "fixed") {
+        effectivePrice = Math.max(0, effectivePrice - Number(currentProduct.discountValue || 0));
+      } else if (currentProduct.discountType === "percent") {
+        effectivePrice = Math.round(effectivePrice * (1 - (Number(currentProduct.discountValue || currentProduct.discountPercent || 0) / 100)));
+      } else if (Number(currentProduct.discountPercent) > 0) {
+        effectivePrice = Number(currentProduct.salePrice) || Math.round(effectivePrice * (1 - (Number(currentProduct.discountPercent) / 100)));
+      }
+    }
+    effectivePrice = Math.max(0, Math.round(effectivePrice));
 
     const existingIndex = cart.findIndex(
-      (item) => item.id === currentProduct.id && (item.color || "") === selectedColor
+      (item) => item.id === String(currentProduct.id) && (item.color || "") === selectedColor
     );
 
     if (existingIndex > -1) {
       cart[existingIndex].quantity += quantity;
+      cart[existingIndex].price = effectivePrice;
+      cart[existingIndex].unitPrice = effectivePrice;
     } else {
       cart.push({
-        id: currentProduct.id,
-        name: currentProduct.name,
+        id: String(currentProduct.id),
+        name: String(currentProduct.name),
         price: effectivePrice,
-        basePrice: Number(currentProduct.basePrice),
+        unitPrice: effectivePrice,
+        basePrice: Math.max(effectivePrice, Math.round(Number(currentProduct.basePrice)) || effectivePrice),
         image: selectedImg,
         color: selectedColor,
+        variant: selectedColor,
         quantity: quantity,
       });
     }

@@ -44,7 +44,7 @@ const {
 test("normalizeCartItem validates and preserves valid cart items with integer unitPrice", () => {
   const rawItem = {
     id: "sodfa-001",
-    name: "ضَفّة هيريتدج كرونوغراف",
+    name: "صُدْفَة هيريتدج كرونوغراف",
     price: 2450,
     unitPrice: 2450,
     basePrice: 2800,
@@ -56,7 +56,7 @@ test("normalizeCartItem validates and preserves valid cart items with integer un
   const normalized = normalizeCartItem(rawItem);
   assert.ok(normalized);
   assert.equal(normalized.id, "sodfa-001");
-  assert.equal(normalized.name, "ضَفّة هيريتدج كرونوغراف");
+  assert.equal(normalized.name, "صُدْفَة هيريتدج كرونوغراف");
   assert.equal(normalized.unitPrice, 2450);
   assert.equal(normalized.price, 2450);
   assert.equal(normalized.quantity, 2);

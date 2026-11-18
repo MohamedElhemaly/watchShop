@@ -177,9 +177,9 @@ function hashCode(str = "") {
 export const initialProducts = [
   {
     id: "sodfa-001-heritage-chrono",
-    name: "ضَفّة هيريتدج كرونوغراف",
+    name: "صُدْفَة هيريتدج كرونوغراف",
     shortSpec: "41.5 مم • كوارتز ياباني • كرونوغراف",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "رياضية وكرونوغراف",
     categoryId: "sport-chrono",
     gender: "men",
@@ -263,9 +263,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-002-classic-onyx",
-    name: "ضَفّة كلاسيك أونيكس",
+    name: "صُدْفَة كلاسيك أونيكس",
     shortSpec: "39 مم • كوارتز سويسري • سُمك 7.4 مم",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -329,9 +329,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-003-rose-meridian",
-    name: "ضَفّة روز ميريديان",
+    name: "صُدْفَة روز ميريديان",
     shortSpec: "34 مم • صدف لؤلؤي • مطلي ذهب وردي",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "نسائي",
     categoryId: "women",
     gender: "women",
@@ -399,9 +399,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-004-verdi-grand",
-    name: "ضَفّة فيردي جراند",
+    name: "صُدْفَة فيردي جراند",
     shortSpec: "40 مم • زمردي Sunburst • نافذة تاريخ",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -471,9 +471,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-005-navigator-diver",
-    name: "ضَفّة نافيجاتور دايفر",
+    name: "صُدْفَة نافيجاتور دايفر",
     shortSpec: "42 مم • غواصين 200م • إطار سيراميك",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "رياضية وكرونوغراف",
     categoryId: "sport-chrono",
     gender: "men",
@@ -539,9 +539,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-006-aura-minimalist",
-    name: "ضَفّة أورا سليم",
+    name: "صُدْفَة أورا سليم",
     shortSpec: "32 مم • مينيملست • سُمك فائق النحافة",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "نسائي",
     categoryId: "women",
     gender: "women",
@@ -607,9 +607,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-007-stellaris-automatic",
-    name: "ضَفّة سيلاريس أوتوماتيك",
+    name: "صُدْفَة سيلاريس أوتوماتيك",
     shortSpec: "41 مم • حركة أوتوماتيكية • ظهر زجاجي",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -678,9 +678,9 @@ export const initialProducts = [
   },
   {
     id: "sodfa-008-platinum-hybrid",
-    name: "ضَفّة بلاتينيوم هايبرد الذكية",
+    name: "صُدْفَة بلاتينيوم هايبرد الذكية",
     shortSpec: "42 مم • عقارب ميكانيكية + شاشة ذكية",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "ذكية وهجينة",
     categoryId: "smart-hybrid",
     gender: "unisex",
@@ -751,9 +751,9 @@ export const initialProducts = [
   // Legacy / Test Product compatibility preservation
   {
     id: "123e4567-e89b-42d3-a456-426614174000",
-    name: "ساعة ضَفّة كلاسيكية أصلية",
+    name: "ساعة صُدْفَة كلاسيكية أصلية",
     shortSpec: "40 مم • ستانلس ستيل • كلاسيك",
-    brand: "ضَفّة",
+    brand: "صُدْفَة",
     category: "كلاسيك ورسمية",
     categoryId: "classic-dress",
     gender: "men",
@@ -799,7 +799,7 @@ export const initialProducts = [
 ];
 
 export const defaultStoreSettings = {
-  brandName: "ضَفّة",
+  brandName: "صُدْفَة",
   brandSubtitle: "سَاعَةٌ لِكُلِّ لَحْظَةٍ",
   announcement: "شحن مجاني لكافة المحافظات • الدفع عند الاستلام بعد المعاينة والفحص",
   heroHeadline: "كل لحظة حلوة\nتستاهل وقتها.",
@@ -807,7 +807,7 @@ export const defaultStoreSettings = {
   heroVideoUrl: "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4",
   heroPosterUrl: "/sodfa-promo-poster.jpg",
   featuredTag: "القطعة المميزة",
-  featuredName: "ضَفّة هيريتدج كرونوغراف",
+  featuredName: "صُدْفَة هيريتدج كرونوغراف",
   featuredSpec: "سافاير • مقاومة 100م • ستيل 316L",
   defaultPhone: "+201000000000",
   defaultWhatsapp: "+201000000000",
@@ -832,7 +832,7 @@ export const defaultStoreSettings = {
 export const defaultTickerItems = [
   "شحن مجاني لكافة محافظات مصر • متاح المعاينة والفحص الدقيق قبل السداد للمندوب",
   "ضمان رسمي شامل لمدة عامين على جميع الساعات الأصلية مع استبدال فوري",
-  "خصومات حصرية بمناسبة إطلاق تشكيلة ساعات ضَفّة 2026 الفاخرة",
+  "خصومات حصرية بمناسبة إطلاق تشكيلة ساعات صُدْفَة 2026 الفاخرة",
   "توصيل سريع وموثوق خلال 2 إلى 4 أيام عمل لباب منزلك مباشرة",
 ];
 
@@ -841,7 +841,9 @@ export function getTickerItems() {
     const raw = localStorage.getItem("daffa_ticker_items");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item) => (typeof item === "string" ? item.replace(/ضَفّة|ضفة/g, "صُدْفَة") : item));
+      }
     }
   } catch {}
   return defaultTickerItems;
@@ -860,7 +862,14 @@ export function getStoreSettings() {
   try {
     const raw = localStorage.getItem("daffa_store_settings") || localStorage.getItem("sodfa_store_settings");
     if (raw) {
-      return { ...defaultStoreSettings, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      if (parsed.brandName === "ضَفّة" || parsed.brandName === "ضفة") {
+        parsed.brandName = "صُدْفَة";
+      }
+      if (parsed.featuredName && (parsed.featuredName.includes("ضَفّة") || parsed.featuredName.includes("ضفة"))) {
+        parsed.featuredName = parsed.featuredName.replace(/ضَفّة|ضفة/g, "صُدْفَة");
+      }
+      return { ...defaultStoreSettings, ...parsed };
     }
   } catch {
     // Fallback
@@ -958,7 +967,17 @@ export function getStoredProducts() {
     if (local) {
       const parsed = JSON.parse(local);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.map((p) => {
+          let name = p.name || "";
+          let brand = p.brand || "";
+          if (name.includes("ضَفّة") || name.includes("ضفة")) {
+            name = name.replace(/ضَفّة|ضفة/g, "صُدْفَة");
+          }
+          if (brand === "ضَفّة" || brand === "ضفة") {
+            brand = "صُدْفَة";
+          }
+          return { ...p, name, brand };
+        });
       }
     }
   } catch {

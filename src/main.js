@@ -152,8 +152,8 @@ async function notifyStoreOwner(order, settings = currentSettings) {
   if (settings.emailNotificationsEnabled && settings.web3formsKey) {
     const emailPayload = {
       access_key: settings.web3formsKey,
-      subject: `طلب شراء جديد #${order.id} من متجر ضَفّة`,
-      from_name: "متجر ضَفّة للساعات",
+      subject: `طلب شراء جديد #${order.id} من متجر صُدْفَة`,
+      from_name: "متجر صُدْفَة للساعات",
       order_id: order.id,
       customer_name: order.customerName,
       phone: order.phone,
@@ -180,7 +180,7 @@ async function notifyStoreOwner(order, settings = currentSettings) {
       .map((i) => `• <b>${safeText(i.name)}</b> × ${i.quantity} ${i.color ? `(${safeText(i.color)})` : ""} — ${formatEgp(i.price * i.quantity)} ج.م`)
       .join("\n");
 
-    const tgMessage = `🔔 <b>طلب شراء جديد في متجر ضَفّة</b>\n\n` +
+    const tgMessage = `🔔 <b>طلب شراء جديد في متجر صُدْفَة</b>\n\n` +
       `<b>رقم الطلب:</b> <code>#${order.id}</code>\n` +
       `<b>العميل:</b> ${safeText(order.customerName)}\n` +
       `<b>الهاتف:</b> <code>${safeText(order.phone)}</code>\n` +
@@ -266,7 +266,7 @@ function applyStoreSettings(settings = currentSettings) {
   const ph = settings.defaultPhone || "";
 
   if (wa) {
-    const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(`مرحبًا ${settings.brandName || "ضَفّة"}، أود الاستفسار عن الساعات المتوفرة.`)}`;
+    const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(`مرحبًا ${settings.brandName || "صُدْفَة"}، أود الاستفسار عن الساعات المتوفرة.`)}`;
     if (orderWhatsApp) { orderWhatsApp.href = waUrl; orderWhatsApp.hidden = false; }
     if (footerWhatsApp) { footerWhatsApp.href = waUrl; footerWhatsApp.hidden = false; }
   } else {
@@ -759,7 +759,7 @@ function openProductModal(productId) {
   if (whatsappBtn) {
     const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
     if (wa) {
-      const msg = encodeURIComponent(`مرحبًا ${currentSettings.brandName || "ضَفّة"}، أود طلب ساعة: ${product.name} (السعر: ${formatEgp(product.salePrice || product.basePrice)} ج.م).`);
+      const msg = encodeURIComponent(`مرحبًا ${currentSettings.brandName || "صُدْفَة"}، أود طلب ساعة: ${product.name} (السعر: ${formatEgp(product.salePrice || product.basePrice)} ج.م).`);
       whatsappBtn.href = `https://wa.me/${wa}?text=${msg}`;
       whatsappBtn.hidden = false;
     } else {
@@ -968,7 +968,7 @@ function handleCheckoutSubmit(e) {
     const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
     const itemsText = orderData.items.map((c) => `• ${c.name} (${c.quantity} قطعة) ${c.color ? `لون ${c.color}` : ""} — ${formatEgp(c.unitPrice * c.quantity)} ج.م`).join("\n");
     const waMessage = encodeURIComponent(
-      `مرحبًا ${currentSettings.brandName || "ضَفّة"}، أؤكد طلب الشراء:\n` +
+      `مرحبًا ${currentSettings.brandName || "صُدْفَة"}، أؤكد طلب الشراء:\n` +
       `رقم الطلب: #${orderId}\n` +
       `الاسم: ${name}\n` +
       `الهاتف: ${phone}\n` +

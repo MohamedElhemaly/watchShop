@@ -166,7 +166,7 @@ function handleLoginSubmit(e) {
 
   setAdminSession(sessionData, rememberMe);
   updateAuthViews();
-  showToast(`أهلاً بك يا ${result.fullName || result.username} في لوحة تحكم ضَفّة ✓`);
+  showToast(`أهلاً بك يا ${result.fullName || result.username} في لوحة تحكم صُدْفَة ✓`);
 }
 
 function handleLogout() {
@@ -655,7 +655,7 @@ function handleProductFormSubmit(e) {
   const productData = {
     id,
     name,
-    brand: storeSettings.brandName || "ضَفّة",
+    brand: storeSettings.brandName || "صُدْفَة",
     category: categoryName,
     categoryId,
     badge,
@@ -780,7 +780,7 @@ function renderOrdersList() {
   container.innerHTML = filtered.map((order) => {
     const dateFormatted = order.createdAt ? new Date(order.createdAt).toLocaleString("ar-EG") : "—";
     const waClean = (order.phone || "").replace(/\D/g, "");
-    const waLink = waClean ? `https://wa.me/2${waClean.startsWith("0") ? waClean : `0${waClean}`}?text=${encodeURIComponent(`مرحبًا أستاذ ${order.customerName}، نتواصل معك بخصوص طلبك #${order.id} من متجر ضَفّة.`)}` : "#";
+    const waLink = waClean ? `https://wa.me/2${waClean.startsWith("0") ? waClean : `0${waClean}`}?text=${encodeURIComponent(`مرحبًا أستاذ ${order.customerName}، نتواصل معك بخصوص طلبك #${order.id} من متجر صُدْفَة.`)}` : "#";
 
     return `
       <article class="admin-order-card ${!order.isRead ? "is-unread" : ""}" data-order-id="${safeText(order.id)}">
@@ -855,7 +855,7 @@ function handleOrderStatusChange(orderId, newStatus) {
 // 6. HERO, VIDEO & BANNER SETTINGS
 // ----------------------------------------------------
 function populateHeroSettings() {
-  $("#setting-brand-name").value = storeSettings.brandName || "ضَفّة";
+  $("#setting-brand-name").value = storeSettings.brandName || "صُدْفَة";
   $("#setting-brand-sub").value = storeSettings.brandSubtitle || "سَاعَةٌ لِكُلِّ لَحْظَةٍ";
   $("#setting-announcement").value = storeSettings.announcement || "";
   $("#setting-video-url").value = storeSettings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
@@ -1047,7 +1047,7 @@ async function handleTestNotification() {
     notes: "هذا إشعار تجريبي لاختبار قنوات تنبيهات المتجر",
     totalAmount: 2450,
     items: [
-      { name: "ضَفّة هيريتدج كرونوغراف", quantity: 1, price: 2450, color: "أسود ملكي" }
+      { name: "صُدْفَة هيريتدج كرونوغراف", quantity: 1, price: 2450, color: "أسود ملكي" }
     ],
   };
 
@@ -1067,7 +1067,7 @@ async function handleTestNotification() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: currentTgChatId,
-          text: `🚀 <b>إشعار تجريبي ناجح من متجر ضَفّة</b>\n\nقناة تنبيهات تيليجرام تعمل بنجاح واستجابة فورية.\nرقم الطلب التجريبي: <code>#${testOrder.id}</code>\nالمبلغ: <b>${formatEgp(testOrder.totalAmount)}</b>`,
+          text: `🚀 <b>إشعار تجريبي ناجح من متجر صُدْفَة</b>\n\nقناة تنبيهات تيليجرام تعمل بنجاح واستجابة فورية.\nرقم الطلب التجريبي: <code>#${testOrder.id}</code>\nالمبلغ: <b>${formatEgp(testOrder.totalAmount)}</b>`,
           parse_mode: "HTML",
         }),
       });
@@ -1085,7 +1085,7 @@ async function handleTestNotification() {
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           access_key: currentWeb3Key,
-          subject: "🚀 إشعار تجريبي من متجر ضَفّة",
+          subject: "🚀 إشعار تجريبي من متجر صُدْفَة",
           message: "قناة إشعارات البريد الإلكتروني تعمل بنجاح!",
         }),
       });

@@ -45,7 +45,14 @@
         <a href="#story">حكاية صُدْفَة</a>
         <a href="#ordering">الطلب والشحن</a>
         <a href="#policy">الضمان والسياسة</a>
+        <button id="nav-track-order-btn" class="nav-track-btn" type="button">📍 تتبع طلبك</button>
       </nav>
+
+      <!-- Track Order Header Button (Quick access next to cart) -->
+      <button id="header-track-order-btn" class="header-track-button" type="button" aria-label="تتبع حالة طلبك">
+        <span class="track-icon" aria-hidden="true">📍</span>
+        <span class="track-text">تتبع طلبك</span>
+      </button>
 
       <!-- Cart Button with Live Counter Badge -->
       <button id="cart-drawer-toggle" class="header-cart-button" type="button" aria-label="عرض حقيبة التسوق" aria-haspopup="dialog">
@@ -439,10 +446,59 @@
           </p>
           <div id="success-summary-card" class="success-summary-card"></div>
           <div class="success-actions">
+            <button id="success-track-order-btn" class="button button-gold success-track-btn" type="button">
+              📦 تتبع حالة الطلب مباشرة
+            </button>
             <a id="success-whatsapp-confirm" class="button button-primary success-whatsapp-btn" target="_blank" rel="noopener noreferrer">
               متابعة وتأكيد الشحن عبر واتساب 💬
             </a>
             <button id="success-continue-btn" class="button button-light" type="button">متابعة تصفح المتجر</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Order Tracking Modal ("تتبع طلبك") -->
+    <div id="order-tracking-modal" class="order-tracking-modal" role="dialog" aria-modal="true" aria-labelledby="track-modal-title" hidden>
+      <div class="order-tracking-dialog">
+        <header class="track-modal-header">
+          <div class="track-modal-header-info">
+            <h3 id="track-modal-title">📍 تتبع حالة طلبك</h3>
+            <p>تابع خط سير ساعتك خطوة بخطوة حتى وصولها لباب منزلك</p>
+          </div>
+          <button id="track-modal-close-btn" class="track-modal-close-btn" type="button" aria-label="إغلاق نافذة التتبع">✕</button>
+        </header>
+
+        <div class="track-modal-body">
+          <!-- Search Form -->
+          <form id="track-search-form" class="track-search-form">
+            <div class="track-search-row">
+              <div class="track-search-input-wrap">
+                <span class="track-search-icon" aria-hidden="true">🔍</span>
+                <input
+                  id="track-search-input"
+                  class="track-search-input"
+                  type="text"
+                  placeholder="رقم الطلب (مثل DAF-1042 أو 1042) أو رقم هاتفك المحمول"
+                  autocomplete="off"
+                  required
+                />
+              </div>
+              <button id="track-search-submit-btn" class="track-search-btn" type="submit">
+                <span>تتبع الطلب</span>
+                <span aria-hidden="true">←</span>
+              </button>
+            </div>
+            <span class="track-search-hint">يمكنك البحث باستخدام كود الطلب المطبوع في إيصال الشراء أو رقم الهاتف المسجل.</span>
+          </form>
+
+          <!-- Dynamic Results Container -->
+          <div id="track-results-container" class="track-results-container">
+            <div class="track-empty-state">
+              <span class="track-empty-icon" aria-hidden="true">📦</span>
+              <h4>أدخل رقم الطلب أو رقم الهاتف</h4>
+              <p>استعرض مسار الشحنة، موعد الوصول المتوقع، وتفاصيل الساعات المطلوبة في ثوانٍ معدودة.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -459,6 +515,7 @@
       </a>
       <p>اختيارات أنيقة، للحظاتك اليومية.</p>
       <a class="back-top" href="#policy">سياسة الشراء والاستبدال</a>
+      <a id="footer-track-order-btn" class="back-top" href="#" style="margin-top: 4px; color: var(--copper); font-weight: 700;">📍 تتبع طلبك الآن</a>
       <div id="footer-contact-links" class="footer-contact-links" aria-label="وسائل التواصل" hidden>
         <a id="footer-whatsapp-link" class="contact-link contact-link-primary" target="_blank" rel="noopener noreferrer" hidden>واتساب</a>
         <a id="footer-phone-link" class="contact-link contact-link-secondary" hidden>اتصال</a>

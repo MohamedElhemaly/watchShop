@@ -67,6 +67,10 @@ test("isValidWhatsAppPhone strictly validates mobile phone numbers", () => {
   assert.equal(isValidWhatsAppPhone("010"), false);
   assert.equal(isValidWhatsAppPhone("12345"), false);
   assert.equal(isValidWhatsAppPhone("abcdef"), false);
+  // Fake / dummy placeholder numbers must strictly be rejected
+  assert.equal(isValidWhatsAppPhone("+201000000000"), false);
+  assert.equal(isValidWhatsAppPhone("201000000000"), false);
+  assert.equal(isValidWhatsAppPhone("01000000000"), false);
   // Egyptian landlines or invalid mobile prefixes (e.g. 02 القاهرة)
   assert.equal(isValidWhatsAppPhone("0233445566"), false);
   assert.equal(isValidWhatsAppPhone("01312345678"), false); // 013 is Qalyubia landline, not mobile
@@ -84,7 +88,9 @@ test("buildWhatsAppUrl constructs direct cross-platform deep link without Invite
   assert.ok(orderUrl.startsWith("https://api.whatsapp.com/send?phone=201012345678"));
   assert.ok(orderUrl.includes("%0A")); // encoded newline
 
-  // Invalid phone returns empty string
+  // Invalid phone & fake dummy placeholder return empty string
   assert.equal(buildWhatsAppUrl(""), "");
   assert.equal(buildWhatsAppUrl("invalid"), "");
+  assert.equal(buildWhatsAppUrl("+201000000000", "test"), "");
+  assert.equal(buildWhatsAppUrl("201000000000"), "");
 });

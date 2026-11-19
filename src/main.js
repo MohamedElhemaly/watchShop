@@ -13,6 +13,7 @@ import {
   formatDeliveryTimeline,
   formatWhatsAppPhone,
   buildWhatsAppUrl,
+  isValidWhatsAppPhone,
   addOrder,
 } from "./data.js";
 import {
@@ -23,6 +24,9 @@ import {
 } from "./pricing.js";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
 import { resolveMediaUrl, resolveProductsMedia } from "./mediaStorage.js";
+import "./orderTracker.css";
+import { initCloudSync } from "./cloudSync.js";
+import { initOrderTracker } from "./orderTracker.js";
 
 // DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
@@ -793,14 +797,17 @@ function openProductModal(productId) {
   // Direct WhatsApp Button inside modal
   if (whatsappBtn) {
     const cleanWa = formatWhatsAppPhone(currentSettings.defaultWhatsapp || "");
-    if (cleanWa) {
+    if (cleanWa && isValidWhatsAppPhone(cleanWa)) {
       const msg = `مرحبًا ${currentSettings.brandName || "صُدْفَة"}، أود طلب ساعة: ${product.name} (السعر: ${formatEgp(product.salePrice || product.basePrice)} ج.م).`;
       whatsappBtn.href = buildWhatsAppUrl(cleanWa, msg);
       whatsappBtn.setAttribute("target", "_blank");
       whatsappBtn.setAttribute("rel", "noopener noreferrer");
+      whatsappBtn.removeAttribute("data-no-wa");
       whatsappBtn.hidden = false;
     } else {
-      whatsappBtn.hidden = true;
+      whatsappBtn.href = "#";
+      whatsappBtn.setAttribute("data-no-wa", "true");
+      whatsappBtn.hidden = false;
     }
   }
 
@@ -1017,15 +1024,17 @@ function handleCheckoutSubmit(e) {
       `الإجمالي: ${formatEgp(orderData.totalAmount)} ج.م (الدفع عند الاستلام)\n` +
       (notes ? `ملاحظات: ${notes}` : `ملاحظات: لا توجد`);
 
-    const waUrl = cleanWa ? buildWhatsAppUrl(cleanWa, waMessage) : "";
+    const waUrl = (cleanWa && isValidWhatsAppPhone(cleanWa)) ? buildWhatsAppUrl(cleanWa, waMessage) : "";
     if (waUrl) {
       waConfirmBtn.href = waUrl;
       waConfirmBtn.setAttribute("target", "_blank");
       waConfirmBtn.setAttribute("rel", "noopener noreferrer");
+      waConfirmBtn.removeAttribute("data-no-wa");
       waConfirmBtn.hidden = false;
     } else {
       waConfirmBtn.href = "#";
-      waConfirmBtn.hidden = true;
+      waConfirmBtn.setAttribute("data-no-wa", "true");
+      waConfirmBtn.hidden = false;
     }
   }
 
@@ -1069,6 +1078,8 @@ async function initStorefront() {
 // Global Event Handlers
 function initApp() {
   initStorefront();
+  initCloudSync();
+  initOrderTracker();
   const yearEl = $("#year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -1244,6 +1255,16 @@ function initApp() {
         showToast(`تمت إزالة «${name}» من الحقيبة.`);
       }
       return;
+    }
+  });
+
+  // 8b. Safe WhatsApp Click Interceptor (Prevents 201000000000 Dummy Redirect)
+  document.addEventListener("click", (e) => {
+    const waTrigger = e.target.closest("#modal-whatsapp-btn, #success-whatsapp-confirm, #order-whatsapp-link, #footer-whatsapp-link");
+    if (!waTrigger) return;
+    if (waTrigger.getAttribute("data-no-wa") === "true" || !isValidWhatsAppPhone(currentSettings.defaultWhatsapp)) {
+      e.preventDefault();
+      showToast("رقم واتساب المتجر غير مضبوط حاليًا. يرجى التواصل هاتفيًا أو إتمام طلبك عبر المتجر.", false);
     }
   });
 

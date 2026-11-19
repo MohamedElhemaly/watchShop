@@ -10,6 +10,7 @@ import {
   formatDeliveryTimeline,
   formatWhatsAppPhone,
   buildWhatsAppUrl,
+  isValidWhatsAppPhone,
 } from "./data.js";
 import { resolveMediaUrl, resolveProductsMedia } from "./mediaStorage.js";
 
@@ -131,7 +132,7 @@ function updateOrderLinks() {
   const phone = $("#detail-phone");
   const noContact = $("#detail-no-contact");
 
-  if (publicContacts.whatsappNumber) {
+  if (publicContacts.whatsappNumber && isValidWhatsAppPhone(publicContacts.whatsappNumber)) {
     const cleanWa = formatWhatsAppPhone(publicContacts.whatsappNumber);
     const message = `مرحبًا صُدْفَة، أستفسر عن ${currentProduct.name}${colorPhrase}. ممكن أعرف التوفر؟`;
     const waUrl = cleanWa ? buildWhatsAppUrl(cleanWa, message) : "";

@@ -809,8 +809,8 @@ export const defaultStoreSettings = {
   featuredTag: "القطعة المميزة",
   featuredName: "صُدْفَة هيريتدج كرونوغراف",
   featuredSpec: "سافاير • مقاومة 100م • ستيل 316L",
-  defaultPhone: "+201000000000",
-  defaultWhatsapp: "+201000000000",
+  defaultPhone: "",
+  defaultWhatsapp: "",
   shippingDetails: "سعر الساعة شامل الشحن إلى كافة المحافظات. تُضاف رسوم إضافية لمحافظات جنوب مصر ومرسى مطروح والغردقة.",
   exchangeDetails: "حق الاستبدال أو الاسترجاع خلال 14 يومًا، وحق رد القيمة خلال 30 يومًا في حالة العيب وفق لوائح جهاز حماية المستهلك المصري.",
   // Notification Settings (Dual-Channel: Email & Telegram)
@@ -830,6 +830,10 @@ export const defaultStoreSettings = {
   // Cloudinary Optional Media Sync
   cloudinaryCloudName: "",
   cloudinaryUploadPreset: "",
+  // Cloud Database & Cross-Device Sync (Supabase / Cloud DB)
+  supabaseUrl: "",
+  supabaseAnonKey: "",
+  cloudSyncEnabled: true,
 };
 
 export const defaultTickerItems = [
@@ -908,6 +912,13 @@ export function getStoreSettings() {
       }
       if (parsed.featuredName && (parsed.featuredName.includes("ضَفّة") || parsed.featuredName.includes("ضفة"))) {
         parsed.featuredName = parsed.featuredName.replace(/ضَفّة|ضفة/g, "صُدْفَة");
+      }
+      // Sanitize dummy fallback numbers
+      if (parsed.defaultWhatsapp && (/201000000000|1000000000/.test(parsed.defaultWhatsapp) || /^(\+?20)?0+$/.test(parsed.defaultWhatsapp))) {
+        parsed.defaultWhatsapp = "";
+      }
+      if (parsed.defaultPhone && (/201000000000|1000000000/.test(parsed.defaultPhone) || /^(\+?20)?0+$/.test(parsed.defaultPhone))) {
+        parsed.defaultPhone = "";
       }
       return { ...defaultStoreSettings, ...parsed };
     }
@@ -1183,6 +1194,10 @@ export function isValidWhatsAppPhone(rawPhone) {
   if (!clean || clean.length < 8 || clean.length > 15 || clean.startsWith("0")) {
     return false;
   }
+  // Strictly reject fake dummy numbers (e.g. 201000000000 or any number ending in 8 zeros)
+  if (/^20(10|11|12|15)0{8}$/.test(clean) || clean === "201000000000") {
+    return false;
+  }
   if (clean.startsWith("20")) {
     return /^20(10|11|12|15)\d{8}$/.test(clean);
   }
@@ -1194,6 +1209,7 @@ export function isValidWhatsAppPhone(rawPhone) {
  * immediately on iOS Safari, Android, and Desktop without "Invite" screens.
  */
 export function buildWhatsAppUrl(rawPhone, messageText = "") {
+  if (!isValidWhatsAppPhone(rawPhone)) return "";
   const cleanPhone = formatWhatsAppPhone(rawPhone);
   if (!cleanPhone) return "";
   const textParam = messageText ? `&text=${encodeURIComponent(messageText)}` : "";
@@ -1433,7 +1449,11 @@ export function verifyAdminCredentials(username, password) {
   if (!cleanUser || !cleanPass) return null;
 
   const users = getAdminUsers();
-  const target = users.find(u => u.username.toLowerCase() === cleanUser || (u.email && u.email.toLowerCase() === cleanUser));
+  const target = users.find(u => 
+    (u.username && u.username.toLowerCase() === cleanUser) ||
+    (u.email && u.email.toLowerCase() === cleanUser) ||
+    (u.fullName && u.fullName.trim().toLowerCase() === cleanUser)
+  );
   if (!target) return null;
 
   if (target.status === "suspended") {

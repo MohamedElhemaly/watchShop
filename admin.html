@@ -704,7 +704,7 @@
                 </label>
                 <label class="form-field">
                   <span>رقم الهاتف المباشر</span>
-                  <input id="setting-phone" type="tel" dir="ltr" placeholder="+201000000000" />
+                  <input id="setting-phone" type="tel" dir="ltr" placeholder="مثال: 01012345678 أو +201012345678" />
                 </label>
               </div>
 
@@ -741,6 +741,38 @@
                 </div>
                 <small class="field-hint" style="display:block; margin-top:4px;">
                   في حال ترك الحقول فارغة، يقوم النظام بحفظ الفيديوهات والصور محلياً وبشكل دائم وفائق السرعة في قاعدة بيانات IndexedDB بالمتصفح.
+                </small>
+              </div>
+
+              <!-- Cloud Database & Cross-Device Sync Card (Supabase) -->
+              <div class="cloudinary-settings-card supabase-sync-card" style="margin-top: 16px; border-color: rgba(11, 59, 56, 0.2);">
+                <div class="cloudinary-header">
+                  <div>
+                    <h4>⚡ المزامنة السحابية وقاعدة البيانات بين الأجهزة (Supabase / Cross-Device Sync)</h4>
+                    <p style="margin: 4px 0 0; font-size: 12px; color: var(--ink-muted);">
+                      تتيح مزامنة الإعدادات، وأرقام الواتساب، والطلبات، وحسابات المشرفين (مثل Hager Samir) لحظياً بين الكمبيوتر والهواتف المحمولة.
+                    </p>
+                  </div>
+                  <span id="supabase-status-badge" class="cloudinary-status-badge is-local">مزامنة سحابية محلية نشطة</span>
+                </div>
+                <div class="form-row-2" style="margin-top: 10px;">
+                  <label class="form-field">
+                    <span>رابط مشروع Supabase (Project URL)</span>
+                    <input id="setting-supabase-url" type="url" placeholder="https://xyzcompany.supabase.co" dir="ltr" />
+                  </label>
+                  <label class="form-field">
+                    <span>مفتاح الوصول العام (Anon Public Key)</span>
+                    <input id="setting-supabase-anon-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." dir="ltr" />
+                  </label>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                  <button type="button" id="btn-test-supabase" class="admin-button admin-button-small" style="font-size: 12px;">
+                    اختبار ومزامنة فورية الآن 🔄
+                  </button>
+                  <span id="supabase-test-feedback" style="font-size: 12px; color: var(--teal-900);"></span>
+                </div>
+                <small class="field-hint" style="display:block; margin-top:6px; font-size: 11.5px; line-height: 1.5;">
+                  <strong>ملاحظة:</strong> إذا تُركت الحقول فارغة، يستمر المتجر بالمزامنة التلقائية عبر شبكة الخادم المحلية والتخزين المؤقت الفوري.
                 </small>
               </div>
 

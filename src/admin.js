@@ -50,6 +50,7 @@ import {
 } from "./pricing.js";
 import { createMediaUploader } from "./mediaUploader.js";
 import { resolveMediaUrl, resolveProductsMedia, getCachedMediaUrl } from "./mediaStorage.js";
+import { initCloudSync, syncAllCloudData, testSupabaseConnection, getCloudSyncConfig } from "./cloudSync.js";
 
 // DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
@@ -1775,6 +1776,21 @@ function updateCloudinaryBadge() {
   }
 }
 
+function updateSupabaseBadge() {
+  const badge = $("#supabase-status-badge");
+  const sUrl = $("#setting-supabase-url")?.value.trim() || storeSettings.supabaseUrl || "";
+  const sKey = $("#setting-supabase-anon-key")?.value.trim() || storeSettings.supabaseAnonKey || "";
+  if (!badge) return;
+
+  if (sUrl && sKey) {
+    badge.className = "cloudinary-status-badge is-connected";
+    badge.textContent = "⚡ متصل بـ Supabase (مزامنة فورية)";
+  } else {
+    badge.className = "cloudinary-status-badge is-local";
+    badge.textContent = "مزامنة سحابية محلية نشطة";
+  }
+}
+
 function populateContactsAndPolicies() {
   $("#setting-whatsapp").value = storeSettings.defaultWhatsapp || "";
   $("#setting-phone").value = storeSettings.defaultPhone || "";
@@ -1784,8 +1800,13 @@ function populateContactsAndPolicies() {
   const cloudPresetInput = $("#setting-cloudinary-preset");
   if (cloudNameInput) cloudNameInput.value = storeSettings.cloudinaryCloudName || "";
   if (cloudPresetInput) cloudPresetInput.value = storeSettings.cloudinaryUploadPreset || "";
+  const sUrlInput = $("#setting-supabase-url");
+  const sKeyInput = $("#setting-supabase-anon-key");
+  if (sUrlInput) sUrlInput.value = storeSettings.supabaseUrl || "";
+  if (sKeyInput) sKeyInput.value = storeSettings.supabaseAnonKey || "";
   updateWhatsAppPreview();
   updateCloudinaryBadge();
+  updateSupabaseBadge();
 }
 
 function handleContactsSubmit(e) {
@@ -1805,6 +1826,8 @@ function handleContactsSubmit(e) {
   const cleanWa = formatWhatsAppPhone(rawWa);
   const cName = $("#setting-cloudinary-name")?.value.trim() || "";
   const cPreset = $("#setting-cloudinary-preset")?.value.trim() || "";
+  const sUrl = $("#setting-supabase-url")?.value.trim() || "";
+  const sKey = $("#setting-supabase-anon-key")?.value.trim() || "";
 
   storeSettings = {
     ...storeSettings,
@@ -1814,12 +1837,15 @@ function handleContactsSubmit(e) {
     exchangeDetails: $("#setting-exchange").value.trim(),
     cloudinaryCloudName: cName,
     cloudinaryUploadPreset: cPreset,
+    supabaseUrl: sUrl,
+    supabaseAnonKey: sKey,
   };
 
   saveStoreSettings(storeSettings);
   updateWhatsAppPreview();
   updateCloudinaryBadge();
-  showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات الوسائط بنجاح ✓");
+  updateSupabaseBadge();
+  showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات المزامنة السحابية بنجاح ✓");
 
   fetch("/api/admin/settings", {
     method: "PUT",
@@ -2203,6 +2229,7 @@ function renderDashboard() {
 
 function initAdminApp() {
   updateAuthViews();
+  initCloudSync();
 
   $("#admin-login-form")?.addEventListener("submit", handleLoginSubmit);
   $("#admin-logout-btn")?.addEventListener("click", handleLogout);
@@ -2423,6 +2450,35 @@ function initAdminApp() {
   $("#setting-whatsapp")?.addEventListener("input", updateWhatsAppPreview);
   $("#setting-cloudinary-name")?.addEventListener("input", updateCloudinaryBadge);
   $("#setting-cloudinary-preset")?.addEventListener("input", updateCloudinaryBadge);
+  $("#setting-supabase-url")?.addEventListener("input", updateSupabaseBadge);
+  $("#setting-supabase-anon-key")?.addEventListener("input", updateSupabaseBadge);
+  $("#btn-test-supabase")?.addEventListener("click", async () => {
+    const feedback = $("#supabase-test-feedback");
+    const sUrl = $("#setting-supabase-url")?.value.trim() || storeSettings.supabaseUrl || "";
+    const sKey = $("#setting-supabase-anon-key")?.value.trim() || storeSettings.supabaseAnonKey || "";
+
+    if (feedback) {
+      feedback.textContent = "جاري اختبار الاتصال بـ Supabase...";
+      feedback.style.color = "var(--ink-muted)";
+    }
+
+    const res = await testSupabaseConnection(sUrl, sKey);
+    if (res.ok) {
+      if (feedback) {
+        feedback.textContent = res.message;
+        feedback.style.color = "var(--success-ink)";
+      }
+      updateSupabaseBadge();
+      await syncAllCloudData();
+      showToast("تم اختبار الاتصال وبدء المزامنة السحابية بنجاح ✓");
+    } else {
+      if (feedback) {
+        feedback.textContent = res.message;
+        feedback.style.color = "var(--sale-solid)";
+      }
+      showToast(res.message, true);
+    }
+  });
   $("#btn-add-variant-row")?.addEventListener("click", () => addVisualVariantRow());
 
   // Initialize Direct Device Media Uploaders

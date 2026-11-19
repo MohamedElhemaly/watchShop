@@ -238,40 +238,54 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .admin-login-view {
-  min-height: 65vh;
+  min-height: calc(80vh - 80px);
   display: grid;
   place-items: center;
-  padding: 40px 16px;
+  padding: clamp(24px, 5vw, 48px) 16px clamp(48px, 8vw, 80px);
+  overflow: visible;
 }
 
 .login-card {
   width: min(440px, 100%);
   background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 40px 32px;
-  box-shadow: 0 16px 40px rgba(7, 38, 36, 0.07);
+  border-radius: 12px;
+  padding: clamp(28px, 6vw, 44px) clamp(20px, 6vw, 36px);
+  box-shadow: 0 16px 40px rgba(7, 38, 36, 0.08);
+  overflow: visible;
+  position: relative;
+  margin: 12px auto 0;
 }
 
 .login-brand-header {
   text-align: center;
   margin-bottom: 24px;
+  overflow: visible;
+  position: relative;
 }
 
 .login-icon-box {
-  width: 54px;
-  height: 54px;
-  margin: 0 auto 12px;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 16px;
   border-radius: 50%;
   background: var(--teal-950);
-  display: grid;
-  place-items: center;
+  border: 2px solid rgba(190, 114, 76, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  position: relative;
+  box-shadow: 0 6px 18px rgba(7, 38, 36, 0.16);
+  flex-shrink: 0;
 }
 
 .login-icon-box img {
-  width: 70%;
-  height: 70%;
+  width: 68%;
+  height: 68%;
   object-fit: contain;
+  display: block;
+  margin: auto;
 }
 
 .admin-kicker {
@@ -1839,5 +1853,28 @@ tr.is-bulk-selected {
 
   .order-details-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-login-view {
+    padding: 16px 12px 48px;
+    min-height: auto;
+  }
+  .login-card {
+    margin-top: 8px;
+    padding: 28px 18px 24px;
+    border-radius: 12px;
+    overflow: visible;
+  }
+  .login-brand-header {
+    margin-bottom: 20px;
+    overflow: visible;
+  }
+  .login-icon-box {
+    width: 52px;
+    height: 52px;
+    margin: 4px auto 14px;
+    overflow: visible;
   }
 }

@@ -211,6 +211,20 @@ test("Regular Admin user creation, permission checks, and suspension", () => {
   assert.ok(limitedAdmin.id);
   assert.equal(limitedAdmin.role, "regular_admin");
 
+  // Create admin Hager Samir and test login by full name, trimmed, and case-insensitive
+  const hagerAdmin = createAdminUser({
+    fullName: "Hager Samir",
+    username: "hager_s",
+    password: "HagerPassword@2026",
+    permissions: { view_orders: true, manage_orders: true },
+  });
+  const loginByFullName = verifyAdminCredentials("Hager Samir", "HagerPassword@2026");
+  assert.ok(loginByFullName, "Should authenticate by full name 'Hager Samir'");
+  assert.equal(loginByFullName.id, hagerAdmin.id);
+
+  const loginTrimmed = verifyAdminCredentials("  hager samir  ", "HagerPassword@2026");
+  assert.ok(loginTrimmed, "Should authenticate with trimmed whitespace and lowercasing");
+
   // Set session for limited admin
   setAdminSession({
     userId: limitedAdmin.id,

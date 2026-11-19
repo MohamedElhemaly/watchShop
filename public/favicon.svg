@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="emeraldDial" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#143c35" />
+      <stop offset="70%" stop-color="#0E2924" />
+      <stop offset="100%" stop-color="#071b17" />
+    </radialGradient>
+    <linearGradient id="bronzeRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#cf976e" />
+      <stop offset="50%" stop-color="#B07D56" />
+      <stop offset="100%" stop-color="#8a532f" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer Circular Watch Silhouette -->
+  <circle cx="32" cy="32" r="30.5" fill="url(#emeraldDial)" stroke="url(#bronzeRing)" stroke-width="2.5" />
+  
+  <!-- Subtle Inner Minute Index Track -->
+  <circle cx="32" cy="32" r="25" fill="none" stroke="#B07D56" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.6" />
+
+  <!-- 12, 3, 6, 9 Hour Markers -->
+  <rect x="31" y="9" width="2" height="4.5" rx="1" fill="#B07D56" />
+  <rect x="31" y="50.5" width="2" height="4.5" rx="1" fill="#B07D56" />
+  <rect x="50.5" y="31" width="4.5" height="2" rx="1" fill="#B07D56" />
+  <rect x="9" y="31" width="4.5" height="2" rx="1" fill="#B07D56" />
+
+  <!-- Crescent Motif -->
+  <path d="M 27 22 A 12 12 0 1 0 39 34 A 9.5 9.5 0 1 1 27 22 Z" fill="#B07D56" opacity="0.95" />
+
+  <!-- Watch Hands (Editorial 10:10 pose) -->
+  <line x1="32" y1="32" x2="23" y2="23" stroke="#f6f3eb" stroke-width="2" stroke-linecap="round" />
+  <line x1="32" y1="32" x2="41" y2="25" stroke="#f6f3eb" stroke-width="1.6" stroke-linecap="round" />
+  
+  <!-- Central Pin -->
+  <circle cx="32" cy="32" r="2.5" fill="url(#bronzeRing)" />
+  <circle cx="32" cy="32" r="1.2" fill="#0E2924" />
+</svg>

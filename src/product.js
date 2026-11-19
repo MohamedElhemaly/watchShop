@@ -1,5 +1,7 @@
 import "./style.css";
 import "./product.css";
+import "./brandLogo.css";
+import "./brandLogo.js";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
 import {
   getCart,
@@ -86,6 +88,13 @@ function selectImage(index) {
   const mainImage = $("#detail-main-image");
   mainImage.src = image.imageUrl;
   mainImage.alt = image.imageAlt || `${currentProduct.name} — ${imageName(image, index)}`;
+
+  // Apply image framing settings if configured
+  const framing = currentProduct?.imageFraming || { fitMode: "contain", alignment: "center", scale: 100 };
+  mainImage.style.objectFit = framing.fitMode || "contain";
+  mainImage.style.objectPosition = framing.alignment || "center";
+  mainImage.style.transform = `scale(${(Number(framing.scale) || 100) / 100})`;
+
   const color = String(image.colorLabel || "").trim();
   const selectedColor = $("#detail-selected-color");
   selectedColor.textContent = color ? `اللون المختار: ${color}` : "";

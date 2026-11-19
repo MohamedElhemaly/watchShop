@@ -4,6 +4,7 @@
    -------------------------------------------------------------------------- */
 
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import "./brandLogo.css";
 
 :root {
   --font-arabic: 'Cairo', system-ui, -apple-system, sans-serif;
@@ -14,39 +15,41 @@
   --teal-800: #124f4b;
   --teal-700: #1a6863;
   --teal-600: #26817b;
-  --teal-50:  #f0f7f6;
+  --teal-50: #f0f7f6;
 
-  --cream-50:  #fbf9f4;
+  --cream-50: #fbf9f4;
   --cream-100: #f6f3eb;
   --cream-200: #ece7dc;
-  --cream:     #f6f3eb;
+  --cream: #f6f3eb;
 
-  --copper:       #be724c;
+  --copper: #be724c;
   --copper-hover: #a85f3b;
-  --copper-tint:  rgba(190, 114, 76, 0.12);
+  --copper-tint: rgba(190, 114, 76, 0.12);
 
-  --ink:         #132b2a;
+  --ink: #132b2a;
   --ink-heading: #081d1c;
-  --ink-muted:   #4e6360;
-  --ink-subtle:  #708481;
-  --line:        rgba(19, 43, 42, 0.12);
+  --ink-muted: #4e6360;
+  --ink-subtle: #708481;
+  --line: rgba(19, 43, 42, 0.12);
   --line-subtle: rgba(19, 43, 42, 0.07);
   --line-strong: rgba(19, 43, 42, 0.22);
 
-  --sale-ink:    #982823;
-  --sale-bg:     #fdf2f1;
+  --sale-ink: #982823;
+  --sale-bg: #fdf2f1;
   --sale-border: rgba(152, 40, 35, 0.22);
-  --sale-solid:  #aa302b;
+  --sale-solid: #aa302b;
 
-  --success-ink:    #165f46;
-  --success-bg:     #edf8f3;
+  --success-ink: #165f46;
+  --success-bg: #edf8f3;
   --success-border: rgba(22, 95, 70, 0.22);
 
   --ease-tactile: cubic-bezier(0.16, 1, 0.3, 1);
   --transition-fast: 160ms var(--ease-tactile);
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -67,7 +70,10 @@ body.admin-body {
   -webkit-font-smoothing: antialiased;
 }
 
-button, input, textarea, select {
+button,
+input,
+textarea,
+select {
   font: inherit;
   color: inherit;
 }
@@ -83,7 +89,11 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
   outline: 2px solid var(--copper);
   outline-offset: 2px;
 }
@@ -119,12 +129,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .admin-brand img {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--teal-900);
-  border: 1px solid rgba(190, 114, 76, 0.45);
-  object-fit: contain;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #0E2924;
+  border: 1.5px solid rgba(176, 125, 86, 0.6);
+  box-shadow: 0 0 0 1px rgba(176, 125, 86, 0.25), 0 4px 14px rgba(7, 38, 36, 0.18);
+  object-fit: cover;
+  transform: scale(1.04);
 }
 
 .admin-brand span {
@@ -265,27 +278,29 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .login-icon-box {
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
   margin: 0 auto 16px;
-  border-radius: 50%;
-  background: var(--teal-950);
-  border: 2px solid rgba(190, 114, 76, 0.35);
+  border-radius: 9999px;
+  background: #0E2924;
+  border: 2px solid rgba(176, 125, 86, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: visible;
+  overflow: hidden;
   position: relative;
-  box-shadow: 0 6px 18px rgba(7, 38, 36, 0.16);
+  box-shadow: 0 0 0 1.5px rgba(176, 125, 86, 0.3), 0 6px 20px rgba(7, 38, 36, 0.2);
   flex-shrink: 0;
 }
 
 .login-icon-box img {
-  width: 68%;
-  height: 68%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9999px;
   display: block;
   margin: auto;
+  transform: scale(1.04);
 }
 
 .admin-kicker {
@@ -337,7 +352,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   color: var(--sale-solid);
 }
 
-.form-field input, .form-field select, .form-field textarea {
+.form-field input,
+.form-field select,
+.form-field textarea {
   padding: 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
@@ -347,7 +364,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   transition: border-color var(--transition-fast);
 }
 
-.form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
   outline: none;
   border-color: var(--teal-700);
   box-shadow: 0 0 0 3px rgba(26, 104, 99, 0.12);
@@ -1030,7 +1049,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   margin-top: 14px;
 }
 
-.order-customer-box, .order-items-box {
+.order-customer-box,
+.order-items-box {
   background: var(--cream-50);
   border: 1px solid var(--line-subtle);
   border-radius: 6px;
@@ -1038,7 +1058,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-size: 12px;
 }
 
-.order-customer-box h4, .order-items-box h4 {
+.order-customer-box h4,
+.order-items-box h4 {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 800;
@@ -1641,6 +1662,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     opacity: 0;
     transform: translateY(12px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1648,8 +1670,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideDown {
@@ -1657,6 +1684,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     opacity: 0;
     transform: translateY(-8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1847,7 +1875,8 @@ tr.is-bulk-selected {
     grid-template-columns: 1fr;
   }
 
-  .form-row-2, .form-row-3 {
+  .form-row-2,
+  .form-row-3 {
     grid-template-columns: 1fr;
   }
 
@@ -1861,20 +1890,210 @@ tr.is-bulk-selected {
     padding: 16px 12px 48px;
     min-height: auto;
   }
+
   .login-card {
     margin-top: 8px;
     padding: 28px 18px 24px;
     border-radius: 12px;
     overflow: visible;
   }
+
   .login-brand-header {
     margin-bottom: 20px;
     overflow: visible;
   }
+
   .login-icon-box {
     width: 52px;
     height: 52px;
     margin: 4px auto 14px;
     overflow: visible;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Live Cloud Sync Status Banner (2026)
+   -------------------------------------------------------------------------- */
+.cloud-sync-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  transition: all var(--transition-fast);
+}
+
+.cloud-sync-banner.is-connected {
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #065F46;
+}
+
+.cloud-sync-banner.is-local {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
+
+.cloud-sync-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cloud-sync-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.cloud-sync-title {
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.cloud-sync-desc {
+  font-size: 12px;
+  opacity: 0.88;
+}
+
+.cloud-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cloud-sync-badge.is-active {
+  background: #10B981;
+  color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   Image Framing Controls & Live Storefront Card Preview
+   -------------------------------------------------------------------------- */
+.framing-controls-section {
+  background: #FAFAF7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+.framing-section-header {
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.framing-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--teal-950);
+}
+
+.framing-subtitle {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+.scale-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--cream-200);
+  color: var(--teal-950);
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.card-preview-container {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.preview-kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-subtle);
+  margin-bottom: 8px;
+}
+
+.preview-card-stage {
+  max-width: 240px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #ECE7DE;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.preview-visual {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  background: #F4F1EA;
+  border-bottom: 1px solid #ECE7DE;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: aspect-ratio 200ms ease;
+}
+
+.preview-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  transition: all 200ms ease;
+}
+
+.preview-caption {
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+}
+
+.preview-caption strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--teal-950);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-caption span {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--bronze-copper);
+  white-space: nowrap;
+}
+
+.uploading-spinner {
+  display: inline-block;
+  animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

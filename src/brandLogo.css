@@ -1,0 +1,127 @@
+/* --------------------------------------------------------------------------
+   Sodfa (صُدْفَة) - Unified Circular Brand Logo Emblem Design System (2026)
+   Circular Watch-Dial Silhouette: Deep Emerald (#0E2924) + Warm Bronze Ring (#B07D56)
+   Zero square corners, zero background clipping across Desktop & Mobile.
+   -------------------------------------------------------------------------- */
+
+brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Enforce circular watch-dial frame everywhere */
+.brand-logo-circle,
+.brand-mark,
+.login-icon-box,
+.story-mark {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 9999px !important; /* rounded-full */
+  overflow: hidden !important;       /* strictly clips inner image */
+  flex-shrink: 0 !important;
+  background-color: #0E2924 !important; /* Deep emerald watch dial base */
+  border: 1.5px solid rgba(176, 125, 86, 0.6) !important; /* border-[#B07D56]/60 */
+  box-shadow: 0 0 0 1px rgba(176, 125, 86, 0.25), 0 4px 14px rgba(7, 38, 36, 0.18) !important;
+  position: relative !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0;
+}
+
+/* Internal logo image: perfectly scaled, masked, and centered */
+.brand-logo-circle img,
+.brand-logo-img,
+.brand-mark img,
+.login-icon-box img,
+.admin-brand img,
+.story-mark img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 9999px !important;
+  display: block !important;
+  margin: auto !important;
+  transform: scale(1.04) !important; /* Eliminates any subpixel corner artifact */
+  pointer-events: none;
+}
+
+/* Size Variants */
+.brand-logo-circle.size-sm,
+.brand-mark.size-sm,
+.footer-brand .brand-mark,
+.detail-footer .brand-mark {
+  width: 32px !important;
+  height: 32px !important;
+  border-width: 1.2px !important;
+}
+
+.brand-logo-circle.size-md,
+.brand-mark,
+.admin-brand .brand-logo-circle,
+.admin-brand .brand-mark {
+  width: 40px !important;
+  height: 40px !important;
+  border-width: 1.5px !important;
+}
+
+.brand-logo-circle.size-lg,
+.login-icon-box,
+.success-brand-emblem-wrap .brand-logo-circle {
+  width: 60px !important;
+  height: 60px !important;
+  border-width: 2px !important;
+  box-shadow: 0 0 0 1.5px rgba(176, 125, 86, 0.3), 0 6px 20px rgba(7, 38, 36, 0.2) !important;
+}
+
+.brand-logo-circle.size-xl,
+.story-mark {
+  width: min(100%, 220px) !important;
+  height: min(100%, 220px) !important;
+  border-width: 2.5px !important;
+  box-shadow: 0 0 0 2px rgba(176, 125, 86, 0.35), 0 12px 36px rgba(7, 38, 36, 0.3) !important;
+}
+
+/* Receipt Modal Emblem Styling */
+.success-brand-emblem-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 0 auto 16px;
+  overflow: visible;
+}
+
+.success-brand-emblem-wrap .success-icon-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #165f46;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Parent container overflow protection */
+.login-brand-header,
+.login-card,
+.admin-login-view,
+.site-header,
+.admin-header,
+.detail-header {
+  overflow: visible !important;
+}

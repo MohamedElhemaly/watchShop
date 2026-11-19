@@ -7,7 +7,8 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="description" content="لوحة تحكم إدارة متجر صُدْفَة للساعات — مساحة خاصة بمالك المتجر." />
     <title>لوحة الإدارة | صُدْفَة</title>
-    <link rel="icon" type="image/png" href="/sodfa-icon-v3.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/png" href="/sodfa-icon-v3.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -17,7 +18,9 @@
     <header class="admin-header">
       <div class="admin-brand-col">
         <a class="admin-brand" href="/admin" aria-label="لوحة إدارة متجر صُدْفَة">
-          <img src="/sodfa-icon-v3.png" alt="شعار صُدْفَة" />
+          <span class="brand-logo-circle size-md" style="margin-inline-end: 10px;">
+            <img src="/sodfa-icon-v3.png" alt="شعار صُدْفَة" />
+          </span>
           <span>
             <strong>صُدْفَة</strong>
             <small>بوابة الإدارة المركزية</small>
@@ -198,6 +201,11 @@
 
         <!-- TAB 1: PRODUCTS MANAGEMENT (CRUD) -->
         <section id="tab-products" class="admin-tab-content is-active">
+          <!-- Live Cloud Sync Status Banner -->
+          <div id="admin-cloud-sync-banner" class="cloud-sync-banner" aria-live="polite">
+            <!-- Rendered dynamically by updateCloudSyncBanner() -->
+          </div>
+
           <div class="tab-layout-grid">
             <!-- Products List Column -->
             <div class="admin-list-column">
@@ -340,6 +348,69 @@
                   </div>
                 </div>
 
+                <!-- Image Framing & Dimension Controls with Live Card Preview -->
+                <div class="editor-section framing-controls-section">
+                  <div class="framing-section-header">
+                    <div>
+                      <strong class="framing-title">📐 أبعاد وتأطير صورة الساعة في المتجر</strong>
+                      <small class="framing-subtitle">تحكم كامل في مقاس العرض، التكبير، والتمركز لمنع أي قص غير مرغوب فيه</small>
+                    </div>
+                  </div>
+
+                  <div class="form-row-2">
+                    <label class="form-field">
+                      <span>نسبة أبعاد الإطار (Aspect Ratio)</span>
+                      <select id="edit-frame-aspect">
+                        <option value="4/5" selected>طولي قياسي (4:5) — الموصى به للساعات</option>
+                        <option value="auto">تلقائي حسب أبعاد الصورة الأصلية (Auto / Natural)</option>
+                        <option value="1/1">مربع متساوي (1:1)</option>
+                        <option value="4/3">أفقي عريض (4:3)</option>
+                      </select>
+                    </label>
+
+                    <label class="form-field">
+                      <span>طريقة الملء (Fit Mode)</span>
+                      <select id="edit-frame-fit">
+                        <option value="contain" selected>عرض الصورة بالكامل بدون أي قص (Contain) ✓</option>
+                        <option value="cover">ملء الإطار بالكامل (Cover)</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div class="form-row-2">
+                    <label class="form-field">
+                      <span>محاذاة الصورة (Vertical Alignment)</span>
+                      <select id="edit-frame-alignment">
+                        <option value="center" selected>منتصف الإطار (Center)</option>
+                        <option value="top">أعلى الإطار (Top)</option>
+                        <option value="bottom">أسفل الإطار (Bottom)</option>
+                      </select>
+                    </label>
+
+                    <label class="form-field">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>درجة التكبير (Zoom / Scale)</span>
+                        <span id="scale-value-display" class="scale-badge">100%</span>
+                      </div>
+                      <input id="edit-frame-scale" type="range" min="75" max="150" value="100" step="1" />
+                    </label>
+                  </div>
+
+                  <!-- Live Storefront Card Preview Box -->
+                  <div class="card-preview-container">
+                    <span class="preview-kicker">معاينة مباشرة كما تظهر للعميل في واجهة المتجر:</span>
+                    <div class="preview-card-stage" id="product-card-preview-stage">
+                      <div class="preview-visual" id="preview-visual-box">
+                        <img id="preview-framing-img" src="/sodfa-promo-poster.jpg" alt="معاينة الموديل" />
+                      </div>
+                      <div class="preview-caption">
+                        <strong id="preview-caption-name">اسم الموديل</strong>
+                        <span id="preview-caption-price">0 ج.م</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="form-row-2">
                   <label class="form-field">
                     <span>ترتيب العرض (الرقم الأقل يظهر أولًا)</span>
@@ -366,7 +437,8 @@
 
                 <div class="editor-actions-row">
                   <button id="product-save-btn" class="admin-button admin-button-primary" type="submit">
-                    حفظ التغييرات <span aria-hidden="true">✓</span>
+                    <span id="product-submit-spinner" hidden class="uploading-spinner" aria-hidden="true">⏳</span>
+                    <span id="product-submit-btn-text">حفظ التغييرات ✓</span>
                   </button>
                   <button id="product-cancel-btn" class="admin-button admin-button-quiet" type="button">إلغاء</button>
                   <button id="product-delete-btn" class="admin-button admin-button-danger" type="button" hidden>حذف الساعة</button>

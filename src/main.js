@@ -25,6 +25,8 @@ import {
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
 import { resolveMediaUrl, resolveProductsMedia } from "./mediaStorage.js";
 import "./orderTracker.css";
+import "./brandLogo.css";
+import "./brandLogo.js";
 import { initCloudSync } from "./cloudSync.js";
 import { initOrderTracker } from "./orderTracker.js";
 
@@ -484,10 +486,16 @@ function renderProductCard(product, index) {
   const spec1Line = product.shortSpec
     || (product.specifications && product.specifications[0] ? `${product.specifications[0].value} • ${product.specifications[2]?.value || "دقة عالية"}` : "ساعة أصلية فاخرة");
 
+  // Dynamic Image Framing styles
+  const framing = product.imageFraming || { aspectRatio: "4/5", fitMode: "contain", scale: 100, alignment: "center" };
+  const aspectStyle = framing.aspectRatio && framing.aspectRatio !== "4/5" ? `aspect-ratio: ${framing.aspectRatio === "auto" ? "auto" : framing.aspectRatio.replace("/", " / ")};` : "";
+  const scaleRatio = (Number(framing.scale) || 100) / 100;
+  const imgFitStyle = `object-fit: ${framing.fitMode || "contain"}; object-position: ${framing.alignment || "center"}; transform: scale(${scaleRatio});`;
+
   return `
     <article class="product-card" data-product-id="${safeText(product.id)}">
-      <!-- Studio Showcase Container with 4:5 Aspect Ratio & Zero-Crop Object-Contain -->
-      <div class="product-visual">
+      <!-- Studio Showcase Container with Dynamic Framing & Zero-Crop Object-Contain -->
+      <div class="product-visual" ${aspectStyle ? `style="${aspectStyle}"` : ""}>
         ${tagMarkup}
         <button type="button" class="product-visual-btn" data-action="quick-view" data-product-id="${safeText(product.id)}" aria-label="عرض مواصفات ${safeText(product.name)}">
           <img 
@@ -496,6 +504,7 @@ function renderProductCard(product, index) {
             src="${safeText(coverImage)}" 
             alt="${safeText(product.imageAlt || product.name)}" 
             loading="lazy" 
+            style="${imgFitStyle}"
           />
         </button>
       </div>
@@ -756,6 +765,10 @@ function openProductModal(productId) {
   if (modalImage) {
     modalImage.src = images[0]?.imageUrl || product.imageUrl;
     modalImage.alt = product.name;
+    const framing = product.imageFraming || { fitMode: "contain", alignment: "center", scale: 100 };
+    modalImage.style.objectFit = framing.fitMode || "contain";
+    modalImage.style.objectPosition = framing.alignment || "center";
+    modalImage.style.transform = `scale(${(Number(framing.scale) || 100) / 100})`;
   }
 
   if (modalSwatches) {
@@ -1013,7 +1026,7 @@ function handleCheckoutSubmit(e) {
     const itemsText = orderData.items
       .map((c) => `• ${c.name} (${c.quantity} قطعة)${c.color ? ` - لون ${c.color}` : ""} — ${formatEgp(c.unitPrice * c.quantity)} ج.م`)
       .join("\n");
-    const waMessage = 
+    const waMessage =
       `مرحبًا ${currentSettings.brandName || "صُدْفَة"}، أؤكد طلب الشراء:\n` +
       `رقم الطلب: #${orderId}\n` +
       `الاسم: ${name}\n` +

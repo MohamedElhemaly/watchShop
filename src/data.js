@@ -1069,13 +1069,24 @@ export function getStoredProducts() {
 }
 
 export function saveStoredProducts(products) {
+  const list = Array.isArray(products) ? products : [];
   try {
-    const list = Array.isArray(products) ? products : [];
     localStorage.setItem("daffa_custom_products", JSON.stringify(list));
     localStorage.removeItem("sodfa_custom_products");
-    window.dispatchEvent(new CustomEvent("daffa:products-updated", { detail: list }));
-  } catch {
-    // Ignore storage quota
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("daffa:products-updated", { detail: list }));
+    }
+  } catch (storageErr) {
+    console.warn("localStorage quota or error, pruning non-essential data:", storageErr);
+    try {
+      ["sodfa_custom_products", "daffa_temp", "daffa_media_cache"].forEach((k) => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+      localStorage.setItem("daffa_custom_products", JSON.stringify(list));
+    } catch {}
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("daffa:products-updated", { detail: list }));
+    }
   }
 }
 

@@ -50,7 +50,9 @@ import {
 } from "./pricing.js";
 import { createMediaUploader } from "./mediaUploader.js";
 import { resolveMediaUrl, resolveProductsMedia, getCachedMediaUrl } from "./mediaStorage.js";
-import { initCloudSync, syncAllCloudData, testSupabaseConnection, getCloudSyncConfig } from "./cloudSync.js";
+import { initCloudSync, syncAllCloudData, testSupabaseConnection, getCloudSyncConfig, pushCloudState } from "./cloudSync.js";
+import "./brandLogo.css";
+import "./brandLogo.js";
 
 // DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
@@ -712,10 +714,12 @@ function addVisualVariantRow(colorLabel = "", imageUrl = "") {
     getCloudSettings: () => ({
       cloudName: storeSettings.cloudinaryCloudName,
       uploadPreset: storeSettings.cloudinaryUploadPreset,
+      supabaseConfig: getCloudSyncConfig(),
     }),
     onChange: (url) => {
       variantObj.imageUrl = url;
       syncVisualVariantsToTextarea();
+      updateFramingPreview();
     },
   });
 
@@ -725,9 +729,11 @@ function addVisualVariantRow(colorLabel = "", imageUrl = "") {
     visualVariants = visualVariants.filter((v) => v.id !== rowId);
     card.remove();
     syncVisualVariantsToTextarea();
+    updateFramingPreview();
   });
 
   syncVisualVariantsToTextarea();
+  updateFramingPreview();
 }
 
 function loadVariantsIntoVisualManager(imagesData) {
@@ -753,6 +759,93 @@ function loadVariantsIntoVisualManager(imagesData) {
   });
 }
 
+function updateCloudSyncBanner() {
+  const banner = $("#admin-cloud-sync-banner");
+  if (!banner) return;
+
+  const { isConfigured } = getCloudSyncConfig();
+  if (isConfigured) {
+    banner.className = "cloud-sync-banner is-connected";
+    banner.innerHTML = `
+      <div class="cloud-sync-main">
+        <span class="cloud-sync-icon" aria-hidden="true">☁️</span>
+        <div class="cloud-sync-info">
+          <div class="cloud-sync-title">وضع المزامنة السحابية الفورية (مرتبط بـ Supabase)</div>
+          <div class="cloud-sync-desc">أي ساعة جديدة، تعديلات، أو صور ترفعها تظهر فوراً على الموبايل وجميع أجهزة العملاء.</div>
+        </div>
+      </div>
+      <span class="cloud-sync-badge is-active">سحابي نشط ✓</span>
+    `;
+  } else {
+    banner.className = "cloud-sync-banner is-local";
+    banner.innerHTML = `
+      <div class="cloud-sync-main">
+        <span class="cloud-sync-icon" aria-hidden="true">📱</span>
+        <div class="cloud-sync-info">
+          <div class="cloud-sync-title">وضع التخزين المحلي (على هذا الجهاز فقط)</div>
+          <div class="cloud-sync-desc">لظهور الساعات والصور على الموبايل خارج الشبكة المحلية، قم بإدخال بيانات Supabase في إعدادات المتجر.</div>
+        </div>
+      </div>
+      <button type="button" class="admin-button admin-button-small admin-button-quiet" id="btn-goto-cloud-settings">
+        إعدادات الربط السحابي ⚙️
+      </button>
+    `;
+
+    $("#btn-goto-cloud-settings")?.addEventListener("click", () => {
+      const settingsTabBtn = document.querySelector('[data-tab="settings"]');
+      if (settingsTabBtn) {
+        settingsTabBtn.click();
+        setTimeout(() => {
+          $("#settings-supabase-url")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          $("#settings-supabase-url")?.focus();
+        }, 200);
+      }
+    });
+  }
+}
+
+function updateFramingPreview() {
+  const aspect = $("#edit-frame-aspect")?.value || "4/5";
+  const fit = $("#edit-frame-fit")?.value || "contain";
+  const scale = Number($("#edit-frame-scale")?.value) || 100;
+  const alignment = $("#edit-frame-alignment")?.value || "center";
+
+  const scaleDisplay = $("#scale-value-display");
+  if (scaleDisplay) scaleDisplay.textContent = `${scale}%`;
+
+  const previewBox = $("#preview-visual-box");
+  const previewImg = $("#preview-framing-img");
+  const captionName = $("#preview-caption-name");
+  const captionPrice = $("#preview-caption-price");
+
+  if (previewBox) {
+    previewBox.style.aspectRatio = aspect === "auto" ? "auto" : aspect.replace("/", " / ");
+  }
+
+  if (previewImg) {
+    let imgSrc = productImageUploader?.getUrl() || $("#edit-image-url")?.value || "";
+    if (!imgSrc && visualVariants.length > 0 && visualVariants[0]?.imageUrl) {
+      imgSrc = visualVariants[0].imageUrl;
+    }
+    if (!imgSrc) imgSrc = "/sodfa-promo-poster.jpg";
+
+    previewImg.src = getCachedMediaUrl(imgSrc);
+    previewImg.style.objectFit = fit;
+    previewImg.style.objectPosition = alignment;
+    previewImg.style.transform = `scale(${scale / 100})`;
+  }
+
+  if (captionName) {
+    const typedName = $("#edit-name")?.value.trim();
+    captionName.textContent = typedName || "اسم الموديل";
+  }
+
+  if (captionPrice) {
+    const finalPriceText = $("#admin-preview-final")?.textContent;
+    captionPrice.textContent = (finalPriceText && finalPriceText !== "—") ? finalPriceText : "0 ج.م";
+  }
+}
+
 function resetProductEditor() {
   editingProductId = null;
   const form = $("#admin-product-form");
@@ -762,7 +855,11 @@ function resetProductEditor() {
   $("#edit-product-id").value = "";
   $("#editor-title").textContent = "إضافة ساعة جديدة";
   $("#editor-action-label").textContent = "موديل جديد";
-  $("#product-save-btn").innerHTML = 'إضافة الساعة للكتالوج <span aria-hidden="true">✓</span>';
+  
+  const saveBtnText = $("#product-submit-btn-text");
+  if (saveBtnText) saveBtnText.textContent = "إضافة الساعة للكتالوج ✓";
+  else $("#product-save-btn").innerHTML = 'إضافة الساعة للكتالوج <span aria-hidden="true">✓</span>';
+
   $("#product-delete-btn").hidden = true;
   $("#product-form-error").hidden = true;
   $("#edit-active").checked = true;
@@ -773,10 +870,17 @@ function resetProductEditor() {
   $("#edit-discount-value").value = 0;
   $("#edit-image-url").value = "";
 
+  if ($("#edit-frame-aspect")) $("#edit-frame-aspect").value = "4/5";
+  if ($("#edit-frame-fit")) $("#edit-frame-fit").value = "contain";
+  if ($("#edit-frame-scale")) $("#edit-frame-scale").value = 100;
+  if ($("#scale-value-display")) $("#scale-value-display").textContent = "100%";
+  if ($("#edit-frame-alignment")) $("#edit-frame-alignment").value = "center";
+
   productImageUploader?.setUrl("");
   clearVisualVariants();
 
   updatePricePreview();
+  updateFramingPreview();
   renderProductsList();
 }
 
@@ -803,6 +907,19 @@ function loadProductIntoEditor(productId) {
   $("#edit-discount-reason").value = product.discountReason || "";
   $("#edit-image-url").value = product.imageUrl || "";
 
+  // Image framing settings
+  const framing = product.imageFraming || {
+    aspectRatio: "4/5",
+    fitMode: "contain",
+    scale: 100,
+    alignment: "center",
+  };
+  if ($("#edit-frame-aspect")) $("#edit-frame-aspect").value = framing.aspectRatio || "4/5";
+  if ($("#edit-frame-fit")) $("#edit-frame-fit").value = framing.fitMode || "contain";
+  if ($("#edit-frame-scale")) $("#edit-frame-scale").value = framing.scale !== undefined ? framing.scale : 100;
+  if ($("#scale-value-display")) $("#scale-value-display").textContent = `${framing.scale !== undefined ? framing.scale : 100}%`;
+  if ($("#edit-frame-alignment")) $("#edit-frame-alignment").value = framing.alignment || "center";
+
   productImageUploader?.setUrl(product.imageUrl || "");
   loadVariantsIntoVisualManager(product.images || product.imageUrl || "");
 
@@ -813,11 +930,16 @@ function loadProductIntoEditor(productId) {
 
   $("#editor-title").textContent = `تعديل: ${product.name}`;
   $("#editor-action-label").textContent = "تعديل الموديل";
-  $("#product-save-btn").innerHTML = 'حفظ التعديلات <span aria-hidden="true">✓</span>';
+  
+  const saveBtnText = $("#product-submit-btn-text");
+  if (saveBtnText) saveBtnText.textContent = "حفظ التعديلات ✓";
+  else $("#product-save-btn").innerHTML = 'حفظ التعديلات <span aria-hidden="true">✓</span>';
+
   $("#product-delete-btn").hidden = false;
   $("#product-form-error").hidden = true;
 
   updatePricePreview();
+  updateFramingPreview();
   renderProductsList();
 
   $("#admin-product-form")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -844,6 +966,7 @@ function updatePricePreview() {
     if (finalPriceEl) finalPriceEl.textContent = "—";
     if (noteEl) noteEl.textContent = "أدخل السعر لمعاينة القيمة النهائية";
     box?.classList.remove("has-discount");
+    updateFramingPreview();
     return;
   }
 
@@ -863,14 +986,26 @@ function updatePricePreview() {
     if (noteEl) noteEl.textContent = "(لا يوجد خصم نشط)";
     box?.classList.remove("has-discount");
   }
+
+  updateFramingPreview();
 }
 
-function handleProductFormSubmit(e) {
+async function handleProductFormSubmit(e) {
   e.preventDefault();
 
   if (!hasPermission("manage_products")) {
     showToast("ليس لديك صلاحية لإضافة أو تعديل الساعات.", true);
     return;
+  }
+
+  const saveBtn = $("#product-save-btn");
+  const saveBtnText = $("#product-submit-btn-text");
+  const saveSpinner = $("#product-submit-spinner");
+  const errorEl = $("#product-form-error");
+
+  if (errorEl) {
+    errorEl.hidden = true;
+    errorEl.textContent = "";
   }
 
   const id = $("#edit-product-id").value || `daffa-${Date.now()}`;
@@ -892,108 +1027,143 @@ function handleProductFormSubmit(e) {
   const active = $("#edit-active").checked;
   const isFlagship = $("#edit-flagship").checked;
 
-  const errorEl = $("#product-form-error");
-
   if (!name || !basePrice || basePrice <= 0) {
     if (errorEl) {
-      errorEl.textContent = "يرجى إدخال اسم الساعة والسعر الأصلي بشكل صحيح.";
+      errorEl.textContent = "يرجى إدخال اسم الساعة والسعر الأصلي بشكل صحيح (أكبر من 0).";
       errorEl.hidden = false;
+      errorEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
     return;
   }
 
-  let images = [];
-  if (visualVariants.length > 0) {
-    images = visualVariants
-      .filter((v) => v.imageUrl)
-      .map((v, idx) => ({
-        imageUrl: v.imageUrl,
-        colorLabel: v.colorLabel || `خيار ${idx + 1}`,
-        sortOrder: idx,
-      }));
-  } else if (variantsRaw) {
-    images = variantsRaw.split(",").map((v, idx) => {
-      const parts = v.split(":");
-      const label = parts[0]?.trim() || `خيار ${idx + 1}`;
-      const url = parts.slice(1).join(":").trim() || imageUrl;
-      return { imageUrl: url, colorLabel: label, sortOrder: idx };
-    }).filter((img) => img.imageUrl);
-  }
+  // Set loading state feedback
+  if (saveBtn) saveBtn.disabled = true;
+  if (saveSpinner) saveSpinner.hidden = false;
+  if (saveBtnText) saveBtnText.textContent = "جاري حفظ الساعة ومزامنة السحابة...";
 
-  const finalImageUrl = imageUrl || (images[0]?.imageUrl || "/sodfa-promo-poster.jpg");
-  if (images.length === 0 && finalImageUrl) {
-    images = [{ imageUrl: finalImageUrl, colorLabel: "الأصلي", sortOrder: 0 }];
-  }
+  try {
+    let images = [];
+    if (visualVariants.length > 0) {
+      images = visualVariants
+        .filter((v) => v.imageUrl)
+        .map((v, idx) => ({
+          imageUrl: v.imageUrl,
+          colorLabel: v.colorLabel || `خيار ${idx + 1}`,
+          sortOrder: idx,
+        }));
+    } else if (variantsRaw) {
+      images = variantsRaw.split(",").map((v, idx) => {
+        const parts = v.split(":");
+        const label = parts[0]?.trim() || `خيار ${idx + 1}`;
+        const url = parts.slice(1).join(":").trim() || imageUrl;
+        return { imageUrl: url, colorLabel: label, sortOrder: idx };
+      }).filter((img) => img.imageUrl);
+    }
 
-  const categoryObj = categories.find((c) => c.id === categoryId);
-  const categoryName = categoryObj ? categoryObj.name : "ساعة فاخرة";
+    const finalImageUrl = imageUrl || (images[0]?.imageUrl || "/sodfa-promo-poster.jpg");
+    if (images.length === 0 && finalImageUrl) {
+      images = [{ imageUrl: finalImageUrl, colorLabel: "الأصلي", sortOrder: 0 }];
+    }
 
-  let salePrice = basePrice;
-  let discountPercent = 0;
-  const discountActive = discountType !== "none" && discountValue > 0;
+    const categoryObj = categories.find((c) => c.id === categoryId);
+    const categoryName = categoryObj ? categoryObj.name : "ساعة فاخرة";
 
-  if (discountType === "percent" && discountValue > 0) {
-    discountPercent = Math.min(99, Math.max(0, discountValue));
-    salePrice = calculateDiscountedPrice(basePrice, discountPercent);
-  } else if (discountType === "fixed" && discountValue > 0) {
-    salePrice = Math.max(0, basePrice - discountValue);
-    discountPercent = basePrice > 0 ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0;
-  }
+    let salePrice = basePrice;
+    let discountPercent = 0;
+    const discountActive = discountType !== "none" && discountValue > 0;
 
-  const productData = {
-    id,
-    name,
-    brand: storeSettings.brandName || "صُدْفَة",
-    category: categoryName,
-    categoryId,
-    badge,
-    shortSpec,
-    description,
-    basePrice,
-    discountType,
-    discountValue,
-    discountPercent,
-    discountActive,
-    discountStartOn,
-    discountEndOn,
-    discountReason,
-    salePrice,
-    imageUrl: finalImageUrl,
-    images,
-    sortOrder,
-    stockCount,
-    inStock: stockCount > 0,
-    active,
-    isFlagship,
-  };
+    if (discountType === "percent" && discountValue > 0) {
+      discountPercent = Math.min(99, Math.max(0, discountValue));
+      salePrice = calculateDiscountedPrice(basePrice, discountPercent);
+    } else if (discountType === "fixed" && discountValue > 0) {
+      salePrice = Math.max(0, basePrice - discountValue);
+      discountPercent = basePrice > 0 ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0;
+    }
 
-  if (isFlagship) {
-    products.forEach((p) => { if (p.id !== id) p.isFlagship = false; });
-  }
+    // Read image framing values
+    const imageFraming = {
+      aspectRatio: $("#edit-frame-aspect")?.value || "4/5",
+      fitMode: $("#edit-frame-fit")?.value || "contain",
+      scale: Number($("#edit-frame-scale")?.value) || 100,
+      alignment: $("#edit-frame-alignment")?.value || "center",
+    };
 
-  const existingIndex = products.findIndex((p) => p.id === id);
-  if (existingIndex > -1) {
-    products[existingIndex] = { ...products[existingIndex], ...productData };
-  } else {
-    products.unshift(productData);
-  }
+    const existingIndex = products.findIndex((p) => p.id === id);
 
-  saveStoredProducts(products);
-  updateKpiStats();
-  renderProductsList();
-  resolveProductsMedia(products).then((res) => {
-    products = res;
+    const productData = {
+      id,
+      name,
+      brand: storeSettings.brandName || "صُدْفَة",
+      category: categoryName,
+      categoryId,
+      badge,
+      shortSpec,
+      description,
+      basePrice,
+      discountType,
+      discountValue,
+      discountPercent,
+      discountActive,
+      discountStartOn,
+      discountEndOn,
+      discountReason,
+      salePrice,
+      imageUrl: finalImageUrl,
+      images,
+      imageFraming,
+      sortOrder,
+      stockCount,
+      inStock: stockCount > 0,
+      active,
+      isFlagship,
+      createdAt: existingIndex > -1 ? (products[existingIndex]?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (isFlagship) {
+      products.forEach((p) => { if (p.id !== id) p.isFlagship = false; });
+    }
+
+    if (existingIndex > -1) {
+      products[existingIndex] = { ...products[existingIndex], ...productData };
+    } else {
+      products.unshift(productData);
+    }
+
+    saveStoredProducts(products);
+    updateKpiStats();
     renderProductsList();
-  });
-  showToast(`تم حفظ الساعة «${name}» وتحديث المتجر بنجاح ✓`);
 
-  fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
-    method: existingIndex > -1 ? "PUT" : "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(productData),
-  }).catch(() => {});
+    // Push explicitly to cloud (Supabase and local server sync)
+    await pushCloudState("products", products);
 
-  resetProductEditor();
+    resolveProductsMedia(products).then((res) => {
+      products = res;
+      renderProductsList();
+    });
+
+    showToast(`تم حفظ الساعة «${name}» وتحديث المتجر بنجاح ✓`);
+
+    fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
+      method: existingIndex > -1 ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(productData),
+    }).catch(() => {});
+
+    resetProductEditor();
+  } catch (err) {
+    console.error("Product save error:", err);
+    if (errorEl) {
+      errorEl.textContent = `فشل حفظ الساعة: ${err?.message || "حدث خطأ غير متوقع أثناء الحفظ والمزامنة."}`;
+      errorEl.hidden = false;
+      errorEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    showToast("تعذر حفظ الساعة. تحقق من الخطأ بالأعلى.", true);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+    if (saveSpinner) saveSpinner.hidden = true;
+    if (saveBtnText) saveBtnText.textContent = editingProductId ? "حفظ التعديلات ✓" : "إضافة الساعة للكتالوج ✓";
+  }
 }
 
 function handleProductDelete() {
@@ -1018,7 +1188,7 @@ function handleProductDelete() {
 
   fetch(`/api/admin/products/${encodeURIComponent(editingProductId)}`, {
     method: "DELETE",
-  }).catch(() => {});
+  }).catch(() => { });
 
   resetProductEditor();
 }
@@ -1622,12 +1792,12 @@ function renderCategoriesTable() {
         <td><span class="count-badge">${count} ساعة</span></td>
         <td>
           ${isFixed ? `<small style="color:var(--ink-subtle);">افتراضي</small>` : (
-            canManage ? `
+        canManage ? `
               <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-category" data-cat-id="${cat.id}">
                 حذف
               </button>
             ` : `<small style="color:var(--ink-subtle);">للاطلاع فقط</small>`
-          )}
+      )}
         </td>
       </tr>
     `;
@@ -1854,7 +2024,7 @@ function handleContactsSubmit(e) {
       whatsappNumber: storeSettings.defaultWhatsapp,
       phoneNumber: storeSettings.defaultPhone,
     }),
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 // ----------------------------------------------------
@@ -2237,6 +2407,9 @@ function initAdminApp() {
   initPasswordToggle();
   initPasswordRecoveryFlow();
   initTabs();
+  updateCloudSyncBanner();
+
+  window.addEventListener("daffa:settings-updated", () => updateCloudSyncBanner());
 
   // Products CRUD
   $("#admin-product-form")?.addEventListener("submit", handleProductFormSubmit);
@@ -2246,6 +2419,13 @@ function initAdminApp() {
   $("#edit-base-price")?.addEventListener("input", updatePricePreview);
   $("#edit-discount-type")?.addEventListener("change", updatePricePreview);
   $("#edit-discount-value")?.addEventListener("input", updatePricePreview);
+
+  // Framing controls live update & preview
+  $("#edit-frame-aspect")?.addEventListener("change", updateFramingPreview);
+  $("#edit-frame-fit")?.addEventListener("change", updateFramingPreview);
+  $("#edit-frame-scale")?.addEventListener("input", updateFramingPreview);
+  $("#edit-frame-alignment")?.addEventListener("change", updateFramingPreview);
+  $("#edit-name")?.addEventListener("input", updateFramingPreview);
 
   // Filter products list
   $$(".list-filter-btn").forEach((btn) => {
@@ -2494,10 +2674,12 @@ function initAdminApp() {
       getCloudSettings: () => ({
         cloudName: storeSettings.cloudinaryCloudName,
         uploadPreset: storeSettings.cloudinaryUploadPreset,
+        supabaseConfig: getCloudSyncConfig(),
       }),
       onChange: (url) => {
         const input = $("#edit-image-url");
         if (input) input.value = url;
+        updateFramingPreview();
       },
     });
   }
@@ -2514,6 +2696,7 @@ function initAdminApp() {
       getCloudSettings: () => ({
         cloudName: storeSettings.cloudinaryCloudName,
         uploadPreset: storeSettings.cloudinaryUploadPreset,
+        supabaseConfig: getCloudSyncConfig(),
       }),
       onChange: (url) => {
         const input = $("#setting-video-url");
@@ -2534,6 +2717,7 @@ function initAdminApp() {
       getCloudSettings: () => ({
         cloudName: storeSettings.cloudinaryCloudName,
         uploadPreset: storeSettings.cloudinaryUploadPreset,
+        supabaseConfig: getCloudSyncConfig(),
       }),
       onChange: (url) => {
         const input = $("#setting-poster-url");

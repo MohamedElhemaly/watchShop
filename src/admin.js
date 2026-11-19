@@ -855,7 +855,7 @@ function resetProductEditor() {
   $("#edit-product-id").value = "";
   $("#editor-title").textContent = "إضافة ساعة جديدة";
   $("#editor-action-label").textContent = "موديل جديد";
-  
+
   const saveBtnText = $("#product-submit-btn-text");
   if (saveBtnText) saveBtnText.textContent = "إضافة الساعة للكتالوج ✓";
   else $("#product-save-btn").innerHTML = 'إضافة الساعة للكتالوج <span aria-hidden="true">✓</span>';
@@ -930,7 +930,7 @@ function loadProductIntoEditor(productId) {
 
   $("#editor-title").textContent = `تعديل: ${product.name}`;
   $("#editor-action-label").textContent = "تعديل الموديل";
-  
+
   const saveBtnText = $("#product-submit-btn-text");
   if (saveBtnText) saveBtnText.textContent = "حفظ التعديلات ✓";
   else $("#product-save-btn").innerHTML = 'حفظ التعديلات <span aria-hidden="true">✓</span>';
@@ -1148,7 +1148,7 @@ async function handleProductFormSubmit(e) {
       method: existingIndex > -1 ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(productData),
-    }).catch(() => {});
+    }).catch(() => { });
 
     resetProductEditor();
   } catch (err) {

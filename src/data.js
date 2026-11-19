@@ -836,24 +836,61 @@ export const defaultTickerItems = [
   "توصيل سريع وموثوق خلال 2 إلى 4 أيام عمل لباب منزلك مباشرة",
 ];
 
+// ----------------------------------------------------
+// One-Time Seed Initialization System
+// ----------------------------------------------------
+export const STORE_SEEDED_KEY = "daffa_store_seeded_v1";
+
+export function ensureStoreSeeded() {
+  try {
+    const isSeeded = localStorage.getItem(STORE_SEEDED_KEY) || localStorage.getItem("sodfa_store_seeded_v1");
+    if (!isSeeded) {
+      if (localStorage.getItem("daffa_custom_products") === null && localStorage.getItem("sodfa_custom_products") === null) {
+        localStorage.setItem("daffa_custom_products", JSON.stringify(initialProducts));
+      }
+      if (localStorage.getItem("daffa_custom_categories") === null) {
+        localStorage.setItem("daffa_custom_categories", JSON.stringify(categories));
+      }
+      if (localStorage.getItem("daffa_ticker_items") === null) {
+        localStorage.setItem("daffa_ticker_items", JSON.stringify(defaultTickerItems));
+      }
+      if (localStorage.getItem("daffa_store_settings") === null && localStorage.getItem("sodfa_store_settings") === null) {
+        localStorage.setItem("daffa_store_settings", JSON.stringify(defaultStoreSettings));
+      }
+      localStorage.setItem(STORE_SEEDED_KEY, "true");
+      localStorage.setItem("sodfa_store_seeded_v1", "true");
+    }
+  } catch {}
+}
+
 export function getTickerItems() {
+  ensureStoreSeeded();
   try {
     const raw = localStorage.getItem("daffa_ticker_items");
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed.map((item) => (typeof item === "string" ? item.replace(/ضَفّة|ضفة/g, "صُدْفَة") : item));
       }
     }
   } catch {}
-  return defaultTickerItems;
+  return [...defaultTickerItems];
 }
 
 export function saveTickerItems(items) {
   try {
-    localStorage.setItem("daffa_ticker_items", JSON.stringify(items));
-    window.dispatchEvent(new CustomEvent("daffa:ticker-updated", { detail: items }));
+    const list = Array.isArray(items) ? items : [];
+    localStorage.setItem("daffa_ticker_items", JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent("daffa:ticker-updated", { detail: list }));
   } catch {}
+}
+
+export function deleteTickerItems(indices) {
+  const idxSet = new Set(indices.map(Number));
+  let current = getTickerItems();
+  const next = current.filter((_, idx) => !idxSet.has(idx));
+  saveTickerItems(next);
+  return next;
 }
 
 export const storeSettings = defaultStoreSettings;
@@ -890,7 +927,11 @@ export function saveStoreSettings(settings) {
 export function getOrders() {
   try {
     const raw = localStorage.getItem("daffa_orders");
-    return raw ? JSON.parse(raw) : [];
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+    return [];
   } catch {
     return [];
   }
@@ -898,8 +939,9 @@ export function getOrders() {
 
 export function saveOrders(orders) {
   try {
-    localStorage.setItem("daffa_orders", JSON.stringify(orders));
-    window.dispatchEvent(new CustomEvent("daffa:orders-updated", { detail: orders }));
+    const list = Array.isArray(orders) ? orders : [];
+    localStorage.setItem("daffa_orders", JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent("daffa:orders-updated", { detail: list }));
   } catch {}
 }
 
@@ -927,6 +969,19 @@ export function updateOrderStatus(orderId, status) {
   }
 }
 
+export function deleteOrders(orderIds) {
+  const ids = Array.isArray(orderIds) ? orderIds.map(String) : [String(orderIds)];
+  const idSet = new Set(ids);
+  let current = getOrders();
+  const next = current.filter((o) => !idSet.has(String(o.id)));
+  saveOrders(next);
+  return next;
+}
+
+export function deleteOrder(orderId) {
+  return deleteOrders([orderId]);
+}
+
 export function markOrdersAsRead() {
   const orders = getOrders();
   let changed = false;
@@ -940,21 +995,33 @@ export function markOrdersAsRead() {
 }
 
 export function getStoredCategories() {
+  ensureStoreSeeded();
   try {
     const raw = localStorage.getItem("daffa_custom_categories");
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch {}
-  return categories;
+  return [...categories];
 }
 
 export function saveStoredCategories(cats) {
   try {
-    localStorage.setItem("daffa_custom_categories", JSON.stringify(cats));
-    window.dispatchEvent(new CustomEvent("daffa:categories-updated", { detail: cats }));
+    const list = Array.isArray(cats) ? cats : [];
+    localStorage.setItem("daffa_custom_categories", JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent("daffa:categories-updated", { detail: list }));
   } catch {}
+}
+
+export function deleteCategories(categoryIds) {
+  const ids = Array.isArray(categoryIds) ? categoryIds.map(String) : [String(categoryIds)];
+  const idSet = new Set(ids);
+  let current = getStoredCategories();
+  // Never delete the default "all" filter entry
+  const next = current.filter((c) => c.id === "all" || !idSet.has(String(c.id)));
+  saveStoredCategories(next);
+  return next;
 }
 
 // Kept empty for legacy imports only; the active catalog comes from /api/products or stored catalog.
@@ -962,11 +1029,12 @@ export const products = [];
 
 // Central catalog state management
 export function getStoredProducts() {
+  ensureStoreSeeded();
   try {
-    const local = localStorage.getItem("daffa_custom_products") || localStorage.getItem("sodfa_custom_products");
-    if (local) {
+    const local = localStorage.getItem("daffa_custom_products") ?? localStorage.getItem("sodfa_custom_products");
+    if (local !== null) {
       const parsed = JSON.parse(local);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed.map((p) => {
           let name = p.name || "";
           let brand = p.brand || "";
@@ -983,16 +1051,68 @@ export function getStoredProducts() {
   } catch {
     // Fallback to initial
   }
-  return initialProducts;
+  return [...initialProducts];
 }
 
 export function saveStoredProducts(products) {
   try {
-    localStorage.setItem("daffa_custom_products", JSON.stringify(products));
-    window.dispatchEvent(new CustomEvent("daffa:products-updated", { detail: products }));
+    const list = Array.isArray(products) ? products : [];
+    localStorage.setItem("daffa_custom_products", JSON.stringify(list));
+    localStorage.removeItem("sodfa_custom_products");
+    window.dispatchEvent(new CustomEvent("daffa:products-updated", { detail: list }));
   } catch {
     // Ignore storage quota
   }
+}
+
+// Clean up cart and featured items when product(s) deleted
+export function cleanupDeletedProducts(deletedIds) {
+  if (!Array.isArray(deletedIds) || deletedIds.length === 0) return;
+  const idSet = new Set(deletedIds.map(String));
+
+  // 1. Clean Cart
+  try {
+    const cart = getCart();
+    const cleanedCart = cart.filter((item) => !idSet.has(String(item.id)));
+    if (cleanedCart.length !== cart.length) {
+      saveCart(cleanedCart);
+    }
+  } catch {}
+
+  // 2. Clean Featured / Flagship in Store Settings
+  try {
+    const settings = getStoreSettings();
+    const remainingProducts = getStoredProducts();
+    const isFeaturedDeleted = remainingProducts.every(
+      (p) => p.name !== settings.featuredName && p.id !== settings.featuredId
+    );
+
+    if (isFeaturedDeleted) {
+      const nextFlagship = remainingProducts.find((p) => p.isFlagship) || remainingProducts[0];
+      if (nextFlagship) {
+        settings.featuredName = nextFlagship.name;
+        settings.featuredSpec = nextFlagship.shortSpec || "";
+      } else {
+        settings.featuredName = "";
+        settings.featuredSpec = "";
+      }
+      saveStoreSettings(settings);
+    }
+  } catch {}
+}
+
+export function deleteProducts(productIds) {
+  const ids = Array.isArray(productIds) ? productIds.map(String) : [String(productIds)];
+  const idSet = new Set(ids);
+  let current = getStoredProducts();
+  const next = current.filter((p) => !idSet.has(String(p.id)));
+  saveStoredProducts(next);
+  cleanupDeletedProducts(ids);
+  return next;
+}
+
+export function deleteProduct(productId) {
+  return deleteProducts([productId]);
 }
 
 // Dynamic Delivery Timeline Formatter
@@ -1007,6 +1127,74 @@ export function formatDeliveryTimeline(settings) {
     return `خلال ${min} ${unit}`;
   }
   return `خلال ${min} إلى ${max} ${unit}`;
+}
+
+// ----------------------------------------------------
+// WhatsApp Phone Normalization & Mobile Deep Linking
+// ----------------------------------------------------
+/**
+ * Normalizes any Egyptian or international phone number strictly into pure international
+ * E.164 digits without +, 00, spaces, dashes, or a leading 0 after the country code,
+ * ensuring direct WhatsApp mobile app chat opening without "Invite to WhatsApp" screens.
+ */
+export function formatWhatsAppPhone(rawPhone) {
+  if (!rawPhone) return "";
+  const latinDigits = String(rawPhone)
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+  let digits = latinDigits.replace(/\D/g, "");
+  if (!digits) return "";
+
+  // 1. Strip leading 00 (e.g. 00201012345678 -> 201012345678, 00971... -> 971...)
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+
+  // 2. Accidental 0 after country code 20 (e.g. 2001012345678 -> 201012345678)
+  if (digits.startsWith("2001") && digits.length === 13) {
+    digits = `20${digits.slice(3)}`;
+  } else if (digits.startsWith("200") && digits.length >= 12) {
+    digits = `20${digits.slice(3)}`;
+  }
+
+  // 3. Local Egyptian number with leading 0 (e.g. 01012345678, 011..., 012..., 015...)
+  if (digits.startsWith("01") && digits.length === 11) {
+    digits = `20${digits.slice(1)}`;
+  } else if (digits.startsWith("0") && digits.length === 11) {
+    digits = `20${digits.slice(1)}`;
+  }
+
+  // 4. Local Egyptian number without leading 0 (e.g. 1012345678, 11..., 12..., 15...)
+  if (/^(10|11|12|15)\d{8}$/.test(digits)) {
+    digits = `20${digits}`;
+  }
+
+  return digits;
+}
+
+/**
+ * Validates whether a phone number string can be parsed into a valid mobile number for WhatsApp.
+ */
+export function isValidWhatsAppPhone(rawPhone) {
+  const clean = formatWhatsAppPhone(rawPhone);
+  if (!clean || clean.length < 8 || clean.length > 15 || clean.startsWith("0")) {
+    return false;
+  }
+  if (clean.startsWith("20")) {
+    return /^20(10|11|12|15)\d{8}$/.test(clean);
+  }
+  return true;
+}
+
+/**
+ * Constructs a cross-platform, mobile-first WhatsApp deep link that opens direct chat
+ * immediately on iOS Safari, Android, and Desktop without "Invite" screens.
+ */
+export function buildWhatsAppUrl(rawPhone, messageText = "") {
+  const cleanPhone = formatWhatsAppPhone(rawPhone);
+  if (!cleanPhone) return "";
+  const textParam = messageText ? `&text=${encodeURIComponent(messageText)}` : "";
+  return `https://api.whatsapp.com/send?phone=${cleanPhone}${textParam}`;
 }
 
 // ----------------------------------------------------

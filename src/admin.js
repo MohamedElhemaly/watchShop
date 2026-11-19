@@ -14,6 +14,13 @@ import {
   markOrdersAsRead,
   getTickerItems,
   saveTickerItems,
+  deleteProducts,
+  deleteProduct,
+  deleteOrders,
+  deleteOrder,
+  deleteCategories,
+  deleteTickerItems,
+  ensureStoreSeeded,
   getAdminSession,
   setAdminSession,
   clearAdminSession,
@@ -29,6 +36,9 @@ import {
   getMasterRecoveryKey,
   regenerateMasterRecoveryKey,
   formatDeliveryTimeline,
+  formatWhatsAppPhone,
+  isValidWhatsAppPhone,
+  buildWhatsAppUrl,
   ADMIN_PERMISSIONS,
 } from "./data.js";
 import {
@@ -43,6 +53,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
 
 // Central State
+ensureStoreSeeded();
 let products = getStoredProducts();
 let categories = getStoredCategories();
 let storeSettings = getStoreSettings();
@@ -52,6 +63,13 @@ let editingProductId = null;
 let currentListFilter = "all";
 let currentOrderFilter = "all";
 let toastTimer = null;
+
+// Multi-Select & Bulk Actions State
+const selectedProductIds = new Set();
+const selectedOrderIds = new Set();
+const selectedCategoryIds = new Set();
+const selectedTickerIndices = new Set();
+let pendingBulkDelete = null;
 
 // EGP Formatter
 const formatEgp = (val) => `${formatEgpNumber(val)} ج.م`;
@@ -76,6 +94,49 @@ function showToast(message, isError = false) {
   toastTimer = setTimeout(() => {
     toast.classList.remove("is-visible");
   }, 3200);
+}
+
+// Universal Bulk Delete Confirmation Modal Helpers
+function openBulkDeleteModal({ title, message, previewItems = [], onConfirm }) {
+  const modal = $("#modal-bulk-delete");
+  const titleEl = $("#modal-bulk-delete-title");
+  const msgEl = $("#bulk-delete-message");
+  const listEl = $("#bulk-delete-preview-list");
+  if (!modal) return;
+
+  if (titleEl) titleEl.textContent = title || "تأكيد الحذف الجماعي";
+  if (msgEl) msgEl.textContent = message || "هل أنت متأكد من حذف العناصر المحددة نهائياً؟";
+
+  if (listEl) {
+    if (previewItems.length > 0) {
+      listEl.innerHTML = previewItems
+        .slice(0, 10)
+        .map((item) => {
+          const itemTitle = typeof item === "object" ? item.title : String(item);
+          const itemBadge = typeof item === "object" ? item.badge : "";
+          return `
+            <div class="bulk-preview-item">
+              <span>${safeText(itemTitle)}</span>
+              ${itemBadge ? `<small style="color:var(--ink-subtle);">${safeText(itemBadge)}</small>` : ""}
+            </div>
+          `;
+        })
+        .join("") + (previewItems.length > 10 ? `<div style="padding: 6px 10px; font-size: 12px; color: var(--ink-subtle); text-align: center;">...و ${previewItems.length - 10} عنصر إضافي</div>` : "");
+      listEl.hidden = false;
+    } else {
+      listEl.innerHTML = "";
+      listEl.hidden = true;
+    }
+  }
+
+  pendingBulkDelete = onConfirm;
+  modal.hidden = false;
+}
+
+function closeBulkDeleteModal() {
+  const modal = $("#modal-bulk-delete");
+  if (modal) modal.hidden = true;
+  pendingBulkDelete = null;
 }
 
 // ----------------------------------------------------
@@ -335,6 +396,24 @@ function applyPermissionVisibility(session) {
   const notifSubmit = $("#notifications-settings-form button[type='submit']");
   if (notifSubmit) notifSubmit.disabled = !canManageDelivery;
 
+  // Multi-select Bulk Toolbars permissions
+  const pToolbar = $("#products-selection-toolbar");
+  if (pToolbar) pToolbar.style.display = canManageProducts ? "" : "none";
+
+  const oToolbar = $("#orders-selection-toolbar");
+  if (oToolbar) oToolbar.style.display = canManageOrders ? "" : "none";
+
+  const cToolbar = $("#categories-selection-toolbar");
+  if (cToolbar) cToolbar.style.display = canManageCategories ? "" : "none";
+
+  const tToolbar = $("#ticker-selection-toolbar");
+  if (tToolbar) tToolbar.style.display = canManageStorefront ? "" : "none";
+
+  $$(".admin-order-delete-btn").forEach((b) => {
+    b.disabled = !canManageOrders;
+    b.style.display = canManageOrders ? "" : "none";
+  });
+
   // Master recovery key card (Super Admin only)
   const masterRecoveryCard = $("#card-master-recovery");
   if (masterRecoveryCard) {
@@ -344,6 +423,12 @@ function applyPermissionVisibility(session) {
 }
 
 function switchTab(tabName) {
+  // Clear other tabs' selections on tab switch to prevent stale selection state
+  if (tabName !== "products") selectedProductIds.clear();
+  if (tabName !== "orders") selectedOrderIds.clear();
+  if (tabName !== "categories") selectedCategoryIds.clear();
+  if (tabName !== "ticker") selectedTickerIndices.clear();
+
   $$(".admin-tab-btn").forEach((b) => {
     const isSelected = b.dataset.tab === tabName;
     b.classList.toggle("is-active", isSelected);
@@ -353,11 +438,17 @@ function switchTab(tabName) {
     panel.classList.toggle("is-active", panel.id === `tab-${tabName}`);
   });
 
-  if (tabName === "orders") {
+  if (tabName === "products") {
+    renderProductsList();
+  } else if (tabName === "orders") {
     markOrdersAsRead();
     orders = getOrders();
     updateOrdersBadge();
     renderOrdersList();
+  } else if (tabName === "ticker") {
+    renderTickerItemsList();
+  } else if (tabName === "categories") {
+    renderCategoriesTable();
   } else if (tabName === "admin-users") {
     renderAdminUsersTable();
   } else if (tabName === "delivery") {
@@ -422,16 +513,37 @@ function renderProductsList() {
     countBadge.textContent = `${new Intl.NumberFormat("ar-EG").format(filtered.length)} ساعة`;
   }
 
+  const session = getCurrentSession();
+  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_products));
+
+  // Update master checkbox and bulk toolbar for products
+  const masterCheck = $("#select-all-products");
+  const bulkBar = $("#bulk-actions-products");
+  const bulkCountBadge = $("#bulk-count-products");
+  const selectedVisible = filtered.filter((p) => selectedProductIds.has(p.id)).length;
+
+  if (masterCheck) {
+    masterCheck.disabled = !canManage || filtered.length === 0;
+    masterCheck.checked = filtered.length > 0 && selectedVisible === filtered.length;
+    masterCheck.indeterminate = selectedVisible > 0 && selectedVisible < filtered.length;
+  }
+
+  const selectedCount = selectedProductIds.size;
+  if (bulkBar) {
+    bulkBar.hidden = selectedCount === 0 || !canManage;
+  }
+  if (bulkCountBadge) {
+    bulkCountBadge.textContent = `تم تحديد ${new Intl.NumberFormat("ar-EG").format(selectedCount)} ساعة`;
+  }
+
   if (filtered.length === 0) {
     listEl.innerHTML = `<div class="admin-empty-state"><p>لا توجد ساعات في هذا العرض.</p></div>`;
     return;
   }
 
-  const session = getCurrentSession();
-  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_products));
-
   listEl.innerHTML = filtered.map((product) => {
     const isSelected = editingProductId === product.id;
+    const isBulkChecked = selectedProductIds.has(product.id);
     const base = Number(product.basePrice) || 0;
     const sale = Number(product.salePrice) || base;
     const hasDiscount = Boolean(product.discountActive && sale < base);
@@ -439,7 +551,7 @@ function renderProductsList() {
     let discLabel = "";
     if (hasDiscount) {
       if (product.discountType === "fixed") {
-        discLabel = `خصم ${formatEgp(product.discountValue)} ج.م`;
+        discLabel = `خصم ${formatEgp(product.discountValue)}`;
       } else {
         discLabel = `خصم ${product.discountValue || product.discountPercent}%`;
       }
@@ -448,8 +560,18 @@ function renderProductsList() {
     const imgUrl = product.imageUrl || (product.images && product.images[0]?.imageUrl) || "/sodfa-promo-poster.jpg";
 
     return `
-      <article class="admin-product-item ${isSelected ? "is-selected" : ""} ${product.active === false ? "is-hidden" : ""}" data-product-id="${product.id}">
-        <img class="admin-item-thumb" src="${imgUrl}" alt="${product.name}" />
+      <article class="admin-product-item ${isSelected ? "is-selected" : ""} ${isBulkChecked ? "is-bulk-selected" : ""} ${product.active === false ? "is-hidden" : ""}" data-product-id="${product.id}">
+        <div class="item-checkbox-wrap">
+          <input
+            type="checkbox"
+            class="product-select-checkbox item-select-checkbox"
+            data-product-id="${product.id}"
+            ${isBulkChecked ? "checked" : ""}
+            ${canManage ? "" : "disabled"}
+            aria-label="تحديد ${safeText(product.name)}"
+          />
+        </div>
+        <img class="admin-item-thumb" src="${imgUrl}" alt="${safeText(product.name)}" />
         <div class="admin-item-info">
           <div class="admin-item-title-row">
             <h4>${safeText(product.name)}</h4>
@@ -472,6 +594,38 @@ function renderProductsList() {
       </article>
     `;
   }).join("");
+}
+
+function handleBulkDeleteProducts() {
+  if (!hasPermission("manage_products")) {
+    showToast("ليس لديك صلاحية لحذف الساعات.", true);
+    return;
+  }
+  if (selectedProductIds.size === 0) return;
+
+  const targetProducts = products.filter((p) => selectedProductIds.has(p.id));
+  const preview = targetProducts.map((p) => ({
+    title: p.name,
+    badge: formatEgp(p.salePrice || p.basePrice),
+  }));
+
+  openBulkDeleteModal({
+    title: "تأكيد حذف الساعات المحددة",
+    message: `هل أنت متأكد من حذف ${selectedProductIds.size} ساعة نهائياً من الكتالوج والمتجر؟`,
+    previewItems: preview,
+    onConfirm: () => {
+      const idsToDelete = Array.from(selectedProductIds);
+      deleteProducts(idsToDelete);
+      selectedProductIds.clear();
+      products = getStoredProducts();
+      if (editingProductId && idsToDelete.includes(editingProductId)) {
+        resetProductEditor();
+      }
+      updateKpiStats();
+      renderProductsList();
+      showToast(`تم حذف ${idsToDelete.length} ساعة نهائياً وتحديث المتجر ✓`);
+    },
+  });
 }
 
 function resetProductEditor() {
@@ -717,8 +871,9 @@ function handleProductDelete() {
   const confirmDelete = confirm(`هل أنت متأكد من حذف ساعة «${product.name}» نهائيًا من الكتالوج؟`);
   if (!confirmDelete) return;
 
-  products = products.filter((p) => p.id !== editingProductId);
-  saveStoredProducts(products);
+  selectedProductIds.delete(editingProductId);
+  deleteProduct(editingProductId);
+  products = getStoredProducts();
   updateKpiStats();
   renderProductsList();
   showToast(`تم حذف «${product.name}» من الكتالوج.`);
@@ -757,6 +912,29 @@ function renderOrdersList() {
     filtered = orders.filter((o) => o.status === currentOrderFilter);
   }
 
+  const session = getCurrentSession();
+  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_orders));
+
+  // Update master checkbox and bulk toolbar for orders
+  const masterCheck = $("#select-all-orders");
+  const bulkBar = $("#bulk-actions-orders");
+  const bulkCountBadge = $("#bulk-count-orders");
+  const selectedVisible = filtered.filter((o) => selectedOrderIds.has(o.id)).length;
+
+  if (masterCheck) {
+    masterCheck.disabled = !canManage || filtered.length === 0;
+    masterCheck.checked = filtered.length > 0 && selectedVisible === filtered.length;
+    masterCheck.indeterminate = selectedVisible > 0 && selectedVisible < filtered.length;
+  }
+
+  const selectedCount = selectedOrderIds.size;
+  if (bulkBar) {
+    bulkBar.hidden = selectedCount === 0 || !canManage;
+  }
+  if (bulkCountBadge) {
+    bulkCountBadge.textContent = `تم تحديد ${new Intl.NumberFormat("ar-EG").format(selectedCount)} طلب`;
+  }
+
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="admin-empty-state">
@@ -765,9 +943,6 @@ function renderOrdersList() {
     `;
     return;
   }
-
-  const session = getCurrentSession();
-  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_orders));
 
   const statusLabels = {
     new: "جديد",
@@ -778,27 +953,51 @@ function renderOrdersList() {
   };
 
   container.innerHTML = filtered.map((order) => {
+    const isBulkChecked = selectedOrderIds.has(order.id);
     const dateFormatted = order.createdAt ? new Date(order.createdAt).toLocaleString("ar-EG") : "—";
-    const waClean = (order.phone || "").replace(/\D/g, "");
-    const waLink = waClean ? `https://wa.me/2${waClean.startsWith("0") ? waClean : `0${waClean}`}?text=${encodeURIComponent(`مرحبًا أستاذ ${order.customerName}، نتواصل معك بخصوص طلبك #${order.id} من متجر صُدْفَة.`)}` : "#";
+    const cleanWa = formatWhatsAppPhone(order.phone || "");
+    const waLink = cleanWa ? buildWhatsAppUrl(cleanWa, `مرحبًا أستاذ ${order.customerName}، نتواصل معك بخصوص طلبك #${order.id} من متجر صُدْفَة.`) : "#";
 
     return `
-      <article class="admin-order-card ${!order.isRead ? "is-unread" : ""}" data-order-id="${safeText(order.id)}">
+      <article class="admin-order-card ${!order.isRead ? "is-unread" : ""} ${isBulkChecked ? "is-bulk-selected" : ""}" data-order-id="${safeText(order.id)}">
         <div class="order-card-header">
           <div class="order-id-block">
+            <div class="item-checkbox-wrap">
+              <input
+                type="checkbox"
+                class="order-select-checkbox item-select-checkbox"
+                data-order-id="${safeText(order.id)}"
+                ${isBulkChecked ? "checked" : ""}
+                ${canManage ? "" : "disabled"}
+                aria-label="تحديد طلب ${safeText(order.id)}"
+              />
+            </div>
             <strong>#${safeText(order.id)}</strong>
             <span class="order-date-text">${dateFormatted}</span>
             ${!order.isRead ? `<span class="admin-tag unread-tag">جديد</span>` : ""}
           </div>
-          <div class="order-status-select-wrap">
-            <span class="order-status-badge status-${safeText(order.status)}">${statusLabels[order.status] || order.status}</span>
-            <select class="admin-order-status-select" data-action="change-order-status" data-order-id="${safeText(order.id)}" ${canManage ? "" : "disabled"}>
-              <option value="new" ${order.status === "new" ? "selected" : ""}>جديد</option>
-              <option value="confirmed" ${order.status === "confirmed" ? "selected" : ""}>تم التأكيد</option>
-              <option value="shipped" ${order.status === "shipped" ? "selected" : ""}>تم الشحن</option>
-              <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>تم التسليم</option>
-              <option value="cancelled" ${order.status === "cancelled" ? "selected" : ""}>ملغي</option>
-            </select>
+          <div class="order-actions-wrap">
+            <div class="order-status-select-wrap">
+              <span class="order-status-badge status-${safeText(order.status)}">${statusLabels[order.status] || order.status}</span>
+              <select class="admin-order-status-select" data-action="change-order-status" data-order-id="${safeText(order.id)}" ${canManage ? "" : "disabled"}>
+                <option value="new" ${order.status === "new" ? "selected" : ""}>جديد</option>
+                <option value="confirmed" ${order.status === "confirmed" ? "selected" : ""}>تم التأكيد</option>
+                <option value="shipped" ${order.status === "shipped" ? "selected" : ""}>تم الشحن</option>
+                <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>تم التسليم</option>
+                <option value="cancelled" ${order.status === "cancelled" ? "selected" : ""}>ملغي</option>
+              </select>
+            </div>
+            ${canManage ? `
+              <button
+                type="button"
+                class="admin-button admin-button-small admin-button-danger admin-order-delete-btn"
+                data-action="delete-single-order"
+                data-order-id="${safeText(order.id)}"
+                title="حذف هذا الطلب"
+              >
+                حذف ✕
+              </button>
+            ` : ""}
           </div>
         </div>
 
@@ -838,6 +1037,58 @@ function renderOrdersList() {
       </article>
     `;
   }).join("");
+}
+
+function handleBulkDeleteOrders() {
+  if (!hasPermission("manage_orders")) {
+    showToast("ليس لديك صلاحية لحذف الطلبات.", true);
+    return;
+  }
+  if (selectedOrderIds.size === 0) return;
+
+  const targetOrders = orders.filter((o) => selectedOrderIds.has(o.id));
+  const preview = targetOrders.map((o) => ({
+    title: `طلب #${o.id} — ${o.customerName || "عميل"}`,
+    badge: formatEgp(o.totalAmount),
+  }));
+
+  openBulkDeleteModal({
+    title: "تأكيد حذف الطلبات المحددة",
+    message: `هل أنت متأكد من حذف ${selectedOrderIds.size} طلب نهائياً من سجلات المتجر؟`,
+    previewItems: preview,
+    onConfirm: () => {
+      const idsToDelete = Array.from(selectedOrderIds);
+      deleteOrders(idsToDelete);
+      selectedOrderIds.clear();
+      orders = getOrders();
+      updateOrdersBadge();
+      renderOrdersList();
+      showToast(`تم حذف ${idsToDelete.length} طلب بنجاح ✓`);
+    },
+  });
+}
+
+function handleDeleteSingleOrder(orderId) {
+  if (!hasPermission("manage_orders")) {
+    showToast("ليس لديك صلاحية لحذف الطلبات.", true);
+    return;
+  }
+  const order = orders.find((o) => o.id === orderId);
+  if (!order) return;
+
+  openBulkDeleteModal({
+    title: "تأكيد حذف الطلب",
+    message: `هل أنت متأكد من حذف الطلب #${order.id} الخاص بالعميل «${order.customerName}» نهائياً؟`,
+    previewItems: [{ title: `طلب #${order.id} — ${order.customerName}`, badge: formatEgp(order.totalAmount) }],
+    onConfirm: () => {
+      deleteOrder(orderId);
+      selectedOrderIds.delete(orderId);
+      orders = getOrders();
+      updateOrdersBadge();
+      renderOrdersList();
+      showToast(`تم حذف الطلب #${orderId} بنجاح.`);
+    },
+  });
 }
 
 function handleOrderStatusChange(orderId, newStatus) {
@@ -908,27 +1159,90 @@ function renderTickerItemsList() {
   const container = $("#admin-ticker-items-list");
   if (!container) return;
 
+  const session = getCurrentSession();
+  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_storefront));
+
+  // Update master checkbox and bulk toolbar for ticker
+  const masterCheck = $("#select-all-ticker");
+  const bulkBar = $("#bulk-actions-ticker");
+  const bulkCountBadge = $("#bulk-count-ticker");
+  const selectedCountAmongAll = tickerItems.filter((_, idx) => selectedTickerIndices.has(idx)).length;
+
+  if (masterCheck) {
+    masterCheck.disabled = !canManage || tickerItems.length === 0;
+    masterCheck.checked = tickerItems.length > 0 && selectedCountAmongAll === tickerItems.length;
+    masterCheck.indeterminate = selectedCountAmongAll > 0 && selectedCountAmongAll < tickerItems.length;
+  }
+
+  const selectedCount = selectedTickerIndices.size;
+  if (bulkBar) {
+    bulkBar.hidden = selectedCount === 0 || !canManage;
+  }
+  if (bulkCountBadge) {
+    bulkCountBadge.textContent = `تم تحديد ${new Intl.NumberFormat("ar-EG").format(selectedCount)} عبارة`;
+  }
+
   if (tickerItems.length === 0) {
     container.innerHTML = `<div class="admin-empty-state"><p>لا توجد عبارات في الشريط حاليًا. أضف عبارة جديدة أعلاه.</p></div>`;
     return;
   }
 
-  const session = getCurrentSession();
-  const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_storefront));
-
-  container.innerHTML = tickerItems.map((item, idx) => `
-    <div class="ticker-admin-item-row" data-index="${idx}">
-      <span class="ticker-item-num">${idx + 1}</span>
-      <span class="ticker-item-content">${safeText(item)}</span>
-      <div class="ticker-item-btns">
-        ${canManage ? `
-          <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-up" data-index="${idx}" ${idx === 0 ? "disabled" : ""} title="تحريك لأعلى">↑</button>
-          <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-down" data-index="${idx}" ${idx === tickerItems.length - 1 ? "disabled" : ""} title="تحريك لأسفل">↓</button>
-          <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-ticker-item" data-index="${idx}" title="حذف">✕</button>
-        ` : ""}
+  container.innerHTML = tickerItems.map((item, idx) => {
+    const isBulkChecked = selectedTickerIndices.has(idx);
+    return `
+      <div class="ticker-admin-item-row ${isBulkChecked ? "is-bulk-selected" : ""}" data-index="${idx}">
+        <div class="item-checkbox-wrap">
+          <input
+            type="checkbox"
+            class="ticker-select-checkbox item-select-checkbox"
+            data-index="${idx}"
+            ${isBulkChecked ? "checked" : ""}
+            ${canManage ? "" : "disabled"}
+            aria-label="تحديد عبارة ${idx + 1}"
+          />
+        </div>
+        <span class="ticker-item-num">${idx + 1}</span>
+        <span class="ticker-item-content">${safeText(item)}</span>
+        <div class="ticker-item-btns">
+          ${canManage ? `
+            <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-up" data-index="${idx}" ${idx === 0 ? "disabled" : ""} title="تحريك لأعلى">↑</button>
+            <button type="button" class="admin-button admin-button-small admin-button-quiet" data-action="move-ticker-down" data-index="${idx}" ${idx === tickerItems.length - 1 ? "disabled" : ""} title="تحريك لأسفل">↓</button>
+            <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-ticker-item" data-index="${idx}" title="حذف">✕</button>
+          ` : ""}
+        </div>
       </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
+}
+
+function handleBulkDeleteTicker() {
+  if (!hasPermission("manage_storefront")) {
+    showToast("ليس لديك صلاحية لتعديل شريط الأخبار.", true);
+    return;
+  }
+  if (selectedTickerIndices.size === 0) return;
+
+  const targetItems = Array.from(selectedTickerIndices)
+    .sort((a, b) => a - b)
+    .map((idx) => ({
+      title: tickerItems[idx],
+      badge: `#${idx + 1}`,
+    }))
+    .filter((item) => Boolean(item.title));
+
+  openBulkDeleteModal({
+    title: "تأكيد حذف عبارات شريط الأخبار المحددة",
+    message: `هل أنت متأكد من حذف ${selectedTickerIndices.size} عبارة من شريط الأخبار المتحرك؟`,
+    previewItems: targetItems,
+    onConfirm: () => {
+      const indicesToDelete = Array.from(selectedTickerIndices);
+      deleteTickerItems(indicesToDelete);
+      selectedTickerIndices.clear();
+      tickerItems = getTickerItems();
+      renderTickerItemsList();
+      showToast(`تم حذف ${indicesToDelete.length} عبارة من الشريط المتحرك ✓`);
+    },
+  });
 }
 
 function handleAddTickerItem() {
@@ -956,8 +1270,9 @@ function handleTickerAction(action, index) {
 
   const idx = Number(index);
   if (action === "delete-ticker-item") {
-    tickerItems.splice(idx, 1);
-    saveTickerItems(tickerItems);
+    selectedTickerIndices.delete(idx);
+    deleteTickerItems([idx]);
+    tickerItems = getTickerItems();
     renderTickerItemsList();
     showToast("تم حذف العبارة.");
   } else if (action === "move-ticker-up" && idx > 0) {
@@ -1117,12 +1432,48 @@ function renderCategoriesTable() {
   const session = getCurrentSession();
   const canManage = session && (session.role === "super_admin" || (session.permissions && session.permissions.manage_categories));
 
+  // Update master checkbox and bulk toolbar for categories
+  const masterCheck = $("#select-all-categories");
+  const bulkBar = $("#bulk-actions-categories");
+  const bulkCountBadge = $("#bulk-count-categories");
+  const selectableCats = categories.filter((c) => c.id !== "all");
+  const selectedCountAmongSelectable = selectableCats.filter((c) => selectedCategoryIds.has(c.id)).length;
+
+  if (masterCheck) {
+    masterCheck.disabled = !canManage || selectableCats.length === 0;
+    masterCheck.checked = selectableCats.length > 0 && selectedCountAmongSelectable === selectableCats.length;
+    masterCheck.indeterminate = selectedCountAmongSelectable > 0 && selectedCountAmongSelectable < selectableCats.length;
+  }
+
+  const selectedCount = selectedCategoryIds.size;
+  if (bulkBar) {
+    bulkBar.hidden = selectedCount === 0 || !canManage;
+  }
+  if (bulkCountBadge) {
+    bulkCountBadge.textContent = `تم تحديد ${new Intl.NumberFormat("ar-EG").format(selectedCount)} تصنيف`;
+  }
+
   tbody.innerHTML = categories.map((cat) => {
     const count = products.filter((p) => p.categoryId === cat.id).length;
     const isFixed = cat.id === "all";
+    const isBulkChecked = selectedCategoryIds.has(cat.id);
 
     return `
-      <tr>
+      <tr class="${isBulkChecked ? "is-bulk-selected" : ""}">
+        <td style="text-align: center;">
+          ${isFixed ? `<small style="color:var(--ink-subtle);">—</small>` : `
+            <div class="item-checkbox-wrap" style="justify-content:center;">
+              <input
+                type="checkbox"
+                class="category-select-checkbox item-select-checkbox"
+                data-cat-id="${cat.id}"
+                ${isBulkChecked ? "checked" : ""}
+                ${canManage ? "" : "disabled"}
+                aria-label="تحديد تصنيف ${safeText(cat.name)}"
+              />
+            </div>
+          `}
+        </td>
         <td style="font-size:18px;">${cat.icon || "⌚"}</td>
         <td><strong>${safeText(cat.name)}</strong></td>
         <td><code>${safeText(cat.id)}</code></td>
@@ -1139,6 +1490,48 @@ function renderCategoriesTable() {
       </tr>
     `;
   }).join("");
+}
+
+function handleBulkDeleteCategories() {
+  if (!hasPermission("manage_categories")) {
+    showToast("ليس لديك صلاحية لحذف التصنيفات.", true);
+    return;
+  }
+  if (selectedCategoryIds.size === 0) return;
+
+  // Check if any selected category is attached to existing products
+  const attachedProducts = products.filter((p) => selectedCategoryIds.has(p.categoryId));
+  if (attachedProducts.length > 0) {
+    const attachedCatIds = new Set(attachedProducts.map((p) => p.categoryId));
+    const attachedCatNames = categories
+      .filter((c) => attachedCatIds.has(c.id))
+      .map((c) => `«${c.name}»`)
+      .join("، ");
+    alert(`لا يمكن حذف التصنيفات التالية لأنها مرتبطة بساعات موجودة حالياً في الكتالوج:\n${attachedCatNames}\n\nيرجى إعادة تعيين أو حذف الساعات التابعة لها أولاً.`);
+    return;
+  }
+
+  const targetCats = categories.filter((c) => selectedCategoryIds.has(c.id));
+  const preview = targetCats.map((c) => ({
+    title: `${c.icon || "⌚"} ${c.name}`,
+    badge: c.id,
+  }));
+
+  openBulkDeleteModal({
+    title: "تأكيد حذف التصنيفات المحددة",
+    message: `هل أنت متأكد من حذف ${selectedCategoryIds.size} تصنيف نهائياً؟`,
+    previewItems: preview,
+    onConfirm: () => {
+      const idsToDelete = Array.from(selectedCategoryIds);
+      deleteCategories(idsToDelete);
+      selectedCategoryIds.clear();
+      categories = getStoredCategories();
+      renderCategoriesTable();
+      renderCategoryOptions();
+      updateKpiStats();
+      showToast(`تم حذف ${idsToDelete.length} تصنيف بنجاح ✓`);
+    },
+  });
 }
 
 function handleAddCategory(e) {
@@ -1182,8 +1575,9 @@ function handleDeleteCategory(catId) {
   const ok = confirm(`هل أنت متأكد من حذف تصنيف «${cat.name}»؟`);
   if (!ok) return;
 
-  categories = categories.filter((c) => c.id !== catId);
-  saveStoredCategories(categories);
+  selectedCategoryIds.delete(catId);
+  deleteCategories([catId]);
+  categories = getStoredCategories();
   renderCategoriesTable();
   renderCategoryOptions();
   updateKpiStats();
@@ -1193,11 +1587,44 @@ function handleDeleteCategory(catId) {
 // ----------------------------------------------------
 // 10. CONTACTS & POLICIES MANAGEMENT
 // ----------------------------------------------------
+function updateWhatsAppPreview() {
+  const input = $("#setting-whatsapp");
+  const hint = $("#whatsapp-preview-hint");
+  const testBtn = $("#btn-test-whatsapp");
+  if (!input || !hint) return;
+
+  const raw = input.value.trim();
+  if (!raw) {
+    hint.textContent = "أدخل رقم الهاتف المصري (مثال: 01012345678) أو الرقم الدولي مع مفتاح الدولة.";
+    hint.style.color = "var(--ink-muted)";
+    if (testBtn) testBtn.style.display = "none";
+    return;
+  }
+
+  const clean = formatWhatsAppPhone(raw);
+  const isValid = isValidWhatsAppPhone(raw);
+
+  if (isValid) {
+    hint.innerHTML = `✓ الرقم معتمد للمحادثات الفورية — سيتم التحويل إلى: <code dir="ltr" style="font-weight:700; color:var(--teal-900);">${clean}</code>`;
+    hint.style.color = "var(--teal-900)";
+    if (testBtn) {
+      const testMsg = `تجربة ربط واتساب متجر صُدْفَة — الرابط يعمل بنجاح على هذا الرقم ومباشر دون وسيط ✓`;
+      testBtn.href = buildWhatsAppUrl(clean, testMsg);
+      testBtn.style.display = "inline-flex";
+    }
+  } else {
+    hint.innerHTML = `⚠️ رقم غير مكتمل أو غير صالح — الرقم الحالي: <code dir="ltr">${clean || raw}</code> (يجب أن يتكون من 11 رقماً ويبدأ بـ 01)`;
+    hint.style.color = "#b91c1c";
+    if (testBtn) testBtn.style.display = "none";
+  }
+}
+
 function populateContactsAndPolicies() {
   $("#setting-whatsapp").value = storeSettings.defaultWhatsapp || "";
   $("#setting-phone").value = storeSettings.defaultPhone || "";
   $("#setting-shipping").value = storeSettings.shippingDetails || "";
   $("#setting-exchange").value = storeSettings.exchangeDetails || "";
+  updateWhatsAppPreview();
 }
 
 function handleContactsSubmit(e) {
@@ -1208,15 +1635,24 @@ function handleContactsSubmit(e) {
     return;
   }
 
+  const rawWa = $("#setting-whatsapp").value.trim();
+  if (rawWa && !isValidWhatsAppPhone(rawWa)) {
+    showToast("يرجى إدخال رقم واتساب مصري أو دولي صحيح قبل الحفظ.", true);
+    return;
+  }
+
+  const cleanWa = formatWhatsAppPhone(rawWa);
+
   storeSettings = {
     ...storeSettings,
-    defaultWhatsapp: $("#setting-whatsapp").value.trim(),
+    defaultWhatsapp: cleanWa ? `+${cleanWa}` : "",
     defaultPhone: $("#setting-phone").value.trim(),
     shippingDetails: $("#setting-shipping").value.trim(),
     exchangeDetails: $("#setting-exchange").value.trim(),
   };
 
   saveStoreSettings(storeSettings);
+  updateWhatsAppPreview();
   showToast("تم حفظ بيانات التواصل وسياسات المتجر بنجاح ✓");
 
   fetch("/api/admin/settings", {
@@ -1623,9 +2059,43 @@ function initAdminApp() {
     btn.addEventListener("click", () => {
       currentListFilter = btn.dataset.listFilter;
       $$(".list-filter-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      selectedProductIds.clear();
       renderProductsList();
     });
   });
+
+  // Products Multi-Select Handlers
+  $("#admin-products-list")?.addEventListener("change", (e) => {
+    const chk = e.target.closest(".product-select-checkbox");
+    if (!chk) return;
+    const pid = chk.dataset.productId;
+    if (chk.checked) {
+      selectedProductIds.add(pid);
+    } else {
+      selectedProductIds.delete(pid);
+    }
+    renderProductsList();
+  });
+
+  $("#select-all-products")?.addEventListener("change", (e) => {
+    let filtered = products;
+    if (currentListFilter === "active") filtered = products.filter((p) => p.active !== false);
+    if (currentListFilter === "hidden") filtered = products.filter((p) => p.active === false);
+
+    if (e.target.checked) {
+      filtered.forEach((p) => selectedProductIds.add(p.id));
+    } else {
+      filtered.forEach((p) => selectedProductIds.delete(p.id));
+    }
+    renderProductsList();
+  });
+
+  $("#btn-clear-products-selection")?.addEventListener("click", () => {
+    selectedProductIds.clear();
+    renderProductsList();
+  });
+
+  $("#btn-bulk-delete-products")?.addEventListener("click", handleBulkDeleteProducts);
 
   // Delegate edit clicks in list
   $("#admin-products-list")?.addEventListener("click", (e) => {
@@ -1641,6 +2111,7 @@ function initAdminApp() {
     btn.addEventListener("click", () => {
       currentOrderFilter = btn.dataset.orderFilter;
       $$(".orders-filter-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      selectedOrderIds.clear();
       renderOrdersList();
     });
   });
@@ -1650,8 +2121,44 @@ function initAdminApp() {
       const orderId = e.target.dataset.orderId;
       const newStatus = e.target.value;
       handleOrderStatusChange(orderId, newStatus);
+    } else if (e.target.classList.contains("order-select-checkbox")) {
+      const orderId = e.target.dataset.orderId;
+      if (e.target.checked) {
+        selectedOrderIds.add(orderId);
+      } else {
+        selectedOrderIds.delete(orderId);
+      }
+      renderOrdersList();
     }
   });
+
+  $("#admin-orders-list")?.addEventListener("click", (e) => {
+    const delBtn = e.target.closest('[data-action="delete-single-order"]');
+    if (delBtn) {
+      const orderId = delBtn.dataset.orderId;
+      handleDeleteSingleOrder(orderId);
+    }
+  });
+
+  $("#select-all-orders")?.addEventListener("change", (e) => {
+    let filtered = orders;
+    if (currentOrderFilter !== "all") {
+      filtered = orders.filter((o) => o.status === currentOrderFilter);
+    }
+    if (e.target.checked) {
+      filtered.forEach((o) => selectedOrderIds.add(o.id));
+    } else {
+      filtered.forEach((o) => selectedOrderIds.delete(o.id));
+    }
+    renderOrdersList();
+  });
+
+  $("#btn-clear-orders-selection")?.addEventListener("click", () => {
+    selectedOrderIds.clear();
+    renderOrdersList();
+  });
+
+  $("#btn-bulk-delete-orders")?.addEventListener("click", handleBulkDeleteOrders);
 
   // Hero & Banner Settings Form
   $("#hero-settings-form")?.addEventListener("submit", handleHeroSettingsSubmit);
@@ -1671,12 +2178,36 @@ function initAdminApp() {
       handleTickerAction(btn.dataset.action, btn.dataset.index);
     }
   });
+  $("#admin-ticker-items-list")?.addEventListener("change", (e) => {
+    const chk = e.target.closest(".ticker-select-checkbox");
+    if (!chk) return;
+    const idx = Number(chk.dataset.index);
+    if (chk.checked) {
+      selectedTickerIndices.add(idx);
+    } else {
+      selectedTickerIndices.delete(idx);
+    }
+    renderTickerItemsList();
+  });
+  $("#select-all-ticker")?.addEventListener("change", (e) => {
+    if (e.target.checked) {
+      tickerItems.forEach((_, idx) => selectedTickerIndices.add(idx));
+    } else {
+      selectedTickerIndices.clear();
+    }
+    renderTickerItemsList();
+  });
+  $("#btn-clear-ticker-selection")?.addEventListener("click", () => {
+    selectedTickerIndices.clear();
+    renderTickerItemsList();
+  });
+  $("#btn-bulk-delete-ticker")?.addEventListener("click", handleBulkDeleteTicker);
 
   // Notification Settings Form & Test Button
   $("#notifications-settings-form")?.addEventListener("submit", handleNotificationsSubmit);
   $("#test-notification-btn")?.addEventListener("click", handleTestNotification);
 
-  // Categories Form
+  // Categories Form & Actions
   $("#add-category-form")?.addEventListener("submit", handleAddCategory);
   $("#categories-table-body")?.addEventListener("click", (e) => {
     const delBtn = e.target.closest('[data-action="delete-category"]');
@@ -1684,9 +2215,46 @@ function initAdminApp() {
       handleDeleteCategory(delBtn.dataset.catId);
     }
   });
+  $("#categories-table-body")?.addEventListener("change", (e) => {
+    const chk = e.target.closest(".category-select-checkbox");
+    if (!chk) return;
+    const catId = chk.dataset.catId;
+    if (chk.checked) {
+      selectedCategoryIds.add(catId);
+    } else {
+      selectedCategoryIds.delete(catId);
+    }
+    renderCategoriesTable();
+  });
+  $("#select-all-categories")?.addEventListener("change", (e) => {
+    const selectable = categories.filter((c) => c.id !== "all");
+    if (e.target.checked) {
+      selectable.forEach((c) => selectedCategoryIds.add(c.id));
+    } else {
+      selectable.forEach((c) => selectedCategoryIds.delete(c.id));
+    }
+    renderCategoriesTable();
+  });
+  $("#btn-clear-categories-selection")?.addEventListener("click", () => {
+    selectedCategoryIds.clear();
+    renderCategoriesTable();
+  });
+  $("#btn-bulk-delete-categories")?.addEventListener("click", handleBulkDeleteCategories);
+
+  // Universal Bulk Delete Confirmation Modal Controls
+  $("#btn-close-bulk-delete")?.addEventListener("click", closeBulkDeleteModal);
+  $("#backdrop-bulk-delete")?.addEventListener("click", closeBulkDeleteModal);
+  $("#btn-cancel-bulk-delete")?.addEventListener("click", closeBulkDeleteModal);
+  $("#btn-confirm-bulk-delete")?.addEventListener("click", () => {
+    if (typeof pendingBulkDelete === "function") {
+      pendingBulkDelete();
+    }
+    closeBulkDeleteModal();
+  });
 
   // Contacts Form
   $("#store-contacts-form")?.addEventListener("submit", handleContactsSubmit);
+  $("#setting-whatsapp")?.addEventListener("input", updateWhatsAppPreview);
 
   // Dedicated Delivery Settings
   $("#delivery-settings-form")?.addEventListener("submit", handleDeliverySettingsSubmit);

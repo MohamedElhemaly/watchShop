@@ -213,6 +213,23 @@
                 </div>
               </div>
 
+              <!-- Products Multi-Select & Bulk Action Toolbar -->
+              <div class="bulk-toolbar-wrap" id="products-selection-toolbar">
+                <div class="bulk-select-all-box">
+                  <label class="bulk-checkbox-label">
+                    <input type="checkbox" id="select-all-products" class="bulk-master-checkbox" />
+                    <span>تحديد الكل</span>
+                  </label>
+                </div>
+                <div class="bulk-action-bar" id="bulk-actions-products" hidden>
+                  <span class="bulk-count-badge" id="bulk-count-products">تم تحديد 0 عنصر</span>
+                  <div class="bulk-btns">
+                    <button type="button" class="admin-button admin-button-small admin-button-quiet" id="btn-clear-products-selection">إلغاء التحديد</button>
+                    <button type="button" class="admin-button admin-button-small admin-button-danger" id="btn-bulk-delete-products">حذف المحدد 🗑️</button>
+                  </div>
+                </div>
+              </div>
+
               <div id="admin-products-list" class="admin-items-list" aria-live="polite">
                 <!-- Rendered dynamically -->
               </div>
@@ -371,6 +388,23 @@
               </div>
             </div>
 
+            <!-- Orders Multi-Select & Bulk Action Toolbar -->
+            <div class="bulk-toolbar-wrap" id="orders-selection-toolbar">
+              <div class="bulk-select-all-box">
+                <label class="bulk-checkbox-label">
+                  <input type="checkbox" id="select-all-orders" class="bulk-master-checkbox" />
+                  <span>تحديد الكل</span>
+                </label>
+              </div>
+              <div class="bulk-action-bar" id="bulk-actions-orders" hidden>
+                <span class="bulk-count-badge" id="bulk-count-orders">تم تحديد 0 طلب</span>
+                <div class="bulk-btns">
+                  <button type="button" class="admin-button admin-button-small admin-button-quiet" id="btn-clear-orders-selection">إلغاء التحديد</button>
+                  <button type="button" class="admin-button admin-button-small admin-button-danger" id="btn-bulk-delete-orders">حذف المحدد 🗑️</button>
+                </div>
+              </div>
+            </div>
+
             <div id="admin-orders-list" class="admin-orders-list" aria-live="polite">
               <!-- Rendered dynamically -->
             </div>
@@ -476,6 +510,23 @@
                 <div class="add-ticker-item-row">
                   <input id="new-ticker-item-input" type="text" placeholder="اكتب عبارة ترويجية جديدة ثم اضغط إضافة (مثال: شحن سريع...)" />
                   <button id="add-ticker-item-btn" class="admin-button admin-button-primary" type="button">+ إضافة العبارة</button>
+                </div>
+
+                <!-- News Ticker Multi-Select & Bulk Action Toolbar -->
+                <div class="bulk-toolbar-wrap" id="ticker-selection-toolbar">
+                  <div class="bulk-select-all-box">
+                    <label class="bulk-checkbox-label">
+                      <input type="checkbox" id="select-all-ticker" class="bulk-master-checkbox" />
+                      <span>تحديد الكل</span>
+                    </label>
+                  </div>
+                  <div class="bulk-action-bar" id="bulk-actions-ticker" hidden>
+                    <span class="bulk-count-badge" id="bulk-count-ticker">تم تحديد 0 عبارة</span>
+                    <div class="bulk-btns">
+                      <button type="button" class="admin-button admin-button-small admin-button-quiet" id="btn-clear-ticker-selection">إلغاء التحديد</button>
+                      <button type="button" class="admin-button admin-button-small admin-button-danger" id="btn-bulk-delete-ticker">حذف المحدد 🗑️</button>
+                    </div>
+                  </div>
                 </div>
 
                 <div id="admin-ticker-items-list" class="ticker-items-list">
@@ -584,10 +635,27 @@
                 <button class="admin-button admin-button-primary" type="submit">+ إضافة التصنيف</button>
               </form>
 
+              <div class="bulk-toolbar-wrap" id="categories-selection-toolbar">
+                <div class="bulk-select-all-box">
+                  <label class="bulk-checkbox-label">
+                    <input type="checkbox" id="select-all-categories" class="bulk-master-checkbox" />
+                    <span>تحديد الكل</span>
+                  </label>
+                </div>
+                <div class="bulk-action-bar" id="bulk-actions-categories" hidden>
+                  <span class="bulk-count-badge" id="bulk-count-categories">تم تحديد 0 تصنيف</span>
+                  <div class="bulk-btns">
+                    <button type="button" class="admin-button admin-button-small admin-button-quiet" id="btn-clear-categories-selection">إلغاء التحديد</button>
+                    <button type="button" class="admin-button admin-button-small admin-button-danger" id="btn-bulk-delete-categories">حذف المحدد 🗑️</button>
+                  </div>
+                </div>
+              </div>
+
               <div class="categories-table-wrap">
                 <table class="categories-table">
                   <thead>
                     <tr>
+                      <th style="width: 40px; text-align: center;"><span class="sr-only">تحديد</span></th>
                       <th>الأيقونة</th>
                       <th>اسم التصنيف</th>
                       <th>معرّف القسم</th>
@@ -616,8 +684,14 @@
             <form id="store-contacts-form" class="settings-form-layout">
               <div class="form-row-2">
                 <label class="form-field">
-                  <span>رقم واتساب للطلبات</span>
-                  <input id="setting-whatsapp" type="tel" dir="ltr" placeholder="+201000000000" />
+                  <span>رقم واتساب للطلبات واستقبال رسائل العملاء</span>
+                  <div class="admin-whatsapp-input-group">
+                    <input id="setting-whatsapp" type="tel" dir="ltr" placeholder="مثال: 01012345678 أو +201012345678" />
+                    <a id="btn-test-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="admin-button admin-button-small admin-whatsapp-contact-btn" style="display:none;" title="تجربة فتح محادثة مباشرة على واتساب">
+                      تجربة فتح واتساب 💬
+                    </a>
+                  </div>
+                  <div id="whatsapp-preview-hint" class="field-hint" style="margin-top:6px; font-size:12px;"></div>
                 </label>
                 <label class="form-field">
                   <span>رقم الهاتف المباشر</span>
@@ -890,6 +964,33 @@
             <button type="button" class="admin-button admin-button-secondary" id="btn-cancel-reset-pass">إلغاء</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal: Universal Bulk Delete Confirmation -->
+    <div id="modal-bulk-delete" class="admin-modal-overlay" hidden>
+      <div class="admin-modal-backdrop" id="backdrop-bulk-delete"></div>
+      <div class="admin-modal-card" style="max-width: 480px;">
+        <div class="admin-modal-header">
+          <h3 id="modal-bulk-delete-title">تأكيد الحذف الجماعي</h3>
+          <button type="button" class="admin-modal-close" id="btn-close-bulk-delete" aria-label="إغلاق">✕</button>
+        </div>
+        <div class="bulk-delete-dialog-body">
+          <div class="bulk-warning-icon" aria-hidden="true">⚠️</div>
+          <p id="bulk-delete-message" class="bulk-delete-message">
+            هل أنت متأكد من حذف العناصر المحددة نهائياً؟
+          </p>
+          <div id="bulk-delete-preview-list" class="bulk-preview-list"></div>
+          <p class="bulk-delete-subnote">لا يمكن التراجع عن هذا الإجراء وسيتم إزالة البيانات من المتجر بشكل دائم.</p>
+        </div>
+        <div class="modal-form-actions">
+          <button type="button" class="admin-button admin-button-danger" id="btn-confirm-bulk-delete">
+            تأكيد الحذف نهائياً 🗑️
+          </button>
+          <button type="button" class="admin-button admin-button-secondary" id="btn-cancel-bulk-delete">
+            إلغاء
+          </button>
+        </div>
       </div>
     </div>
     </main>

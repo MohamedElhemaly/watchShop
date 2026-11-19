@@ -538,7 +538,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .admin-product-item {
   display: grid;
-  grid-template-columns: 54px 1fr auto;
+  grid-template-columns: 28px 54px 1fr auto;
   gap: 14px;
   align-items: center;
   padding: 12px 14px;
@@ -1055,6 +1055,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .admin-whatsapp-contact-btn:hover {
   background: #1ebc59 !important;
+}
+
+.admin-whatsapp-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-whatsapp-input-group input {
+  flex: 1;
+}
+
+.admin-whatsapp-input-group .admin-whatsapp-contact-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
 }
 
 .order-items-list {
@@ -1620,6 +1636,193 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Multi-Select & Bulk Actions System (2026 Editorial RTL)
+   -------------------------------------------------------------------------- */
+.bulk-toolbar-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  margin: 10px 0 16px;
+  background: var(--cream-100);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.bulk-select-all-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--teal-950);
+  cursor: pointer;
+  user-select: none;
+}
+
+.bulk-master-checkbox,
+.item-select-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--teal-900);
+  cursor: pointer;
+  margin: 0;
+  border-radius: 3px;
+}
+
+.item-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 4px;
+  z-index: 2;
+}
+
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1;
+  padding: 6px 12px;
+  background: var(--teal-950);
+  color: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(7, 38, 36, 0.18);
+  animation: slideDown 180ms var(--ease-tactile);
+}
+
+.bulk-count-badge {
+  background: var(--copper);
+  color: #ffffff;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bulk-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-product-item.is-bulk-selected {
+  background: var(--teal-50) !important;
+  border-color: var(--teal-700) !important;
+  box-shadow: 0 0 0 1px var(--teal-700);
+}
+
+.admin-order-card.is-bulk-selected {
+  background: var(--teal-50) !important;
+  border-color: var(--teal-700) !important;
+  box-shadow: 0 0 0 1px var(--teal-700);
+}
+
+.ticker-admin-item-row.is-bulk-selected {
+  background: var(--teal-50) !important;
+  border-color: var(--teal-700) !important;
+}
+
+tr.is-bulk-selected {
+  background: var(--teal-50) !important;
+}
+
+.order-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-order-delete-btn {
+  padding: 0 10px;
+  font-size: 11px;
+  min-height: 28px;
+}
+
+/* Bulk Delete Modal Dialog */
+.bulk-delete-dialog-body {
+  text-align: center;
+  padding: 8px 4px 16px;
+}
+
+.bulk-warning-icon {
+  font-size: 38px;
+  margin-bottom: 8px;
+}
+
+.bulk-delete-message {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--teal-950);
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+.bulk-preview-list {
+  max-height: 140px;
+  overflow-y: auto;
+  background: var(--cream-100);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 14px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.bulk-preview-item {
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--line-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bulk-preview-item:last-child {
+  border-bottom: none;
+}
+
+.bulk-preview-item strong {
+  color: var(--teal-950);
+}
+
+.bulk-preview-item span {
+  color: var(--ink-muted);
+  font-family: var(--font-digits);
+}
+
+.bulk-delete-subnote {
+  font-size: 12px;
+  color: var(--sale-solid);
+  font-weight: 600;
+  margin: 0;
 }
 
 /* --------------------------------------------------------------------------

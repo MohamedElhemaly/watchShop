@@ -1,7 +1,16 @@
 import "./style.css";
 import "./product.css";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
-import { getCart, saveCart, sanitizeCart, getStoredProducts, getStoreSettings, formatDeliveryTimeline } from "./data.js";
+import {
+  getCart,
+  saveCart,
+  sanitizeCart,
+  getStoredProducts,
+  getStoreSettings,
+  formatDeliveryTimeline,
+  formatWhatsAppPhone,
+  buildWhatsAppUrl,
+} from "./data.js";
 
 const $ = (selector) => document.querySelector(selector);
 const safeText = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({
@@ -121,10 +130,18 @@ function updateOrderLinks() {
   const noContact = $("#detail-no-contact");
 
   if (publicContacts.whatsappNumber) {
-    const digits = publicContacts.whatsappNumber.replace(/\D/g, "");
-    const message = encodeURIComponent(`مرحبًا صُدْفَة، أستفسر عن ${currentProduct.name}${colorPhrase}. ممكن أعرف التوفر؟`);
-    whatsapp.href = `https://wa.me/${digits}?text=${message}`;
-    whatsapp.hidden = false;
+    const cleanWa = formatWhatsAppPhone(publicContacts.whatsappNumber);
+    const message = `مرحبًا صُدْفَة، أستفسر عن ${currentProduct.name}${colorPhrase}. ممكن أعرف التوفر؟`;
+    const waUrl = cleanWa ? buildWhatsAppUrl(cleanWa, message) : "";
+    if (waUrl) {
+      whatsapp.href = waUrl;
+      whatsapp.setAttribute("target", "_blank");
+      whatsapp.setAttribute("rel", "noopener noreferrer");
+      whatsapp.hidden = false;
+    } else {
+      whatsapp.hidden = true;
+      whatsapp.removeAttribute("href");
+    }
   } else {
     whatsapp.hidden = true;
     whatsapp.removeAttribute("href");

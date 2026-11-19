@@ -11,6 +11,8 @@ import {
   getStoredCategories,
   getTickerItems,
   formatDeliveryTimeline,
+  formatWhatsAppPhone,
+  buildWhatsAppUrl,
   addOrder,
 } from "./data.js";
 import {
@@ -262,13 +264,24 @@ function applyStoreSettings(settings = currentSettings) {
   const contactLinksWrap = $("#ordering-contact-links");
   const footerContactWrap = $("#footer-contact-links");
 
-  const wa = settings.defaultWhatsapp ? settings.defaultWhatsapp.replace(/\D/g, "") : "";
+  const cleanWa = formatWhatsAppPhone(settings.defaultWhatsapp || "");
   const ph = settings.defaultPhone || "";
 
-  if (wa) {
-    const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(`مرحبًا ${settings.brandName || "صُدْفَة"}، أود الاستفسار عن الساعات المتوفرة.`)}`;
-    if (orderWhatsApp) { orderWhatsApp.href = waUrl; orderWhatsApp.hidden = false; }
-    if (footerWhatsApp) { footerWhatsApp.href = waUrl; footerWhatsApp.hidden = false; }
+  if (cleanWa) {
+    const defaultMsg = `مرحبًا ${settings.brandName || "صُدْفَة"}، أود الاستفسار عن تشكيلة الساعات المتوفرة.`;
+    const waUrl = buildWhatsAppUrl(cleanWa, defaultMsg);
+    if (orderWhatsApp) {
+      orderWhatsApp.href = waUrl;
+      orderWhatsApp.setAttribute("target", "_blank");
+      orderWhatsApp.setAttribute("rel", "noopener noreferrer");
+      orderWhatsApp.hidden = false;
+    }
+    if (footerWhatsApp) {
+      footerWhatsApp.href = waUrl;
+      footerWhatsApp.setAttribute("target", "_blank");
+      footerWhatsApp.setAttribute("rel", "noopener noreferrer");
+      footerWhatsApp.hidden = false;
+    }
   } else {
     if (orderWhatsApp) orderWhatsApp.hidden = true;
     if (footerWhatsApp) footerWhatsApp.hidden = true;
@@ -282,7 +295,7 @@ function applyStoreSettings(settings = currentSettings) {
     if (footerPhone) footerPhone.hidden = true;
   }
 
-  const hasContacts = Boolean(wa || ph);
+  const hasContacts = Boolean(cleanWa || ph);
   if (contactLinksWrap) contactLinksWrap.hidden = !hasContacts;
   if (footerContactWrap) footerContactWrap.hidden = !hasContacts;
 
@@ -757,10 +770,12 @@ function openProductModal(productId) {
 
   // Direct WhatsApp Button inside modal
   if (whatsappBtn) {
-    const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
-    if (wa) {
-      const msg = encodeURIComponent(`مرحبًا ${currentSettings.brandName || "صُدْفَة"}، أود طلب ساعة: ${product.name} (السعر: ${formatEgp(product.salePrice || product.basePrice)} ج.م).`);
-      whatsappBtn.href = `https://wa.me/${wa}?text=${msg}`;
+    const cleanWa = formatWhatsAppPhone(currentSettings.defaultWhatsapp || "");
+    if (cleanWa) {
+      const msg = `مرحبًا ${currentSettings.brandName || "صُدْفَة"}، أود طلب ساعة: ${product.name} (السعر: ${formatEgp(product.salePrice || product.basePrice)} ج.م).`;
+      whatsappBtn.href = buildWhatsAppUrl(cleanWa, msg);
+      whatsappBtn.setAttribute("target", "_blank");
+      whatsappBtn.setAttribute("rel", "noopener noreferrer");
       whatsappBtn.hidden = false;
     } else {
       whatsappBtn.hidden = true;
@@ -965,9 +980,11 @@ function handleCheckoutSubmit(e) {
 
   // Pre-fill WhatsApp message for instant dispatch
   if (waConfirmBtn) {
-    const wa = currentSettings.defaultWhatsapp ? currentSettings.defaultWhatsapp.replace(/\D/g, "") : "";
-    const itemsText = orderData.items.map((c) => `• ${c.name} (${c.quantity} قطعة) ${c.color ? `لون ${c.color}` : ""} — ${formatEgp(c.unitPrice * c.quantity)} ج.م`).join("\n");
-    const waMessage = encodeURIComponent(
+    const cleanWa = formatWhatsAppPhone(currentSettings.defaultWhatsapp || "");
+    const itemsText = orderData.items
+      .map((c) => `• ${c.name} (${c.quantity} قطعة)${c.color ? ` - لون ${c.color}` : ""} — ${formatEgp(c.unitPrice * c.quantity)} ج.م`)
+      .join("\n");
+    const waMessage = 
       `مرحبًا ${currentSettings.brandName || "صُدْفَة"}، أؤكد طلب الشراء:\n` +
       `رقم الطلب: #${orderId}\n` +
       `الاسم: ${name}\n` +
@@ -976,9 +993,18 @@ function handleCheckoutSubmit(e) {
       `مدة التوصيل: ${deliveryTimeline}\n` +
       `المنتجات:\n${itemsText}\n` +
       `الإجمالي: ${formatEgp(orderData.totalAmount)} ج.م (الدفع عند الاستلام)\n` +
-      `ملاحظات: ${notes}`
-    );
-    waConfirmBtn.href = wa ? `https://wa.me/${wa}?text=${waMessage}` : "#";
+      (notes ? `ملاحظات: ${notes}` : `ملاحظات: لا توجد`);
+
+    const waUrl = cleanWa ? buildWhatsAppUrl(cleanWa, waMessage) : "";
+    if (waUrl) {
+      waConfirmBtn.href = waUrl;
+      waConfirmBtn.setAttribute("target", "_blank");
+      waConfirmBtn.setAttribute("rel", "noopener noreferrer");
+      waConfirmBtn.hidden = false;
+    } else {
+      waConfirmBtn.href = "#";
+      waConfirmBtn.hidden = true;
+    }
   }
 
   if (successView) successView.hidden = false;
@@ -1281,6 +1307,12 @@ function initApp() {
     allProducts = e.detail;
     renderCatalog();
     renderCategoryTabs();
+  });
+
+  window.addEventListener("daffa:categories-updated", (e) => {
+    allCategories = e.detail;
+    renderCategoryTabs();
+    renderCatalog();
   });
 
   window.addEventListener("daffa:ticker-updated", () => {

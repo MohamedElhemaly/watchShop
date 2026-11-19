@@ -22,6 +22,7 @@ import {
   formatEgpNumber,
 } from "./pricing.js";
 import { schedulePromotionRefresh, startPromotionCountdowns } from "./promotions.js";
+import { resolveMediaUrl, resolveProductsMedia } from "./mediaStorage.js";
 
 // DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
@@ -244,16 +245,22 @@ function applyStoreSettings(settings = currentSettings) {
   const videoPlayer = $("#hero-video-player");
   const videoSource = $("#hero-video-source");
   if (videoPlayer && videoSource) {
-    const targetVideo = settings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
-    const targetPoster = settings.heroPosterUrl || "/sodfa-promo-poster.jpg";
-    if (videoSource.getAttribute("src") !== targetVideo) {
-      videoSource.setAttribute("src", targetVideo);
-      videoPlayer.load();
-      videoPlayer.play().catch(() => { });
-    }
-    if (videoPlayer.getAttribute("poster") !== targetPoster) {
-      videoPlayer.setAttribute("poster", targetPoster);
-    }
+    const rawVideo = settings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
+    const rawPoster = settings.heroPosterUrl || "/sodfa-promo-poster.jpg";
+
+    resolveMediaUrl(rawVideo).then((targetVideo) => {
+      if (videoSource.getAttribute("src") !== targetVideo) {
+        videoSource.setAttribute("src", targetVideo);
+        videoPlayer.load();
+        videoPlayer.play().catch(() => { });
+      }
+    });
+
+    resolveMediaUrl(rawPoster).then((targetPoster) => {
+      if (videoPlayer.getAttribute("poster") !== targetPoster) {
+        videoPlayer.setAttribute("poster", targetPoster);
+      }
+    });
   }
 
   // Ordering & Contact Links
@@ -607,9 +614,10 @@ function renderCartDrawer() {
     const unitPrice = Math.max(0, Math.round(Number(item.unitPrice ?? item.price ?? 0)));
     const itemTotal = unitPrice * item.quantity;
     subtotal += itemTotal;
+    const itemImg = item._resolvedImage || item.image;
     return `
       <div class="cart-item" data-cart-index="${index}">
-        <img class="cart-item-img" src="${safeText(item.image)}" alt="${safeText(item.name)}" />
+        <img class="cart-item-img" src="${safeText(itemImg)}" alt="${safeText(item.name)}" />
         <div class="cart-item-info">
           <h4 class="cart-item-title">${safeText(item.name)}</h4>
           ${item.color ? `<span class="cart-item-color">اللون: ${safeText(item.color)}</span>` : ""}
@@ -631,8 +639,22 @@ function renderCartDrawer() {
   if (totalEl) totalEl.textContent = `${formatEgp(subtotal)} ج.م`;
 }
 
+async function resolveCartImages() {
+  let needsUpdate = false;
+  for (const item of cart) {
+    if (item.image && item.image.startsWith("media://") && !item._resolvedImage) {
+      item._resolvedImage = await resolveMediaUrl(item.image);
+      needsUpdate = true;
+    }
+  }
+  if (needsUpdate) {
+    renderCartDrawer();
+  }
+}
+
 function openCartDrawer() {
   renderCartDrawer();
+  resolveCartImages();
   const drawer = $("#cart-drawer");
   if (drawer) {
     drawer.hidden = false;
@@ -1018,8 +1040,9 @@ function handleCheckoutSubmit(e) {
 // ----------------------------------------------------
 // 8. INITIALIZE STOREFRONT & BIND GLOBAL EVENTS
 // ----------------------------------------------------
-function initStorefront() {
+async function initStorefront() {
   applyStoreSettings(currentSettings);
+  allProducts = await resolveProductsMedia(getStoredProducts());
   renderCategoryTabs();
   renderCatalog();
   updateCartBadge();
@@ -1027,11 +1050,12 @@ function initStorefront() {
   // Try fetching API if backend is running, otherwise retain curated inventory
   fetch("/api/products", { headers: { Accept: "application/json" } })
     .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
+    .then(async (data) => {
       if (data && Array.isArray(data.products) && data.products.length > 0) {
         // Merge API products preserving rich curated data
         const apiMap = new Map(data.products.map(p => [p.id, p]));
         allProducts = allProducts.map(p => apiMap.has(p.id) ? { ...p, ...apiMap.get(p.id) } : p);
+        allProducts = await resolveProductsMedia(allProducts);
         schedulePromotionRefresh(allProducts, data.serverNow);
         renderCatalog();
         renderCategoryTabs();
@@ -1303,8 +1327,8 @@ function initApp() {
     applyStoreSettings(e.detail);
   });
 
-  window.addEventListener("daffa:products-updated", (e) => {
-    allProducts = e.detail;
+  window.addEventListener("daffa:products-updated", async (e) => {
+    allProducts = await resolveProductsMedia(e.detail);
     renderCatalog();
     renderCategoryTabs();
   });

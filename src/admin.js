@@ -1,4 +1,5 @@
 import "./admin.css";
+import "./mediaUploader.css";
 import {
   initialProducts,
   categories as defaultCategories,
@@ -47,6 +48,8 @@ import {
   formatDiscountLabel,
   formatEgpNumber,
 } from "./pricing.js";
+import { createMediaUploader } from "./mediaUploader.js";
+import { resolveMediaUrl, resolveProductsMedia, getCachedMediaUrl } from "./mediaStorage.js";
 
 // DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
@@ -70,6 +73,12 @@ const selectedOrderIds = new Set();
 const selectedCategoryIds = new Set();
 const selectedTickerIndices = new Set();
 let pendingBulkDelete = null;
+
+// Media Uploaders State
+let productImageUploader = null;
+let heroVideoUploader = null;
+let heroPosterUploader = null;
+let visualVariants = [];
 
 // EGP Formatter
 const formatEgp = (val) => `${formatEgpNumber(val)} ج.م`;
@@ -373,6 +382,7 @@ function applyPermissionVisibility(session) {
   $$(".admin-edit-btn").forEach((b) => {
     if (!canManageProducts) b.style.display = "none";
   });
+  productImageUploader?.setDisabled(!canManageProducts);
 
   // Categories: hide add form and delete buttons if not manage_categories
   const canManageCategories = isSuper || Boolean(permissions.manage_categories);
@@ -388,6 +398,8 @@ function applyPermissionVisibility(session) {
   if (heroFormSubmit) heroFormSubmit.disabled = !canManageStorefront;
   const tickerFormSubmit = $("#ticker-settings-form button[type='submit']");
   if (tickerFormSubmit) tickerFormSubmit.disabled = !canManageStorefront;
+  heroVideoUploader?.setDisabled(!canManageStorefront);
+  heroPosterUploader?.setDisabled(!canManageStorefront);
 
   // Delivery & Notifications: disable submit if not manage_delivery_settings
   const canManageDelivery = isSuper || Boolean(permissions.manage_delivery_settings);
@@ -557,7 +569,8 @@ function renderProductsList() {
       }
     }
 
-    const imgUrl = product.imageUrl || (product.images && product.images[0]?.imageUrl) || "/sodfa-promo-poster.jpg";
+    const rawImg = product.imageUrl || (product.images && product.images[0]?.imageUrl) || "/sodfa-promo-poster.jpg";
+    const imgUrl = getCachedMediaUrl(rawImg);
 
     return `
       <article class="admin-product-item ${isSelected ? "is-selected" : ""} ${isBulkChecked ? "is-bulk-selected" : ""} ${product.active === false ? "is-hidden" : ""}" data-product-id="${product.id}">
@@ -628,6 +641,117 @@ function handleBulkDeleteProducts() {
   });
 }
 
+// ----------------------------------------------------
+// Visual Variants Manager (Direct Device Upload for each color variant)
+// ----------------------------------------------------
+function clearVisualVariants() {
+  visualVariants = [];
+  const container = $("#product-variants-container");
+  if (container) container.innerHTML = "";
+  syncVisualVariantsToTextarea();
+}
+
+function syncVisualVariantsToTextarea() {
+  const textarea = $("#edit-variants");
+  if (!textarea) return;
+  const valid = visualVariants
+    .filter((v) => v.imageUrl && v.colorLabel)
+    .map((v) => `${v.colorLabel}: ${v.imageUrl}`);
+  textarea.value = valid.join(", ");
+}
+
+function addVisualVariantRow(colorLabel = "", imageUrl = "") {
+  const container = $("#product-variants-container");
+  if (!container) return;
+
+  const rowId = `var_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const variantObj = {
+    id: rowId,
+    colorLabel: colorLabel || `خيار ${visualVariants.length + 1}`,
+    imageUrl: imageUrl || "",
+    uploader: null,
+  };
+  visualVariants.push(variantObj);
+
+  const card = document.createElement("div");
+  card.className = "variant-card-item";
+  card.id = `variant-card-${rowId}`;
+  card.innerHTML = `
+    <div class="variant-card-details">
+      <label class="form-field">
+        <span style="font-size:12px; font-weight:700;">اسم اللون أو الخيار</span>
+        <input type="text" class="variant-color-input" value="${safeText(variantObj.colorLabel)}" placeholder="مثال: أسود ملكي / فضي ستيل" />
+      </label>
+      <div id="uploader-slot-${rowId}"></div>
+    </div>
+    <div>
+      <button type="button" class="admin-button admin-button-small admin-button-danger" data-action="delete-variant-row" data-row-id="${rowId}" title="حذف خيار اللون">
+        ✕
+      </button>
+    </div>
+  `;
+
+  container.appendChild(card);
+
+  // Bind color input change
+  const colorInput = card.querySelector(".variant-color-input");
+  colorInput?.addEventListener("input", (e) => {
+    variantObj.colorLabel = e.target.value.trim();
+    syncVisualVariantsToTextarea();
+  });
+
+  // Bind compact media uploader for this variant
+  const uploaderSlot = card.querySelector(`#uploader-slot-${rowId}`);
+  variantObj.uploader = createMediaUploader({
+    container: uploaderSlot,
+    id: rowId,
+    type: "image",
+    initialUrl: variantObj.imageUrl,
+    compact: true,
+    getCloudSettings: () => ({
+      cloudName: storeSettings.cloudinaryCloudName,
+      uploadPreset: storeSettings.cloudinaryUploadPreset,
+    }),
+    onChange: (url) => {
+      variantObj.imageUrl = url;
+      syncVisualVariantsToTextarea();
+    },
+  });
+
+  // Bind delete button
+  const delBtn = card.querySelector('[data-action="delete-variant-row"]');
+  delBtn?.addEventListener("click", () => {
+    visualVariants = visualVariants.filter((v) => v.id !== rowId);
+    card.remove();
+    syncVisualVariantsToTextarea();
+  });
+
+  syncVisualVariantsToTextarea();
+}
+
+function loadVariantsIntoVisualManager(imagesData) {
+  clearVisualVariants();
+  let list = [];
+
+  if (Array.isArray(imagesData) && imagesData.length > 0) {
+    list = imagesData.map((img) => ({
+      colorLabel: img.colorLabel || "لون",
+      imageUrl: img.imageUrl || "",
+    }));
+  } else if (typeof imagesData === "string" && imagesData.trim()) {
+    list = imagesData.split(",").map((v, idx) => {
+      const parts = v.split(":");
+      const label = parts[0]?.trim() || `خيار ${idx + 1}`;
+      const url = parts.slice(1).join(":").trim();
+      return { colorLabel: label, imageUrl: url };
+    }).filter((x) => x.imageUrl);
+  }
+
+  list.forEach((item) => {
+    addVisualVariantRow(item.colorLabel, item.imageUrl);
+  });
+}
+
 function resetProductEditor() {
   editingProductId = null;
   const form = $("#admin-product-form");
@@ -646,6 +770,10 @@ function resetProductEditor() {
   $("#edit-stock-count").value = 10;
   $("#edit-discount-type").value = "none";
   $("#edit-discount-value").value = 0;
+  $("#edit-image-url").value = "";
+
+  productImageUploader?.setUrl("");
+  clearVisualVariants();
 
   updatePricePreview();
   renderProductsList();
@@ -674,12 +802,8 @@ function loadProductIntoEditor(productId) {
   $("#edit-discount-reason").value = product.discountReason || "";
   $("#edit-image-url").value = product.imageUrl || "";
 
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    const varText = product.images.map((img) => `${img.colorLabel || "لون"}: ${img.imageUrl}`).join(", ");
-    $("#edit-variants").value = varText;
-  } else {
-    $("#edit-variants").value = "";
-  }
+  productImageUploader?.setUrl(product.imageUrl || "");
+  loadVariantsIntoVisualManager(product.images || product.imageUrl || "");
 
   $("#edit-sort-order").value = product.sortOrder || 0;
   $("#edit-stock-count").value = product.stockCount !== undefined ? product.stockCount : 10;
@@ -778,7 +902,15 @@ function handleProductFormSubmit(e) {
   }
 
   let images = [];
-  if (variantsRaw) {
+  if (visualVariants.length > 0) {
+    images = visualVariants
+      .filter((v) => v.imageUrl)
+      .map((v, idx) => ({
+        imageUrl: v.imageUrl,
+        colorLabel: v.colorLabel || `خيار ${idx + 1}`,
+        sortOrder: idx,
+      }));
+  } else if (variantsRaw) {
     images = variantsRaw.split(",").map((v, idx) => {
       const parts = v.split(":");
       const label = parts[0]?.trim() || `خيار ${idx + 1}`;
@@ -787,8 +919,9 @@ function handleProductFormSubmit(e) {
     }).filter((img) => img.imageUrl);
   }
 
-  if (images.length === 0 && imageUrl) {
-    images = [{ imageUrl, colorLabel: "الأصلي", sortOrder: 0 }];
+  const finalImageUrl = imageUrl || (images[0]?.imageUrl || "/sodfa-promo-poster.jpg");
+  if (images.length === 0 && finalImageUrl) {
+    images = [{ imageUrl: finalImageUrl, colorLabel: "الأصلي", sortOrder: 0 }];
   }
 
   const categoryObj = categories.find((c) => c.id === categoryId);
@@ -824,7 +957,7 @@ function handleProductFormSubmit(e) {
     discountEndOn,
     discountReason,
     salePrice,
-    imageUrl: imageUrl || (images[0]?.imageUrl || "/sodfa-promo-poster.jpg"),
+    imageUrl: finalImageUrl,
     images,
     sortOrder,
     stockCount,
@@ -847,6 +980,10 @@ function handleProductFormSubmit(e) {
   saveStoredProducts(products);
   updateKpiStats();
   renderProductsList();
+  resolveProductsMedia(products).then((res) => {
+    products = res;
+    renderProductsList();
+  });
   showToast(`تم حفظ الساعة «${name}» وتحديث المتجر بنجاح ✓`);
 
   fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
@@ -1109,8 +1246,12 @@ function populateHeroSettings() {
   $("#setting-brand-name").value = storeSettings.brandName || "صُدْفَة";
   $("#setting-brand-sub").value = storeSettings.brandSubtitle || "سَاعَةٌ لِكُلِّ لَحْظَةٍ";
   $("#setting-announcement").value = storeSettings.announcement || "";
-  $("#setting-video-url").value = storeSettings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
-  $("#setting-poster-url").value = storeSettings.heroPosterUrl || "/sodfa-promo-poster.jpg";
+  const vUrl = storeSettings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
+  const pUrl = storeSettings.heroPosterUrl || "/sodfa-promo-poster.jpg";
+  $("#setting-video-url").value = vUrl;
+  $("#setting-poster-url").value = pUrl;
+  heroVideoUploader?.setUrl(vUrl);
+  heroPosterUploader?.setUrl(pUrl);
   $("#setting-hero-headline").value = storeSettings.heroHeadline || "";
   $("#setting-hero-desc").value = storeSettings.heroDescription || "";
   $("#setting-flagship-tag").value = storeSettings.featuredTag || "القطعة المميزة";
@@ -1619,12 +1760,32 @@ function updateWhatsAppPreview() {
   }
 }
 
+function updateCloudinaryBadge() {
+  const badge = $("#cloudinary-status-badge");
+  const cloudName = $("#setting-cloudinary-name")?.value.trim() || storeSettings.cloudinaryCloudName || "";
+  const uploadPreset = $("#setting-cloudinary-preset")?.value.trim() || storeSettings.cloudinaryUploadPreset || "";
+  if (!badge) return;
+
+  if (cloudName && uploadPreset) {
+    badge.className = "cloudinary-status-badge is-connected";
+    badge.textContent = `☁️ متصل بـ Cloudinary (${cloudName})`;
+  } else {
+    badge.className = "cloudinary-status-badge is-local";
+    badge.textContent = "التخزين المحلي الآمن (IndexedDB) نشط";
+  }
+}
+
 function populateContactsAndPolicies() {
   $("#setting-whatsapp").value = storeSettings.defaultWhatsapp || "";
   $("#setting-phone").value = storeSettings.defaultPhone || "";
   $("#setting-shipping").value = storeSettings.shippingDetails || "";
   $("#setting-exchange").value = storeSettings.exchangeDetails || "";
+  const cloudNameInput = $("#setting-cloudinary-name");
+  const cloudPresetInput = $("#setting-cloudinary-preset");
+  if (cloudNameInput) cloudNameInput.value = storeSettings.cloudinaryCloudName || "";
+  if (cloudPresetInput) cloudPresetInput.value = storeSettings.cloudinaryUploadPreset || "";
   updateWhatsAppPreview();
+  updateCloudinaryBadge();
 }
 
 function handleContactsSubmit(e) {
@@ -1642,6 +1803,8 @@ function handleContactsSubmit(e) {
   }
 
   const cleanWa = formatWhatsAppPhone(rawWa);
+  const cName = $("#setting-cloudinary-name")?.value.trim() || "";
+  const cPreset = $("#setting-cloudinary-preset")?.value.trim() || "";
 
   storeSettings = {
     ...storeSettings,
@@ -1649,11 +1812,14 @@ function handleContactsSubmit(e) {
     defaultPhone: $("#setting-phone").value.trim(),
     shippingDetails: $("#setting-shipping").value.trim(),
     exchangeDetails: $("#setting-exchange").value.trim(),
+    cloudinaryCloudName: cName,
+    cloudinaryUploadPreset: cPreset,
   };
 
   saveStoreSettings(storeSettings);
   updateWhatsAppPreview();
-  showToast("تم حفظ بيانات التواصل وسياسات المتجر بنجاح ✓");
+  updateCloudinaryBadge();
+  showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات الوسائط بنجاح ✓");
 
   fetch("/api/admin/settings", {
     method: "PUT",
@@ -2255,6 +2421,76 @@ function initAdminApp() {
   // Contacts Form
   $("#store-contacts-form")?.addEventListener("submit", handleContactsSubmit);
   $("#setting-whatsapp")?.addEventListener("input", updateWhatsAppPreview);
+  $("#setting-cloudinary-name")?.addEventListener("input", updateCloudinaryBadge);
+  $("#setting-cloudinary-preset")?.addEventListener("input", updateCloudinaryBadge);
+  $("#btn-add-variant-row")?.addEventListener("click", () => addVisualVariantRow());
+
+  // Initialize Direct Device Media Uploaders
+  const primaryUploaderContainer = $("#product-primary-image-uploader");
+  if (primaryUploaderContainer) {
+    productImageUploader = createMediaUploader({
+      container: primaryUploaderContainer,
+      id: "product-primary",
+      type: "image",
+      initialUrl: $("#edit-image-url")?.value || "",
+      label: "صورة الغلاف الرئيسية للساعة",
+      hint: "اسحب صورة الساعة هنا أو اخترها من جهازك (سيتم ضغطها وتخزينها بأعلى جودة)",
+      getCloudSettings: () => ({
+        cloudName: storeSettings.cloudinaryCloudName,
+        uploadPreset: storeSettings.cloudinaryUploadPreset,
+      }),
+      onChange: (url) => {
+        const input = $("#edit-image-url");
+        if (input) input.value = url;
+      },
+    });
+  }
+
+  const heroVideoContainer = $("#hero-video-uploader");
+  if (heroVideoContainer) {
+    heroVideoUploader = createMediaUploader({
+      container: heroVideoContainer,
+      id: "hero-video",
+      type: "video",
+      initialUrl: storeSettings.heroVideoUrl || "",
+      label: "فيديو البطل الرئيسي (Hero Video)",
+      hint: "ارفع فيديو البطل الترويجي مباشرة من جهازك (.mp4, .webm, .mov) بحجم يصل إلى 100MB",
+      getCloudSettings: () => ({
+        cloudName: storeSettings.cloudinaryCloudName,
+        uploadPreset: storeSettings.cloudinaryUploadPreset,
+      }),
+      onChange: (url) => {
+        const input = $("#setting-video-url");
+        if (input) input.value = url;
+      },
+    });
+  }
+
+  const heroPosterContainer = $("#hero-poster-uploader");
+  if (heroPosterContainer) {
+    heroPosterUploader = createMediaUploader({
+      container: heroPosterContainer,
+      id: "hero-poster",
+      type: "image",
+      initialUrl: storeSettings.heroPosterUrl || "",
+      label: "صورة غلاف الفيديو (Hero Poster)",
+      hint: "الصورة المعروضة قبل بدء تشغيل الفيديو أو كغلاف احتياطي",
+      getCloudSettings: () => ({
+        cloudName: storeSettings.cloudinaryCloudName,
+        uploadPreset: storeSettings.cloudinaryUploadPreset,
+      }),
+      onChange: (url) => {
+        const input = $("#setting-poster-url");
+        if (input) input.value = url;
+      },
+    });
+  }
+
+  // Resolve any media:// URLs in products catalog for crisp admin thumbnails
+  resolveProductsMedia(products).then((res) => {
+    products = res;
+    renderProductsList();
+  });
 
   // Dedicated Delivery Settings
   $("#delivery-settings-form")?.addEventListener("submit", handleDeliverySettingsSubmit);

@@ -11,6 +11,7 @@ import {
   formatWhatsAppPhone,
   buildWhatsAppUrl,
 } from "./data.js";
+import { resolveMediaUrl, resolveProductsMedia } from "./mediaStorage.js";
 
 const $ = (selector) => document.querySelector(selector);
 const safeText = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({
@@ -21,6 +22,7 @@ const safeText = (value = "") => String(value).replace(/[&<>"']/g, (character) =
   "'": "&#39;",
 }[character]));
 
+const storeSettings = getStoreSettings();
 let currentProduct;
 let currentImages = [];
 let selectedImageIndex = 0;
@@ -222,7 +224,8 @@ async function loadProduct() {
   }
 
   // Check local curated products
-  const localProducts = getStoredProducts();
+  let localProducts = getStoredProducts();
+  localProducts = await resolveProductsMedia(localProducts);
   const localMatch = localProducts.find((p) => p.id === id);
 
   try {
@@ -230,7 +233,8 @@ async function loadProduct() {
     if (response.ok) {
       const data = await response.json();
       if (data.product) {
-        renderProduct(data.product, data.serverNow);
+        const resolved = (await resolveProductsMedia([data.product]))[0];
+        renderProduct(resolved, data.serverNow);
         await loadContacts();
         return;
       }

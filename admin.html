@@ -319,16 +319,25 @@
                   <small id="admin-preview-note"></small>
                 </div>
 
-                <!-- Images & Color Variants Editor -->
+                <!-- Direct Device Upload & Visual Variants Editor -->
                 <div class="editor-section">
-                  <label class="form-field">
-                    <span>صورة الغلاف الرئيسية (رابط URL أو مسار)</span>
-                    <input id="edit-image-url" type="text" placeholder="/sodfa-promo-poster.jpg أو رابط صورة" />
-                  </label>
-                  <label class="form-field">
-                    <span>خيارات الألوان الإضافية (اسم اللون:رابط الصورة) مفصولة بفواصل</span>
-                    <textarea id="edit-variants" rows="2" placeholder="أسود: /img1.jpg, بني: /img2.jpg"></textarea>
-                  </label>
+                  <input id="edit-image-url" type="hidden" value="" />
+                  <div id="product-primary-image-uploader"></div>
+
+                  <div class="variants-management-box" style="margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                      <div>
+                        <strong style="font-size: 14px; color: var(--teal-950); display: block;">خيارات الألوان وصورها الخاصة</strong>
+                        <small style="color: var(--ink-muted); font-size: 11px;">ارفع صورة مستقلة لكل لون أو خيار ساعة من جهازك مباشرة</small>
+                      </div>
+                      <button id="btn-add-variant-row" class="admin-button admin-button-small admin-button-primary" type="button">
+                        + إضافة لون جديد
+                      </button>
+                    </div>
+
+                    <div id="product-variants-container" class="variants-manager-wrap"></div>
+                    <textarea id="edit-variants" style="display:none;"></textarea>
+                  </div>
                 </div>
 
                 <div class="form-row-2">
@@ -438,14 +447,14 @@
               </label>
 
               <div class="form-row-2">
-                <label class="form-field">
-                  <span>رابط أو مسار فيديو البطل (Hero Video URL)</span>
-                  <input id="setting-video-url" type="text" required placeholder="/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4" />
-                </label>
-                <label class="form-field">
-                  <span>رابط صورة غلاف الفيديو (Poster Image)</span>
-                  <input id="setting-poster-url" type="text" placeholder="/sodfa-promo-poster.jpg" />
-                </label>
+                <div class="form-field">
+                  <input id="setting-video-url" type="hidden" value="" />
+                  <div id="hero-video-uploader"></div>
+                </div>
+                <div class="form-field">
+                  <input id="setting-poster-url" type="hidden" value="" />
+                  <div id="hero-poster-uploader"></div>
+                </div>
               </div>
 
               <label class="form-field">
@@ -708,6 +717,32 @@
                 <span>سياسة الاستبدال والضمان وحماية المستهلك</span>
                 <textarea id="setting-exchange" rows="3" placeholder="حق الاستبدال أو الاسترجاع خلال 14 يومًا..."></textarea>
               </label>
+
+              <!-- Optional Cloudinary Media Sync Card -->
+              <div class="cloudinary-settings-card">
+                <div class="cloudinary-header">
+                  <div>
+                    <h4>☁️ استضافة الوسائط السحابية لزوار الموقع الحي (Cloudinary Sync)</h4>
+                    <p style="margin: 4px 0 0; font-size: 12px; color: var(--ink-muted);">
+                      اختياري: لتظهر الفيديوهات والصور الجديدة المرفوعة من جهازك لكافة زوار موقع Vercel الحي بدون قيود التخزين المحلي.
+                    </p>
+                  </div>
+                  <span id="cloudinary-status-badge" class="cloudinary-status-badge is-local">التخزين المحلي الآمن (IndexedDB) نشط</span>
+                </div>
+                <div class="form-row-2" style="margin-top: 10px;">
+                  <label class="form-field">
+                    <span>اسم السحابة (Cloud Name)</span>
+                    <input id="setting-cloudinary-name" type="text" placeholder="مثال: my-store-cloud" dir="ltr" />
+                  </label>
+                  <label class="form-field">
+                    <span>البريست غير الموقّع (Unsigned Upload Preset)</span>
+                    <input id="setting-cloudinary-preset" type="text" placeholder="مثال: daffa_unsigned" dir="ltr" />
+                  </label>
+                </div>
+                <small class="field-hint" style="display:block; margin-top:4px;">
+                  في حال ترك الحقول فارغة، يقوم النظام بحفظ الفيديوهات والصور محلياً وبشكل دائم وفائق السرعة في قاعدة بيانات IndexedDB بالمتصفح.
+                </small>
+              </div>
 
               <button class="admin-button admin-button-primary" type="submit" style="width: fit-content;">
                 حفظ بيانات التواصل والسياسات <span aria-hidden="true">✓</span>

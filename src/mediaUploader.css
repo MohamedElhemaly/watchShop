@@ -1,0 +1,300 @@
+/* 2026 Bespoke RTL Media Uploader Styles */
+
+.media-uploader-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.media-dropzone {
+  position: relative;
+  border: 2px dashed rgba(190, 114, 76, 0.35);
+  background: rgba(250, 248, 245, 0.7);
+  border-radius: 12px;
+  padding: 24px 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.22s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.media-dropzone:hover {
+  border-color: var(--copper, #be724c);
+  background: rgba(190, 114, 76, 0.05);
+}
+
+.media-dropzone.is-dragover {
+  border-color: #25d366;
+  background: rgba(37, 211, 102, 0.08);
+  transform: scale(1.01);
+}
+
+.media-dropzone.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.media-dropzone-icon {
+  font-size: 32px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.06));
+}
+
+.media-dropzone-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--teal-950, #072624);
+  margin: 0;
+}
+
+.media-dropzone-hint {
+  font-size: 11px;
+  color: var(--ink-muted, #5f7470);
+  margin: 0;
+}
+
+.media-file-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* Secondary direct URL toggle */
+.media-url-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.media-url-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--copper, #be724c);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  text-decoration: underline;
+  transition: opacity 0.15s;
+}
+
+.media-url-toggle-btn:hover {
+  opacity: 0.8;
+}
+
+.media-url-input-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.media-url-input-box input {
+  flex: 1;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+/* Preview Box */
+.media-preview-box {
+  border: 1px solid var(--line, #e2ded7);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.media-preview-stage {
+  width: 100%;
+  height: 200px;
+  background: #072624;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.media-preview-stage.is-video-stage {
+  height: 240px;
+}
+
+.media-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.media-preview-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000000;
+}
+
+.media-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.media-meta-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--teal-50, #f0f7f5);
+  color: var(--teal-900, #0a3a33);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.media-meta-badge.is-cloud {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.media-preview-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.media-preview-actions button {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
+/* Upload Progress Overlay */
+.media-uploading-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px;
+  background: var(--teal-50, #f0f7f5);
+  border: 1px solid var(--teal-200, #b2dfdb);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--teal-950, #072624);
+  animation: pulseMedia 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseMedia {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Variant Visual Cards List */
+.variants-manager-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.variant-card-item {
+  border: 1px solid var(--line, #e2ded7);
+  background: #faf8f5;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.variant-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.variant-color-input {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.variant-uploader-compact .media-preview-stage {
+  height: 110px;
+}
+
+.variant-uploader-compact .media-dropzone {
+  padding: 14px 10px;
+}
+
+.variant-uploader-compact .media-dropzone-icon {
+  font-size: 20px;
+}
+
+.variant-uploader-compact .media-dropzone-title {
+  font-size: 12px;
+}
+
+.btn-add-variant {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+/* Cloudinary Settings Box */
+.cloudinary-settings-card {
+  border: 1px solid #bfdbfe;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 14px;
+}
+
+.cloudinary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.cloudinary-header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.cloudinary-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.cloudinary-status-badge.is-connected {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.cloudinary-status-badge.is-local {
+  background: #f1f5f9;
+  color: #475569;
+}

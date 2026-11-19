@@ -827,6 +827,9 @@ export const defaultStoreSettings = {
   deliveryMinDays: 2,
   deliveryMaxDays: 4,
   deliveryUnitText: "أيام عمل",
+  // Cloudinary Optional Media Sync
+  cloudinaryCloudName: "",
+  cloudinaryUploadPreset: "",
 };
 
 export const defaultTickerItems = [

@@ -340,12 +340,20 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .form-field span {
   font-size: 12px;
   font-weight: 700;
   color: var(--teal-950);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .form-field span b {
@@ -355,6 +363,10 @@ select:focus-visible {
 .form-field input,
 .form-field select,
 .form-field textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
@@ -362,6 +374,26 @@ select:focus-visible {
   background: #ffffff;
   color: var(--ink);
   transition: border-color var(--transition-fast);
+}
+
+.form-field select {
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form-field textarea {
+  white-space: pre-wrap;
+  resize: vertical;
+}
+
+.form-field input[type="range"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  cursor: pointer;
 }
 
 .form-field input:focus,
@@ -703,14 +735,22 @@ select:focus-visible {
 
 .form-row-2 {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .form-row-3 {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .discount-schedule-box {
@@ -1985,6 +2025,11 @@ tr.is-bulk-selected {
   border-radius: 10px;
   padding: 16px;
   margin: 16px 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .framing-section-header {

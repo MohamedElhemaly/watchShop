@@ -1,6 +1,7 @@
-// Sodfa Watch Store - Cross-Device Cloud Sync Engine (2026)
-// Provides seamless real-time persistence between PC & Mobile across:
+// Sodfa Watch Store - Cross-Device Sync & GitHub Pages Data Engine (2026)
+// Provides seamless real-time persistence across:
 // Store Settings, Admin Accounts (e.g. Hager Samir), Products, Categories, Ticker Items, and Customer Orders.
+// 100% Free Hosting via GitHub Pages + public/data/store.json + GitHub REST API.
 
 import {
   getStoreSettings,
@@ -17,10 +18,16 @@ import {
   saveOrders,
 } from "./data.js";
 
+import {
+  getGitHubConfig,
+  publishStoreToGitHub,
+} from "./githubSync.js";
+
 // In-memory sync state
 let syncInProgress = false;
 let lastSyncTimestamp = 0;
 let syncBroadcastChannel = null;
+let githubDebounceTimer = null;
 
 // Initialize BroadcastChannel for instant cross-tab / cross-window sync on the same device
 if (typeof window !== "undefined" && "BroadcastChannel" in window) {
@@ -36,82 +43,23 @@ if (typeof window !== "undefined" && "BroadcastChannel" in window) {
 }
 
 /**
- * Returns current cloud connection status and config
+ * Returns current GitHub sync status and config
  */
 export function getCloudSyncConfig() {
-  const settings = getStoreSettings();
-  let supabaseUrl = (settings.supabaseUrl || "").trim();
-  let supabaseAnonKey = (settings.supabaseAnonKey || "").trim();
-
-  // Also check Vite environment variables if defined
-  if (typeof import.meta !== "undefined" && import.meta.env) {
-    if (!supabaseUrl && import.meta.env.VITE_SUPABASE_URL) {
-      supabaseUrl = import.meta.env.VITE_SUPABASE_URL.trim();
-    }
-    if (!supabaseAnonKey && import.meta.env.VITE_SUPABASE_ANON_KEY) {
-      supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY.trim();
-    }
-  }
-
-  const isConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+  const gh = getGitHubConfig();
   return {
-    supabaseUrl: supabaseUrl.replace(/\/$/, ""),
-    supabaseAnonKey,
-    isConfigured,
+    ...gh,
+    mode: gh.isConfigured ? "github" : "local",
   };
 }
 
 /**
- * Tests connection to a Supabase project by performing a lightweight query
- */
-export async function testSupabaseConnection(url, anonKey) {
-  const cleanUrl = String(url || "").trim().replace(/\/$/, "");
-  const cleanKey = String(anonKey || "").trim();
-  if (!cleanUrl || !cleanKey) {
-    return { ok: false, message: "يرجى إدخال رابط المشروع (Project URL) ومفتاح الوصول (Anon Key)." };
-  }
-
-  try {
-    const res = await fetch(`${cleanUrl}/rest/v1/sodfa_sync?select=key&limit=1`, {
-      method: "GET",
-      headers: {
-        apikey: cleanKey,
-        Authorization: `Bearer ${cleanKey}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (res.ok) {
-      return { ok: true, message: "تم الاتصال بـ Supabase بنجاح! جدول sodfa_sync متاح ومتصل." };
-    }
-
-    if (res.status === 404 || res.status === 400) {
-      // Table might not exist yet, but credentials are valid
-      const authCheck = await fetch(`${cleanUrl}/rest/v1/`, {
-        headers: { apikey: cleanKey, Authorization: `Bearer ${cleanKey}` },
-      });
-      if (authCheck.ok) {
-        return {
-          ok: true,
-          tableMissing: true,
-          message: "بيانات الاعتماد صحيحة! ولكن جدول 'sodfa_sync' يحتاج إلى إنشاء في Supabase SQL Editor.",
-        };
-      }
-    }
-
-    return { ok: false, message: `فشل الاتصال: رمز الاستجابة ${res.status}` };
-  } catch (err) {
-    return { ok: false, message: `تعذر الوصول إلى الرابط: ${err.message}` };
-  }
-}
-
-/**
- * Pushes a single data key to the cloud (Supabase and local server API)
+ * Pushes a data mutation to other tabs, local server, and GitHub Pages (if configured)
  */
 export async function pushCloudState(key, data) {
   if (typeof window === "undefined" || !key || data === undefined) return;
 
-  // Broadcast to other tabs on same device immediately
+  // 1. Broadcast to other tabs on same device immediately
   if (syncBroadcastChannel) {
     try {
       syncBroadcastChannel.postMessage({ key, data, timestamp: Date.now() });
@@ -124,95 +72,36 @@ export async function pushCloudState(key, data) {
     updated_at: new Date().toISOString(),
   };
 
-  const { supabaseUrl, supabaseAnonKey, isConfigured } = getCloudSyncConfig();
-
-  // 1. Try Supabase if configured
-  if (isConfigured) {
-    try {
-      await fetch(`${supabaseUrl}/rest/v1/sodfa_sync`, {
-        method: "POST",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates",
-        },
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      console.warn("Supabase push failed for key:", key, err);
-    }
-  }
-
   // 2. Try Local Server API (when running in local dev / on network)
   try {
-    await fetch(`/api/sync/${encodeURIComponent(key)}`, {
+    fetch(`/api/sync/${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    });
-  } catch {
-    // Server offline or static deployment
-  }
-}
+    }).catch(() => {});
+  } catch {}
 
-/**
- * Pulls a specific key from cloud (Supabase or local server API)
- */
-export async function pullCloudState(key) {
-  if (typeof window === "undefined" || !key) return null;
-
-  const { supabaseUrl, supabaseAnonKey, isConfigured } = getCloudSyncConfig();
-
-  // 1. Try Supabase
-  if (isConfigured) {
-    try {
-      const res = await fetch(`${supabaseUrl}/rest/v1/sodfa_sync?key=eq.${encodeURIComponent(key)}&select=*`, {
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          Accept: "application/json",
-        },
+  // 3. Auto-publish to GitHub if admin has configured GitHub token
+  const ghConfig = getGitHubConfig();
+  if (ghConfig.isConfigured && (key === "products" || key === "orders" || key === "store_settings")) {
+    clearTimeout(githubDebounceTimer);
+    githubDebounceTimer = setTimeout(() => {
+      publishStoreToGitHub({ reason: `تحديث تلقائي: ${key}` }).catch((err) => {
+        console.warn("Background GitHub publish skipped:", err?.message || err);
       });
-      if (res.ok) {
-        const rows = await res.json();
-        if (Array.isArray(rows) && rows.length > 0 && rows[0].value !== undefined) {
-          return rows[0].value;
-        }
-      }
-    } catch (err) {
-      console.warn("Supabase pull failed for key:", key, err);
-    }
+    }, 2500);
   }
-
-  // 2. Try Local Server API
-  try {
-    const res = await fetch(`/api/sync/${encodeURIComponent(key)}`, {
-      headers: { Accept: "application/json" },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.value !== undefined) {
-        return data.value;
-      }
-    }
-  } catch {
-    // Offline
-  }
-
-  return null;
 }
 
 /**
- * Handles incoming cloud data and merges safely into localStorage
+ * Handles incoming cloud/static data and merges safely into localStorage
  */
-function handleIncomingData(key, cloudData, dispatchEvents = true) {
+export function handleIncomingData(key, cloudData, dispatchEvents = true) {
   if (cloudData === null || cloudData === undefined) return;
 
   switch (key) {
     case "store_settings": {
       const current = getStoreSettings();
-      // Only merge if cloud has meaningful settings
       if (cloudData && typeof cloudData === "object") {
         const merged = { ...current, ...cloudData };
         try {
@@ -228,12 +117,12 @@ function handleIncomingData(key, cloudData, dispatchEvents = true) {
     case "admin_users": {
       const currentUsers = getAdminUsers();
       if (Array.isArray(cloudData) && cloudData.length > 0) {
-        // Merge users preserving any local unique users
         const map = new Map();
         cloudData.forEach((u) => { if (u && u.id) map.set(u.id, u); });
         currentUsers.forEach((u) => { if (u && u.id && !map.has(u.id)) map.set(u.id, u); });
         const mergedUsers = Array.from(map.values());
         try {
+          localStorage.setItem("daffa_admin_users", JSON.stringify(mergedUsers));
           localStorage.setItem("daffa_admin_users_v2", JSON.stringify(mergedUsers));
         } catch {}
       }
@@ -243,13 +132,11 @@ function handleIncomingData(key, cloudData, dispatchEvents = true) {
     case "orders": {
       const currentOrders = getOrders();
       if (Array.isArray(cloudData)) {
-        // Merge orders by ID, favoring the most updated status
         const map = new Map();
         currentOrders.forEach((o) => { if (o && o.id) map.set(String(o.id), o); });
         cloudData.forEach((o) => {
           if (o && o.id) {
             const strId = String(o.id);
-            // Cloud has priority for status updates made on admin
             map.set(strId, { ...(map.get(strId) || {}), ...o });
           }
         });
@@ -305,43 +192,70 @@ function handleIncomingData(key, cloudData, dispatchEvents = true) {
 }
 
 /**
- * Synchronizes all store data from cloud to local cache
+ * Pulls a specific key from GitHub Pages static store.json or local server
+ */
+export async function pullCloudState(key) {
+  try {
+    const res = await fetch(`./data/store.json?t=${Date.now()}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (key === "orders") return data.orders || [];
+      if (key === "products") return data.products || [];
+      if (key === "settings" || key === "store_settings") return data.settings || {};
+      if (key === "categories") return data.categories || [];
+      if (key === "ticker_items") return data.tickerItems || [];
+      return data[key] || null;
+    }
+  } catch {}
+
+  try {
+    const res = await fetch(`/api/sync/${encodeURIComponent(key)}`);
+    if (res.ok) {
+      const json = await res.json();
+      return json.value;
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
+ * Synchronizes store data from GitHub Pages (public/data/store.json) or local server
  */
 export async function syncAllCloudData(options = { dispatchEvents: true }) {
-  if (syncInProgress) return;
+  if (syncInProgress) return false;
   syncInProgress = true;
 
   try {
-    const { supabaseUrl, supabaseAnonKey, isConfigured } = getCloudSyncConfig();
+    // 1. Fetch public/data/store.json from GitHub Pages / static host
+    try {
+      const storeRes = await fetch(`./data/store.json?t=${Date.now()}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
 
-    // 1. Pull from Supabase if configured
-    if (isConfigured) {
-      try {
-        const res = await fetch(`${supabaseUrl}/rest/v1/sodfa_sync?select=*`, {
-          headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
-            Accept: "application/json",
-          },
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0) {
-            for (const row of rows) {
-              if (row && row.key && row.value !== undefined) {
-                handleIncomingData(row.key, row.value, options.dispatchEvents);
-              }
-            }
-            lastSyncTimestamp = Date.now();
-            return true;
-          }
+      if (storeRes.ok) {
+        const storeData = await storeRes.json();
+        if (storeData && typeof storeData === "object") {
+          if (storeData.settings) handleIncomingData("store_settings", storeData.settings, options.dispatchEvents);
+          if (storeData.products) handleIncomingData("products", storeData.products, options.dispatchEvents);
+          if (storeData.categories) handleIncomingData("categories", storeData.categories, options.dispatchEvents);
+          if (storeData.tickerItems) handleIncomingData("ticker_items", storeData.tickerItems, options.dispatchEvents);
+          if (storeData.adminUsers) handleIncomingData("admin_users", storeData.adminUsers, options.dispatchEvents);
+          if (storeData.orders) handleIncomingData("orders", storeData.orders, options.dispatchEvents);
+
+          lastSyncTimestamp = Date.now();
+          return true;
         }
-      } catch (err) {
-        console.warn("Supabase syncAll failed:", err);
       }
+    } catch (err) {
+      // Static file fetch skipped or offline
     }
 
-    // 2. Pull from Local Server API
+    // 2. Fallback to Local Express Server API (if developing locally)
     try {
       const res = await fetch("/api/sync", { headers: { Accept: "application/json" } });
       if (res.ok) {
@@ -354,9 +268,7 @@ export async function syncAllCloudData(options = { dispatchEvents: true }) {
           return true;
         }
       }
-    } catch {
-      // Local server offline
-    }
+    } catch {}
   } finally {
     syncInProgress = false;
   }
@@ -364,7 +276,7 @@ export async function syncAllCloudData(options = { dispatchEvents: true }) {
 }
 
 /**
- * Initializes continuous cloud synchronization
+ * Initializes continuous data synchronization
  */
 export function initCloudSync() {
   if (typeof window === "undefined") return;
@@ -372,11 +284,10 @@ export function initCloudSync() {
   // 1. Immediate pull on startup
   syncAllCloudData({ dispatchEvents: true });
 
-  // 2. Re-sync whenever user returns to the tab or mobile screen unlocks
+  // 2. Re-sync whenever user returns to tab or mobile screen unlocks
   if (typeof document !== "undefined" && "addEventListener" in document) {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
-        // Throttle to once every 4 seconds
         if (Date.now() - lastSyncTimestamp > 4000) {
           syncAllCloudData({ dispatchEvents: true });
         }
@@ -390,12 +301,12 @@ export function initCloudSync() {
     });
   }
 
-  // 3. Background periodic sync every 12 seconds
+  // 3. Background periodic sync every 15 seconds
   setInterval(() => {
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
       syncAllCloudData({ dispatchEvents: true });
     }
-  }, 12000);
+  }, 15000);
 
   // 4. Auto-push to cloud whenever local mutations occur
   window.addEventListener("daffa:settings-updated", (e) => pushCloudState("store_settings", e.detail));

@@ -1,8 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { saveStoredProducts, getStoredProducts } from "../src/data.js";
-import { uploadToSupabaseStorage, fileToDataUrl, processMediaUpload } from "../src/mediaStorage.js";
+import { fileToDataUrl } from "../src/mediaStorage.js";
 import { getCloudSyncConfig } from "../src/cloudSync.js";
+import {
+  utf8ToBase64,
+  base64ToUtf8,
+  getGitHubConfig,
+  saveGitHubConfig,
+  buildStoreSnapshot,
+  restoreStoreFromData,
+} from "../src/githubSync.js";
 
 // Mock global environment for Node.js test runner
 if (typeof globalThis.localStorage === "undefined") {
@@ -61,49 +69,55 @@ test("Default framing fallbacks to 4/5 contain and 100% scale", () => {
   assert.equal(defaultFraming.alignment, "center");
 });
 
-test("uploadToSupabaseStorage validates parameters and returns public HTTPS URL", async () => {
-  const originalFetch = globalThis.fetch;
-  try {
-    // Mock successful Supabase Storage upload
-    globalThis.fetch = async (url, opts) => {
-      const strUrl = String(url);
-      if (strUrl.includes("/storage/v1/object/product-images/")) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ Key: "product-images/products/test.webp" }),
-          text: async () => "",
-        };
-      }
-      return { ok: false, status: 404 };
-    };
-
-    const mockFile = {
-      name: "watch-front.webp",
-      type: "image/webp",
-      size: 45000,
-    };
-
-    const publicUrl = await uploadToSupabaseStorage(
-      mockFile,
-      "https://xyz.supabase.co",
-      "test-anon-key-123",
-      "product-images"
-    );
-
-    assert.ok(publicUrl.startsWith("https://xyz.supabase.co/storage/v1/object/public/product-images/products/"));
-    assert.ok(publicUrl.endsWith(".webp"));
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+test("utf8ToBase64 and base64ToUtf8 correctly encode and decode Arabic characters", () => {
+  const original = "صُدْفَة للساعات الفاخرة 2026 #DAF-9021";
+  const encoded = utf8ToBase64(original);
+  assert.ok(encoded && typeof encoded === "string");
+  const decoded = base64ToUtf8(encoded);
+  assert.equal(decoded, original);
 });
 
-test("uploadToSupabaseStorage throws when credentials are missing", async () => {
-  const mockFile = { name: "test.webp", type: "image/webp" };
-  await assert.rejects(
-    async () => uploadToSupabaseStorage(mockFile, "", ""),
-    /Missing Supabase parameters/
-  );
+test("GitHub config management saves and retrieves repo credentials", () => {
+  globalThis.localStorage.clear();
+  const empty = getGitHubConfig();
+  assert.equal(empty.isConfigured, false);
+
+  const saved = saveGitHubConfig({
+    githubOwner: "sodfa-store",
+    githubRepo: "sodfa-watches-pages",
+    githubBranch: "main",
+    githubToken: "ghp_test_token_abcdef",
+  });
+
+  assert.equal(saved.isConfigured, true);
+  assert.equal(saved.githubOwner, "sodfa-store");
+  assert.equal(saved.githubRepo, "sodfa-watches-pages");
+
+  const retrieved = getGitHubConfig();
+  assert.equal(retrieved.isConfigured, true);
+  assert.equal(retrieved.githubToken, "ghp_test_token_abcdef");
+});
+
+test("buildStoreSnapshot exports clean data structure with products, settings, and orders", () => {
+  const snapshot = buildStoreSnapshot("Test snapshot");
+  assert.equal(snapshot.version, "2026.1");
+  assert.ok(snapshot.updatedAt);
+  assert.ok(Array.isArray(snapshot.products));
+  assert.ok(Array.isArray(snapshot.categories));
+  assert.ok(typeof snapshot.settings === "object");
+});
+
+test("restoreStoreFromData restores store state from valid backup object", () => {
+  const sampleBackup = {
+    version: "2026.1",
+    settings: { brandName: "صُدْفَة الفاخرة" },
+    products: [{ id: "test-p1", name: "ساعة تجريبية", basePrice: 2000 }],
+    categories: [{ id: "c1", name: "تصنيف تجريبي" }],
+    orders: [{ id: "DAF-9999", customerName: "عميل تجريبي" }],
+  };
+
+  const result = restoreStoreFromData(sampleBackup);
+  assert.equal(result, true);
 });
 
 test("saveStoredProducts dispatches daffa:products-updated and recovers from storage quotas", () => {

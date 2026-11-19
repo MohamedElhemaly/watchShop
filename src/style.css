@@ -1862,20 +1862,32 @@ a {
 
 .checkout-form-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .checkout-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .checkout-field span {
   font-size: 12px;
   font-weight: 700;
   color: var(--teal-950);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .checkout-field span b {
@@ -1885,6 +1897,10 @@ a {
 .checkout-field input,
 .checkout-field select,
 .checkout-field textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 10px 14px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
@@ -1892,6 +1908,13 @@ a {
   color: var(--ink);
   background: #ffffff;
   transition: border-color var(--transition-fast);
+}
+
+.checkout-field select {
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .checkout-field input:focus,
@@ -2208,6 +2231,10 @@ a {
 }
 
 @media (max-width: 680px) {
+  .checkout-form-grid {
+    grid-template-columns: 1fr;
+  }
+
   .site-header {
     padding: 10px 16px;
   }

@@ -50,7 +50,15 @@ import {
 } from "./pricing.js";
 import { createMediaUploader } from "./mediaUploader.js";
 import { resolveMediaUrl, resolveProductsMedia, getCachedMediaUrl } from "./mediaStorage.js";
-import { initCloudSync, syncAllCloudData, testSupabaseConnection, getCloudSyncConfig, pushCloudState } from "./cloudSync.js";
+import { initCloudSync, syncAllCloudData, getCloudSyncConfig, pushCloudState } from "./cloudSync.js";
+import {
+  getGitHubConfig,
+  saveGitHubConfig,
+  testGitHubConnection,
+  publishStoreToGitHub,
+  downloadStoreBackup,
+  restoreStoreFromData,
+} from "./githubSync.js";
 import "./brandLogo.css";
 import "./brandLogo.js";
 
@@ -714,7 +722,6 @@ function addVisualVariantRow(colorLabel = "", imageUrl = "") {
     getCloudSettings: () => ({
       cloudName: storeSettings.cloudinaryCloudName,
       uploadPreset: storeSettings.cloudinaryUploadPreset,
-      supabaseConfig: getCloudSyncConfig(),
     }),
     onChange: (url) => {
       variantObj.imageUrl = url;
@@ -763,15 +770,15 @@ function updateCloudSyncBanner() {
   const banner = $("#admin-cloud-sync-banner");
   if (!banner) return;
 
-  const { isConfigured } = getCloudSyncConfig();
+  const { isConfigured, githubOwner, githubRepo } = getCloudSyncConfig();
   if (isConfigured) {
     banner.className = "cloud-sync-banner is-connected";
     banner.innerHTML = `
       <div class="cloud-sync-main">
-        <span class="cloud-sync-icon" aria-hidden="true">☁️</span>
+        <span class="cloud-sync-icon" aria-hidden="true">🚀</span>
         <div class="cloud-sync-info">
-          <div class="cloud-sync-title">وضع المزامنة السحابية الفورية (مرتبط بـ Supabase)</div>
-          <div class="cloud-sync-desc">أي ساعة جديدة، تعديلات، أو صور ترفعها تظهر فوراً على الموبايل وجميع أجهزة العملاء.</div>
+          <div class="cloud-sync-title">وضع النشر المباشر على GitHub Pages نشط</div>
+          <div class="cloud-sync-desc">أي ساعة جديدة أو تعديل يتم نشره مباشرة إلى مستودع ${safeText(githubOwner)}/${safeText(githubRepo)} ويظهر فوراً لجميع الزوار.</div>
         </div>
       </div>
       <span class="cloud-sync-badge is-active">سحابي نشط ✓</span>
@@ -780,14 +787,14 @@ function updateCloudSyncBanner() {
     banner.className = "cloud-sync-banner is-local";
     banner.innerHTML = `
       <div class="cloud-sync-main">
-        <span class="cloud-sync-icon" aria-hidden="true">📱</span>
+        <span class="cloud-sync-icon" aria-hidden="true">📁</span>
         <div class="cloud-sync-info">
           <div class="cloud-sync-title">وضع التخزين المحلي (على هذا الجهاز فقط)</div>
-          <div class="cloud-sync-desc">لظهور الساعات والصور على الموبايل خارج الشبكة المحلية، قم بإدخال بيانات Supabase في إعدادات المتجر.</div>
+          <div class="cloud-sync-desc">لظهور الساعات على الموبايل وجميع الزوار، قم بإدخال بيانات مستودع GitHub في الإعدادات لنشرها مجاناً.</div>
         </div>
       </div>
       <button type="button" class="admin-button admin-button-small admin-button-quiet" id="btn-goto-cloud-settings">
-        إعدادات الربط السحابي ⚙️
+        إعدادات النشر على GitHub ⚙️
       </button>
     `;
 
@@ -796,8 +803,8 @@ function updateCloudSyncBanner() {
       if (settingsTabBtn) {
         settingsTabBtn.click();
         setTimeout(() => {
-          $("#settings-supabase-url")?.scrollIntoView({ behavior: "smooth", block: "center" });
-          $("#settings-supabase-url")?.focus();
+          $("#setting-github-owner")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          $("#setting-github-owner")?.focus();
         }, 200);
       }
     });
@@ -1134,7 +1141,7 @@ async function handleProductFormSubmit(e) {
     updateKpiStats();
     renderProductsList();
 
-    // Push explicitly to cloud (Supabase and local server sync)
+    // Push explicitly to cloud (store.json / GitHub and local server sync)
     await pushCloudState("products", products);
 
     resolveProductsMedia(products).then((res) => {
@@ -1946,18 +1953,21 @@ function updateCloudinaryBadge() {
   }
 }
 
-function updateSupabaseBadge() {
-  const badge = $("#supabase-status-badge");
-  const sUrl = $("#setting-supabase-url")?.value.trim() || storeSettings.supabaseUrl || "";
-  const sKey = $("#setting-supabase-anon-key")?.value.trim() || storeSettings.supabaseAnonKey || "";
+function updateGitHubBadge() {
+  const badge = $("#github-status-badge");
   if (!badge) return;
 
-  if (sUrl && sKey) {
+  const cfg = getGitHubConfig();
+  const owner = $("#setting-github-owner")?.value.trim() || cfg.githubOwner;
+  const repo = $("#setting-github-repo")?.value.trim() || cfg.githubRepo;
+  const token = $("#setting-github-token")?.value.trim() || cfg.githubToken;
+
+  if (owner && repo && token) {
     badge.className = "cloudinary-status-badge is-connected";
-    badge.textContent = "⚡ متصل بـ Supabase (مزامنة فورية)";
+    badge.textContent = `⚡ متصل بـ GitHub Pages (${owner}/${repo})`;
   } else {
     badge.className = "cloudinary-status-badge is-local";
-    badge.textContent = "مزامنة سحابية محلية نشطة";
+    badge.textContent = "تخزين محلي (غير مرتبط بـ GitHub)";
   }
 }
 
@@ -1966,17 +1976,27 @@ function populateContactsAndPolicies() {
   $("#setting-phone").value = storeSettings.defaultPhone || "";
   $("#setting-shipping").value = storeSettings.shippingDetails || "";
   $("#setting-exchange").value = storeSettings.exchangeDetails || "";
+
   const cloudNameInput = $("#setting-cloudinary-name");
   const cloudPresetInput = $("#setting-cloudinary-preset");
   if (cloudNameInput) cloudNameInput.value = storeSettings.cloudinaryCloudName || "";
   if (cloudPresetInput) cloudPresetInput.value = storeSettings.cloudinaryUploadPreset || "";
-  const sUrlInput = $("#setting-supabase-url");
-  const sKeyInput = $("#setting-supabase-anon-key");
-  if (sUrlInput) sUrlInput.value = storeSettings.supabaseUrl || "";
-  if (sKeyInput) sKeyInput.value = storeSettings.supabaseAnonKey || "";
+
+  // GitHub Pages Settings
+  const gh = getGitHubConfig();
+  const ghOwnerInput = $("#setting-github-owner");
+  const ghRepoInput = $("#setting-github-repo");
+  const ghBranchInput = $("#setting-github-branch");
+  const ghTokenInput = $("#setting-github-token");
+
+  if (ghOwnerInput) ghOwnerInput.value = gh.githubOwner || storeSettings.githubOwner || "";
+  if (ghRepoInput) ghRepoInput.value = gh.githubRepo || storeSettings.githubRepo || "";
+  if (ghBranchInput) ghBranchInput.value = gh.githubBranch || storeSettings.githubBranch || "main";
+  if (ghTokenInput) ghTokenInput.value = gh.githubToken || storeSettings.githubToken || "";
+
   updateWhatsAppPreview();
   updateCloudinaryBadge();
-  updateSupabaseBadge();
+  updateGitHubBadge();
 }
 
 function handleContactsSubmit(e) {
@@ -1996,8 +2016,10 @@ function handleContactsSubmit(e) {
   const cleanWa = formatWhatsAppPhone(rawWa);
   const cName = $("#setting-cloudinary-name")?.value.trim() || "";
   const cPreset = $("#setting-cloudinary-preset")?.value.trim() || "";
-  const sUrl = $("#setting-supabase-url")?.value.trim() || "";
-  const sKey = $("#setting-supabase-anon-key")?.value.trim() || "";
+  const ghOwner = $("#setting-github-owner")?.value.trim() || "";
+  const ghRepo = $("#setting-github-repo")?.value.trim() || "";
+  const ghBranch = $("#setting-github-branch")?.value.trim() || "main";
+  const ghToken = $("#setting-github-token")?.value.trim() || "";
 
   storeSettings = {
     ...storeSettings,
@@ -2007,15 +2029,25 @@ function handleContactsSubmit(e) {
     exchangeDetails: $("#setting-exchange").value.trim(),
     cloudinaryCloudName: cName,
     cloudinaryUploadPreset: cPreset,
-    supabaseUrl: sUrl,
-    supabaseAnonKey: sKey,
+    githubOwner: ghOwner,
+    githubRepo: ghRepo,
+    githubBranch: ghBranch,
+    githubToken: ghToken,
   };
 
   saveStoreSettings(storeSettings);
+  saveGitHubConfig({
+    githubOwner: ghOwner,
+    githubRepo: ghRepo,
+    githubBranch: ghBranch,
+    githubToken: ghToken,
+  });
+
   updateWhatsAppPreview();
   updateCloudinaryBadge();
-  updateSupabaseBadge();
-  showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات المزامنة السحابية بنجاح ✓");
+  updateGitHubBadge();
+  updateCloudSyncBanner();
+  showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات GitHub بنجاح ✓");
 
   fetch("/api/admin/settings", {
     method: "PUT",
@@ -2630,27 +2662,34 @@ function initAdminApp() {
   $("#setting-whatsapp")?.addEventListener("input", updateWhatsAppPreview);
   $("#setting-cloudinary-name")?.addEventListener("input", updateCloudinaryBadge);
   $("#setting-cloudinary-preset")?.addEventListener("input", updateCloudinaryBadge);
-  $("#setting-supabase-url")?.addEventListener("input", updateSupabaseBadge);
-  $("#setting-supabase-anon-key")?.addEventListener("input", updateSupabaseBadge);
-  $("#btn-test-supabase")?.addEventListener("click", async () => {
-    const feedback = $("#supabase-test-feedback");
-    const sUrl = $("#setting-supabase-url")?.value.trim() || storeSettings.supabaseUrl || "";
-    const sKey = $("#setting-supabase-anon-key")?.value.trim() || storeSettings.supabaseAnonKey || "";
+  // GitHub Pages Live Publish Settings
+  $("#setting-github-owner")?.addEventListener("input", updateGitHubBadge);
+  $("#setting-github-repo")?.addEventListener("input", updateGitHubBadge);
+  $("#setting-github-branch")?.addEventListener("input", updateGitHubBadge);
+  $("#setting-github-token")?.addEventListener("input", updateGitHubBadge);
+
+  $("#btn-test-github")?.addEventListener("click", async () => {
+    const feedback = $("#github-test-feedback");
+    const owner = $("#setting-github-owner")?.value.trim();
+    const repo = $("#setting-github-repo")?.value.trim();
+    const branch = $("#setting-github-branch")?.value.trim() || "main";
+    const token = $("#setting-github-token")?.value.trim();
 
     if (feedback) {
-      feedback.textContent = "جاري اختبار الاتصال بـ Supabase...";
+      feedback.textContent = "جاري اختبار الاتصال بمستودع GitHub...";
       feedback.style.color = "var(--ink-muted)";
     }
 
-    const res = await testSupabaseConnection(sUrl, sKey);
+    const res = await testGitHubConnection({ githubOwner: owner, githubRepo: repo, githubBranch: branch, githubToken: token });
     if (res.ok) {
       if (feedback) {
         feedback.textContent = res.message;
         feedback.style.color = "var(--success-ink)";
       }
-      updateSupabaseBadge();
-      await syncAllCloudData();
-      showToast("تم اختبار الاتصال وبدء المزامنة السحابية بنجاح ✓");
+      saveGitHubConfig({ githubOwner: owner, githubRepo: repo, githubBranch: branch, githubToken: token });
+      updateGitHubBadge();
+      updateCloudSyncBanner();
+      showToast("تم التحقق من مستودع GitHub بنجاح ✓");
     } else {
       if (feedback) {
         feedback.textContent = res.message;
@@ -2659,6 +2698,57 @@ function initAdminApp() {
       showToast(res.message, true);
     }
   });
+
+  $("#btn-publish-github-now")?.addEventListener("click", async () => {
+    const publishBtn = $("#btn-publish-github-now");
+    const origText = publishBtn?.innerHTML || "";
+    if (publishBtn) {
+      publishBtn.disabled = true;
+      publishBtn.textContent = "جاري النشر على GitHub Pages... ⏳";
+    }
+    try {
+      await publishStoreToGitHub({ reason: "نشر فوري يدوي من لوحة تحكم صُدْفَة" });
+      showToast("تم نشر أحدث بيانات وساعات المتجر على GitHub Pages بنجاح 🚀");
+      if ($("#github-test-feedback")) {
+        $("#github-test-feedback").textContent = `تم النشر بنجاح على فرع ${getGitHubConfig().githubBranch || "main"} ✓`;
+        $("#github-test-feedback").style.color = "var(--success-ink)";
+      }
+    } catch (err) {
+      showToast(`فشل النشر على GitHub: ${err?.message || err}`, true);
+      if ($("#github-test-feedback")) {
+        $("#github-test-feedback").textContent = `فشل النشر: ${err?.message || err}`;
+        $("#github-test-feedback").style.color = "var(--sale-solid)";
+      }
+    } finally {
+      if (publishBtn) {
+        publishBtn.disabled = false;
+        publishBtn.innerHTML = origText;
+      }
+    }
+  });
+
+  $("#btn-download-backup")?.addEventListener("click", () => {
+    downloadStoreBackup();
+    showToast("تم تنزيل نسخة احتياطية من store.json بنجاح 📥");
+  });
+
+  $("#input-import-backup")?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const json = JSON.parse(String(ev.target.result || "{}"));
+        restoreStoreFromData(json);
+        showToast("تم استيراد النسخة الاحتياطية وتحديث المتجر بنجاح ✓");
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        showToast(`فشل استيراد الملف: ${err.message}`, true);
+      }
+    };
+    reader.readAsText(file);
+  });
+
   $("#btn-add-variant-row")?.addEventListener("click", () => addVisualVariantRow());
 
   // Initialize Direct Device Media Uploaders
@@ -2674,7 +2764,6 @@ function initAdminApp() {
       getCloudSettings: () => ({
         cloudName: storeSettings.cloudinaryCloudName,
         uploadPreset: storeSettings.cloudinaryUploadPreset,
-        supabaseConfig: getCloudSyncConfig(),
       }),
       onChange: (url) => {
         const input = $("#edit-image-url");
@@ -2696,7 +2785,6 @@ function initAdminApp() {
       getCloudSettings: () => ({
         cloudName: storeSettings.cloudinaryCloudName,
         uploadPreset: storeSettings.cloudinaryUploadPreset,
-        supabaseConfig: getCloudSyncConfig(),
       }),
       onChange: (url) => {
         const input = $("#setting-video-url");
@@ -2717,7 +2805,6 @@ function initAdminApp() {
       getCloudSettings: () => ({
         cloudName: storeSettings.cloudinaryCloudName,
         uploadPreset: storeSettings.cloudinaryUploadPreset,
-        supabaseConfig: getCloudSyncConfig(),
       }),
       onChange: (url) => {
         const input = $("#setting-poster-url");

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>صُدْفَة — جاري التحويل</title>
+  <script>
+    // GitHub Pages SPA Single-Page Router Fallback
+    (function () {
+      var pathname = window.location.pathname;
+      var search = window.location.search || "";
+      var hash = window.location.hash || "";
+
+      // Check if accessing admin or product subpaths
+      if (pathname.includes("/admin")) {
+        window.location.replace("admin.html" + search + hash);
+      } else if (pathname.includes("/product")) {
+        window.location.replace("product.html" + search + hash);
+      } else {
+        window.location.replace("index.html" + search + hash);
+      }
+    })();
+  </script>
+</head>
+<body style="font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 60px 20px; color: #0E2924; background: #FAF8F5;">
+  <h2 style="margin-bottom: 8px;">صُدْفَة للساعات الفاخرة</h2>
+  <p style="color: #6B7280; font-size: 14px;">جاري توجيهك إلى وجهتك، يرجى الانتظار لحظة...</p>
+</body>
+</html>

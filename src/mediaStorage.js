@@ -288,66 +288,7 @@ export async function optimizeImageFile(file, maxDimension = 1200, quality = 0.8
   });
 }
 
-/**
- * Uploads media file to Supabase Storage Bucket (default: "product-images")
- * Guarantees cross-device access with permanent public HTTPS URL
- */
-export async function uploadToSupabaseStorage(file, supabaseUrl, supabaseAnonKey, bucket = "product-images") {
-  if (!file || !supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing Supabase parameters (Project URL or Anon Key).");
-  }
-
-  const cleanUrl = String(supabaseUrl).trim().replace(/\/$/, "");
-  const cleanKey = String(supabaseAnonKey).trim();
-  const ext = (file.name ? file.name.split(".").pop() : "") || (file.type?.includes("video") ? "mp4" : "webp");
-  const fileName = `products/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-  // 1. Try direct upload to bucket
-  let res = await fetch(`${cleanUrl}/storage/v1/object/${bucket}/${fileName}`, {
-    method: "POST",
-    headers: {
-      apikey: cleanKey,
-      Authorization: `Bearer ${cleanKey}`,
-      "Content-Type": file.type || "image/webp",
-      "x-upsert": "true",
-    },
-    body: file,
-  });
-
-  // 2. If bucket not found (404), attempt to create public bucket once
-  if (!res.ok && res.status === 404) {
-    try {
-      await fetch(`${cleanUrl}/storage/v1/bucket`, {
-        method: "POST",
-        headers: {
-          apikey: cleanKey,
-          Authorization: `Bearer ${cleanKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id: bucket, name: bucket, public: true }),
-      });
-
-      // Retry upload
-      res = await fetch(`${cleanUrl}/storage/v1/object/${bucket}/${fileName}`, {
-        method: "POST",
-        headers: {
-          apikey: cleanKey,
-          Authorization: `Bearer ${cleanKey}`,
-          "Content-Type": file.type || "image/webp",
-          "x-upsert": "true",
-        },
-        body: file,
-      });
-    } catch {}
-  }
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Supabase Storage upload failed: ${res.statusText} ${errText}`);
-  }
-
-  return `${cleanUrl}/storage/v1/object/public/${bucket}/${fileName}`;
-}
+import { getGitHubConfig, uploadMediaToGitHub } from "./githubSync.js";
 
 /**
  * Converts a File / Blob to a Base64 Data URL for compact, self-contained cross-device sync
@@ -396,11 +337,11 @@ export async function uploadToCloudinary(file, cloudName, uploadPreset) {
 
 /**
  * High-level Processor:
- * Optimizes image, checks Supabase Storage first for instant cross-device sync,
+ * Optimizes image, checks GitHub Pages repo upload first for 100% free unlimited hosting,
  * then Cloudinary, and falls back gracefully to compact Data URL / IndexedDB.
  */
 export async function processMediaUpload(file, options = {}) {
-  const { isVideo = false, cloudSettings = null, supabaseConfig = null, onProgress = null } = options;
+  const { isVideo = false, cloudSettings = null, onProgress = null } = options;
 
   if (onProgress) onProgress("جاري فحص الملف...");
 
@@ -414,38 +355,24 @@ export async function processMediaUpload(file, options = {}) {
     }
   }
 
-  // 1. Check Supabase Storage (cross-device cloud persistence)
-  let sbUrl = supabaseConfig?.supabaseUrl;
-  let sbKey = supabaseConfig?.supabaseAnonKey;
-  if (!sbUrl || !sbKey) {
-    try {
-      if (typeof localStorage !== "undefined") {
-        const raw = localStorage.getItem("daffa_store_settings");
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          sbUrl = parsed.supabaseUrl;
-          sbKey = parsed.supabaseAnonKey;
-        }
-      }
-    } catch {}
-  }
-
-  if (sbUrl && sbKey) {
-    try {
-      if (onProgress) onProgress("جاري الرفع إلى التخزين السحابي (Supabase Storage)...");
-      const cloudUrl = await uploadToSupabaseStorage(processedFile, sbUrl, sbKey, "product-images");
-      if (onProgress) onProgress("اكتمل الرفع السحابي بنجاح ✓");
+  // 1. Try GitHub Pages Upload first (100% free unlimited media hosting)
+  try {
+    const ghConfig = getGitHubConfig();
+    if (ghConfig.isConfigured) {
+      if (onProgress) onProgress("جاري الرفع المباشر إلى مستودع GitHub Pages...");
+      const ghResult = await uploadMediaToGitHub(processedFile, "public/uploads");
+      if (onProgress) onProgress("اكتمل الرفع على GitHub Pages بنجاح ✓");
       return {
-        url: cloudUrl,
-        previewUrl: cloudUrl,
+        url: ghResult.url,
+        previewUrl: ghResult.rawUrl || ghResult.url,
         isCloud: true,
         size: processedFile.size,
         name: processedFile.name,
         type: processedFile.type,
       };
-    } catch (sbErr) {
-      console.warn("Supabase Storage upload failed, falling back:", sbErr);
     }
+  } catch (ghErr) {
+    console.warn("GitHub upload failed, falling back:", ghErr);
   }
 
   // 2. Try Cloudinary if configured
@@ -476,7 +403,7 @@ export async function processMediaUpload(file, options = {}) {
   const mediaId = await saveMediaBlob(processedFile, processedFile.name, processedFile.type);
   const previewUrl = await resolveMediaUrl(mediaId);
 
-  // If optimized image is under 250KB, convert to Data URL so it syncs across devices via /api/sync
+  // If optimized image is under 250KB, convert to Data URL so it syncs across devices via store.json
   let dataUrl = "";
   if (!isVideo && processedFile.size < 250 * 1024) {
     try {

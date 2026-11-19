@@ -17,9 +17,9 @@
     <!-- Standalone Admin Top Navigation Bar -->
     <header class="admin-header">
       <div class="admin-brand-col">
-        <a class="admin-brand" href="/admin" aria-label="لوحة إدارة متجر صُدْفَة">
+        <a class="admin-brand" href="admin.html" aria-label="لوحة إدارة متجر صُدْفَة">
           <span class="brand-logo-circle size-md" style="margin-inline-end: 10px;">
-            <img src="/sodfa-icon-v3.png" alt="شعار صُدْفَة" />
+            <img src="./sodfa-icon-v3.png" alt="شعار صُدْفَة" />
           </span>
           <span>
             <strong>صُدْفَة</strong>
@@ -33,7 +33,7 @@
           <span class="user-role-badge" id="header-user-role-badge">المدير العام</span>
           <strong id="header-user-name">admin</strong>
         </div>
-        <a class="admin-view-store" href="/" target="_blank" rel="noopener noreferrer">
+        <a class="admin-view-store" href="./index.html" target="_blank" rel="noopener noreferrer">
           <span>معاينة المتجر المباشر</span>
           <span aria-hidden="true">↗</span>
         </a>
@@ -352,7 +352,7 @@
                 <div class="editor-section framing-controls-section">
                   <div class="framing-section-header">
                     <div>
-                      <strong class="framing-title">📐 أبعاد وتأطير صورة الساعة في المتجر</strong>
+                      <strong class="framing-title">أبعاد وتأطير صورة الساعة في المتجر</strong>
                       <small class="framing-subtitle">تحكم كامل في مقاس العرض، التكبير، والتمركز لمنع أي قص غير مرغوب فيه</small>
                     </div>
                   </div>
@@ -636,7 +636,7 @@
               <div class="notification-channel-box">
                 <div class="channel-header-row">
                   <div>
-                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">💬 قناة تيليجرام الفورية (الأسرع والأسهل)</h3>
+                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">قناة تيليجرام الفورية (الأسرع والأسهل)</h3>
                     <p style="margin:4px 0 0; font-size:12px; color:var(--ink-muted);">تصلك رسالة بكل تفاصيل الطلب على هاتفك فورًا عبر بوت تيليجرام مجاني.</p>
                   </div>
                   <label class="admin-checkbox-label">
@@ -661,7 +661,7 @@
               <div class="notification-channel-box" style="margin-top:16px;">
                 <div class="channel-header-row">
                   <div>
-                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">✉️ إشعارات البريد الإلكتروني (Web3Forms / Formspree)</h3>
+                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">إشعارات البريد الإلكتروني (Web3Forms / Formspree)</h3>
                     <p style="margin:4px 0 0; font-size:12px; color:var(--ink-muted);">إرسال تفاصيل كل طلب إلى بريدك الإلكتروني الشخصي مباشرة.</p>
                   </div>
                   <label class="admin-checkbox-label">
@@ -816,35 +816,59 @@
                 </small>
               </div>
 
-              <!-- Cloud Database & Cross-Device Sync Card (Supabase) -->
-              <div class="cloudinary-settings-card supabase-sync-card" style="margin-top: 16px; border-color: rgba(11, 59, 56, 0.2);">
+              <!-- Free GitHub Pages Live Publish & Unlimited Database Card -->
+              <div class="cloudinary-settings-card github-sync-card" style="margin-top: 16px; border-color: rgba(11, 59, 56, 0.2);">
                 <div class="cloudinary-header">
                   <div>
-                    <h4>⚡ المزامنة السحابية وقاعدة البيانات بين الأجهزة (Supabase / Cross-Device Sync)</h4>
+                    <h4>إعدادات النشر على GitHub (استضافة مجانية 100% ومستقرة للأبد)</h4>
                     <p style="margin: 4px 0 0; font-size: 12px; color: var(--ink-muted);">
-                      تتيح مزامنة الإعدادات، وأرقام الواتساب، والطلبات، وحسابات المشرفين (مثل Hager Samir) لحظياً بين الكمبيوتر والهواتف المحمولة.
+                      يتيح نشر التعديلات، الساعات، الصور، وتحديثات الطلبات مباشرة على موقعك المنشور على GitHub Pages مع حفظ مجاني غير محدود لملف <code>store.json</code>.
                     </p>
                   </div>
-                  <span id="supabase-status-badge" class="cloudinary-status-badge is-local">مزامنة سحابية محلية نشطة</span>
+                  <span id="github-status-badge" class="cloudinary-status-badge is-local">تخزين محلي (غير مرتبط بـ GitHub)</span>
                 </div>
+
                 <div class="form-row-2" style="margin-top: 10px;">
                   <label class="form-field">
-                    <span>رابط مشروع Supabase (Project URL)</span>
-                    <input id="setting-supabase-url" type="url" placeholder="https://xyzcompany.supabase.co" dir="ltr" />
+                    <span>اسم المستخدم أو المنظمة في GitHub (Username / Org) *</span>
+                    <input id="setting-github-owner" type="text" placeholder="مثال: your-username" dir="ltr" />
                   </label>
                   <label class="form-field">
-                    <span>مفتاح الوصول العام (Anon Public Key)</span>
-                    <input id="setting-supabase-anon-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." dir="ltr" />
+                    <span>اسم المستودع (Repository Name) *</span>
+                    <input id="setting-github-repo" type="text" placeholder="مثال: sodfa-store" dir="ltr" />
                   </label>
                 </div>
-                <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
-                  <button type="button" id="btn-test-supabase" class="admin-button admin-button-small" style="font-size: 12px;">
-                    اختبار ومزامنة فورية الآن 🔄
-                  </button>
-                  <span id="supabase-test-feedback" style="font-size: 12px; color: var(--teal-900);"></span>
+
+                <div class="form-row-2" style="margin-top: 10px;">
+                  <label class="form-field">
+                    <span>فرع النشر (Branch) *</span>
+                    <input id="setting-github-branch" type="text" value="main" placeholder="main" dir="ltr" />
+                  </label>
+                  <label class="form-field">
+                    <span>رمز الوصول الشخصي (Personal Access Token - PAT) *</span>
+                    <input id="setting-github-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" dir="ltr" />
+                  </label>
                 </div>
-                <small class="field-hint" style="display:block; margin-top:6px; font-size: 11.5px; line-height: 1.5;">
-                  <strong>ملاحظة:</strong> إذا تُركت الحقول فارغة، يستمر المتجر بالمزامنة التلقائية عبر شبكة الخادم المحلية والتخزين المؤقت الفوري.
+
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px;">
+                  <button type="button" id="btn-test-github" class="admin-button admin-button-small" style="font-size: 12px;">
+                    اختبار الاتصال بـ GitHub ⚡
+                  </button>
+                  <button type="button" id="btn-publish-github-now" class="admin-button admin-button-small admin-button-primary" style="font-size: 12px;">
+                    نشر التغييرات على GitHub الآن 🚀
+                  </button>
+                  <button type="button" id="btn-download-backup" class="admin-button admin-button-small admin-button-quiet" style="font-size: 12px;">
+                    تصدير نسخة احتياطية (Download store.json) 📥
+                  </button>
+                  <label class="admin-button admin-button-small admin-button-quiet" style="font-size: 12px; cursor: pointer; position: relative;">
+                    استيراد نسخة احتياطية 📤
+                    <input type="file" id="input-import-backup" accept=".json,application/json" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
+                  </label>
+                  <span id="github-test-feedback" style="font-size: 12px; color: var(--teal-900); width: 100%;"></span>
+                </div>
+
+                <small class="field-hint" style="display:block; margin-top:8px; font-size: 11.5px; line-height: 1.5;">
+                  <strong>تلميح:</strong> الرمز الشخصي يحتاج صلاحية (<code>repo</code> أو <code>contents: write</code>). يتم حفظ الرمز بأمان في متصفحك لنشر التعديلات ورفع الصور فورياً دون أي تكلفة.
                 </small>
               </div>
 

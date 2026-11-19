@@ -830,9 +830,11 @@ export const defaultStoreSettings = {
   // Cloudinary Optional Media Sync
   cloudinaryCloudName: "",
   cloudinaryUploadPreset: "",
-  // Cloud Database & Cross-Device Sync (Supabase / Cloud DB)
-  supabaseUrl: "",
-  supabaseAnonKey: "",
+  // GitHub Pages Live Publish & Cloud Persistence
+  githubOwner: "",
+  githubRepo: "",
+  githubBranch: "main",
+  githubToken: "",
   cloudSyncEnabled: true,
 };
 

@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import { resolve } from "node:path";
 
 export default defineConfig({
+  base: "./",
   server: {
     allowedHosts: [".manus.computer", "localhost", "127.0.0.1"],
   },

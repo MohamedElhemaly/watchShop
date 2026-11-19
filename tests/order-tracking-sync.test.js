@@ -33,7 +33,6 @@ const {
 
 const {
   getCloudSyncConfig,
-  testSupabaseConnection,
 } = await import("../src/cloudSync.js");
 
 const {
@@ -170,22 +169,25 @@ test("Admin authentication supports Hager Samir case-insensitively with trimmed 
 });
 
 // ----------------------------------------------------
-// 5. Cloud Sync Configuration Tests
+// 5. Cloud Sync Configuration Tests (GitHub Pages)
 // ----------------------------------------------------
-test("getCloudSyncConfig detects configured vs unconfigured Supabase credentials", () => {
+test("getCloudSyncConfig detects configured vs unconfigured GitHub sync credentials", () => {
   globalThis.localStorage.clear();
   const configEmpty = getCloudSyncConfig();
   assert.equal(configEmpty.isConfigured, false);
 
   globalThis.localStorage.setItem(
-    "daffa_store_settings",
+    "daffa_github_config",
     JSON.stringify({
-      supabaseUrl: "https://myproject.supabase.co",
-      supabaseAnonKey: "sample-anon-key-12345",
+      githubOwner: "sodfa-watches",
+      githubRepo: "sodfa-catalog",
+      githubBranch: "main",
+      githubToken: "ghp_mock_token_12345",
     })
   );
   const configFilled = getCloudSyncConfig();
   assert.equal(configFilled.isConfigured, true);
-  assert.equal(configFilled.supabaseUrl, "https://myproject.supabase.co");
-  assert.equal(configFilled.supabaseAnonKey, "sample-anon-key-12345");
+  assert.equal(configFilled.githubOwner, "sodfa-watches");
+  assert.equal(configFilled.githubRepo, "sodfa-catalog");
+  assert.equal(configFilled.githubBranch, "main");
 });

@@ -103,7 +103,11 @@ export function formatWhatsAppPhone(rawPhone) {
 export function getDb() {
   if (dbClient) return dbClient;
 
-  const isTest = process.env.NODE_ENV === "test" || process.argv.includes("--test");
+  const isTest =
+    process.env.NODE_ENV === "test" ||
+    process.argv.includes("--test") ||
+    (Array.isArray(process.execArgv) && process.execArgv.includes("--test")) ||
+    process.env.npm_lifecycle_event === "test";
   const defaultUrl = isTest ? "file:local.db" : "libsql://sodfa-mohamedelhemaly.aws-eu-central-1.turso.io";
   const defaultToken = isTest
     ? undefined
@@ -475,12 +479,27 @@ export async function authenticateAdmin(req) {
     token = String(req.query.token).trim();
   }
 
-  if (!token) return null;
+  // 1. Verify signed JWT token if present
+  if (token && !token.startsWith("{") && !token.startsWith("%7B")) {
+    const payload = verifyAdminToken(token);
+    if (payload && payload.userId) {
+      const db = getDb();
+      const res = await db.execute({
+        sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;",
+        args: [payload.userId],
+      });
+      const row = res.rows[0];
+      if (row && row.status !== "suspended") {
+        return mapAdminRow(row);
+      }
+    }
+  }
 
-  // Support legacy direct session payload in headers / cookies
-  if (token.startsWith("{")) {
+  // 2. Check session payload from x-admin-session header or fallback JSON tokens
+  const sessionRaw = req.headers?.["x-admin-session"] || (token && (token.startsWith("{") || token.startsWith("%7B")) ? token : "");
+  if (sessionRaw) {
     try {
-      const parsed = JSON.parse(token);
+      const parsed = JSON.parse(decodeURIComponent(sessionRaw));
       if (parsed.userId || parsed.username) {
         const db = getDb();
         const r = await db.execute({
@@ -494,17 +513,5 @@ export async function authenticateAdmin(req) {
     } catch {}
   }
 
-  const payload = verifyAdminToken(token);
-  if (!payload || !payload.userId) return null;
-
-  const db = getDb();
-  const res = await db.execute({
-    sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;",
-    args: [payload.userId],
-  });
-
-  const row = res.rows[0];
-  if (!row || row.status === "suspended") return null;
-
-  return mapAdminRow(row);
+  return null;
 }

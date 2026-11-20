@@ -251,37 +251,55 @@ function applyStoreSettings(settings = currentSettings) {
   const videoPlayer = $("#hero-video-player");
   const videoSource = $("#hero-video-source");
   if (videoPlayer) {
-    const rawVideo = settings.heroVideoUrl || settings.videoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
-    const rawPoster = settings.heroPosterUrl || settings.posterUrl || "/sodfa-promo-poster.jpg";
+    const rawVideo = String(settings.heroVideoUrl || settings.videoUrl || "").trim();
+    const rawPoster = String(settings.heroPosterUrl || settings.posterUrl || "/sodfa-promo-poster.jpg").trim();
 
-    resolveMediaUrl(rawVideo).then((targetVideo) => {
-      if (targetVideo) {
-        // Enforce autoplay & inline video attributes across iOS Safari, Android, and Desktop
-        videoPlayer.muted = true;
-        videoPlayer.playsInline = true;
-        videoPlayer.autoplay = true;
-        videoPlayer.loop = true;
-        videoPlayer.setAttribute("muted", "");
-        videoPlayer.setAttribute("playsinline", "");
-        videoPlayer.setAttribute("webkit-playsinline", "");
-        videoPlayer.setAttribute("autoplay", "");
-        videoPlayer.setAttribute("loop", "");
+    // 1. Resolve and apply luxury poster image
+    resolveMediaUrl(rawPoster || "/sodfa-promo-poster.jpg").then((targetPoster) => {
+      const finalPoster = targetPoster || "/sodfa-promo-poster.jpg";
+      videoPlayer.setAttribute("poster", finalPoster);
+      videoPlayer.poster = finalPoster;
+    });
 
-        if (videoPlayer.getAttribute("data-applied-src") !== targetVideo) {
-          videoPlayer.setAttribute("data-applied-src", targetVideo);
-          if (videoSource) videoSource.setAttribute("src", targetVideo);
-          videoPlayer.src = targetVideo;
-          videoPlayer.load();
-          videoPlayer.play().catch(() => {});
+    // 2. Only load video when a valid URL is provided (ignore legacy non-existent placeholder paths)
+    if (rawVideo && !rawVideo.includes("manus-storage")) {
+      resolveMediaUrl(rawVideo).then((targetVideo) => {
+        if (targetVideo) {
+          // Enforce autoplay & inline video attributes across iOS Safari, Android, and Desktop
+          videoPlayer.muted = true;
+          videoPlayer.playsInline = true;
+          videoPlayer.autoplay = true;
+          videoPlayer.loop = true;
+          videoPlayer.setAttribute("muted", "");
+          videoPlayer.setAttribute("playsinline", "");
+          videoPlayer.setAttribute("webkit-playsinline", "");
+          videoPlayer.setAttribute("autoplay", "");
+          videoPlayer.setAttribute("loop", "");
+
+          if (videoPlayer.getAttribute("data-applied-src") !== targetVideo) {
+            videoPlayer.setAttribute("data-applied-src", targetVideo);
+            if (videoSource) videoSource.setAttribute("src", targetVideo);
+            videoPlayer.src = targetVideo;
+            videoPlayer.load();
+            videoPlayer.play().catch(() => {});
+          }
         }
-      }
-    });
+      });
+    } else {
+      // Clear video source so the browser cleanly shows the luxury poster without black screen
+      videoPlayer.removeAttribute("data-applied-src");
+      videoPlayer.removeAttribute("src");
+      if (videoSource) videoSource.removeAttribute("src");
+      videoPlayer.load();
+    }
 
-    resolveMediaUrl(rawPoster).then((targetPoster) => {
-      if (targetPoster && videoPlayer.getAttribute("poster") !== targetPoster) {
-        videoPlayer.setAttribute("poster", targetPoster);
-      }
-    });
+    // 3. Fallback on video loading error (e.g. broken Cloudinary URL, 404, or network issue)
+    videoPlayer.onerror = () => {
+      console.warn("Hero video failed to load, falling back to luxury poster.");
+      videoPlayer.removeAttribute("src");
+      if (videoSource) videoSource.removeAttribute("src");
+      videoPlayer.poster = "/sodfa-promo-poster.jpg";
+    };
   }
 
   // Ordering & Contact Links

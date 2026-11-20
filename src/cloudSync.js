@@ -74,9 +74,10 @@ export async function pushCloudState(key, data) {
 
   // 2. Try Vercel Serverless /api endpoints (Turso DB live sync)
   try {
+    let sessionRaw = "";
     let token = "";
     try {
-      const sessionRaw = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+      sessionRaw = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session") || "";
       if (sessionRaw) {
         const parsed = JSON.parse(sessionRaw);
         token = parsed.token || "";
@@ -85,6 +86,8 @@ export async function pushCloudState(key, data) {
 
     const authHeaders = { "Content-Type": "application/json" };
     if (token) authHeaders["Authorization"] = `Bearer ${token}`;
+    if (token) authHeaders["x-admin-token"] = token;
+    if (sessionRaw) authHeaders["x-admin-session"] = sessionRaw;
 
     if (key === "store_settings") {
       fetch("/api/settings", {
@@ -103,6 +106,13 @@ export async function pushCloudState(key, data) {
         method: "PUT",
         headers: authHeaders,
         body: JSON.stringify({ categories: data }),
+      }).catch(() => {});
+    } else if (key === "products" && data && !Array.isArray(data)) {
+      // Single product push
+      fetch("/api/products", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify(data),
       }).catch(() => {});
     }
   } catch {}

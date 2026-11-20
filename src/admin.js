@@ -103,6 +103,25 @@ function getEffectiveCloudinarySettings() {
   };
 }
 
+function getAdminAuthHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  try {
+    const raw = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+    if (raw) {
+      headers["x-admin-session"] = raw;
+      const parsed = JSON.parse(raw);
+      if (parsed.token) {
+        headers["Authorization"] = `Bearer ${parsed.token}`;
+        headers["x-admin-token"] = parsed.token;
+      } else {
+        headers["Authorization"] = `Bearer ${raw}`;
+        headers["x-admin-token"] = raw;
+      }
+    }
+  } catch {}
+  return headers;
+}
+
 // EGP Formatter
 const formatEgp = (val) => `${formatEgpNumber(val)} ج.م`;
 
@@ -215,7 +234,7 @@ function updateAuthViews() {
   }
 }
 
-function handleLoginSubmit(e) {
+async function handleLoginSubmit(e) {
   e.preventDefault();
   const username = $("#login-username")?.value.trim();
   const password = $("#login-password")?.value.trim();
@@ -257,22 +276,22 @@ function handleLoginSubmit(e) {
     loggedInAt: new Date().toISOString(),
   };
 
-  // Obtain cloud session token from /api/auth
+  // Obtain cloud session token from /api/auth before continuing
   try {
-    fetch("/api/auth?action=login", {
+    const authRes = await fetch("/api/auth?action=login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, rememberMe }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && data.token) {
-          sessionData.token = data.token;
-          setAdminSession(sessionData, rememberMe);
-        }
-      })
-      .catch(() => { });
-  } catch { }
+    });
+    if (authRes.ok) {
+      const data = await authRes.json();
+      if (data && data.token) {
+        sessionData.token = data.token;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not obtain online auth token, falling back to local session:", err);
+  }
 
   setAdminSession(sessionData, rememberMe);
   updateAuthViews();
@@ -680,7 +699,7 @@ function handleBulkDeleteProducts() {
 
       fetch("/api/products", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminAuthHeaders(),
         body: JSON.stringify({ ids: idsToDelete }),
       }).catch(() => { });
     },
@@ -1181,17 +1200,25 @@ async function handleProductFormSubmit(e) {
       renderProductsList();
     });
 
-    showToast(`تم حفظ الساعة «${name}» وتحديث المتجر بنجاح ✓`);
-
-    fetch(`/api/products`, {
-      method: existingIndex > -1 ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(productData),
-    }).catch(() => { });
+    try {
+      const cloudRes = await fetch(`/api/products`, {
+        method: existingIndex > -1 ? "PUT" : "POST",
+        headers: getAdminAuthHeaders(),
+        body: JSON.stringify(productData),
+      });
+      if (cloudRes.ok) {
+        showToast(`تم حفظ الساعة «${name}» ومزامنتها سحابياً بنجاح ✓`);
+      } else {
+        const errJson = await cloudRes.json().catch(() => ({}));
+        showToast(`تم الحفظ محلياً (تنبيه السحابة: ${errJson.error || "فشل المزامنة"})`, true);
+      }
+    } catch {
+      showToast(`تم حفظ الساعة «${name}» محلياً.`);
+    }
 
     fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
       method: existingIndex > -1 ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify(productData),
     }).catch(() => { });
 
@@ -1233,10 +1260,12 @@ function handleProductDelete() {
 
   fetch(`/api/products?id=${encodeURIComponent(editingProductId)}`, {
     method: "DELETE",
+    headers: getAdminAuthHeaders(),
   }).catch(() => { });
 
   fetch(`/api/admin/products/${encodeURIComponent(editingProductId)}`, {
     method: "DELETE",
+    headers: getAdminAuthHeaders(),
   }).catch(() => { });
 
   resetProductEditor();
@@ -1482,7 +1511,7 @@ function populateHeroSettings() {
   $("#setting-brand-name").value = storeSettings.brandName || "صُدْفَة";
   $("#setting-brand-sub").value = storeSettings.brandSubtitle || "سَاعَةٌ لِكُلِّ لَحْظَةٍ";
   $("#setting-announcement").value = storeSettings.announcement || "";
-  const vUrl = storeSettings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
+  const vUrl = storeSettings.heroVideoUrl || "";
   const pUrl = storeSettings.heroPosterUrl || "/sodfa-promo-poster.jpg";
   $("#setting-video-url").value = vUrl;
   $("#setting-poster-url").value = pUrl;
@@ -1495,7 +1524,7 @@ function populateHeroSettings() {
   $("#setting-flagship-spec").value = storeSettings.featuredSpec || "";
 }
 
-function handleHeroSettingsSubmit(e) {
+async function handleHeroSettingsSubmit(e) {
   e.preventDefault();
 
   if (!hasPermission("manage_storefront")) {
@@ -1519,29 +1548,30 @@ function handleHeroSettingsSubmit(e) {
   storeSettings = {
     ...storeSettings,
     ...updatedFields,
+    videoUrl: updatedFields.heroVideoUrl,
+    posterUrl: updatedFields.heroPosterUrl,
   };
 
   saveStoreSettings(storeSettings);
 
   // Sync with Turso /api/settings
   try {
-    let token = "";
-    try {
-      const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
-      if (s) token = JSON.parse(s)?.token || "";
-    } catch { }
-
-    fetch("/api/settings", {
+    const res = await fetch("/api/settings", {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify({ settings: updatedFields }),
-    }).catch((err) => console.warn("Failed to sync hero settings to Turso:", err));
-  } catch { }
+    });
 
-  showToast("تم تحديث إعدادات الفيديو والواجهة بنجاح ✓");
+    if (res.ok) {
+      showToast("تم تحديث إعدادات الفيديو والواجهة ومزامنتها سحابياً بنجاح ✓");
+    } else {
+      const errJson = await res.json().catch(() => ({}));
+      showToast(`تم الحفظ محلياً ولكن فشلت المزامنة السحابية: ${errJson.error || "خطأ"}`, true);
+    }
+  } catch (err) {
+    console.warn("Failed to sync hero settings to Turso:", err);
+    showToast("تم حفظ التغييرات محلياً.");
+  }
 }
 
 // ----------------------------------------------------
@@ -2132,18 +2162,9 @@ function handleContactsSubmit(e) {
   showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات GitHub بنجاح ✓");
 
   try {
-    let token = "";
-    try {
-      const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
-      if (s) token = JSON.parse(s)?.token || "";
-    } catch { }
-
     fetch("/api/settings", {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: getAdminAuthHeaders(),
       body: JSON.stringify({
         settings: {
           defaultWhatsapp: storeSettings.defaultWhatsapp,
@@ -2891,25 +2912,22 @@ function initAdminApp() {
 
         // Also persist immediately to Turso backend if online
         try {
-          let token = "";
-          try {
-            const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
-            if (s) token = JSON.parse(s)?.token || "";
-          } catch { }
-
-          await fetch("/api/settings", {
+          const res = await fetch("/api/settings", {
             method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+            headers: getAdminAuthHeaders(),
             body: JSON.stringify({ settings: { heroVideoUrl: url, videoUrl: url } }),
           });
+
+          if (res.ok) {
+            showToast("تم رفع فيديو البطل وحفظه في السحابة بنجاح ✓");
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            showToast(`تم رفع الفيديو ولكن فشل الحفظ السحابي: ${errJson.error || "خطأ"}`, true);
+          }
         } catch (err) {
           console.warn("Failed to auto-sync hero video to Turso:", err);
+          showToast("تم رفع الفيديو محلياً. اضغط حفظ التغييرات للمزامنة.");
         }
-
-        showToast("تم رفع فيديو البطل وحفظه بنجاح ✓");
       },
     });
   }
@@ -2935,25 +2953,22 @@ function initAdminApp() {
         saveStoreSettings(storeSettings);
 
         try {
-          let token = "";
-          try {
-            const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
-            if (s) token = JSON.parse(s)?.token || "";
-          } catch { }
-
-          await fetch("/api/settings", {
+          const res = await fetch("/api/settings", {
             method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+            headers: getAdminAuthHeaders(),
             body: JSON.stringify({ settings: { heroPosterUrl: url, posterUrl: url } }),
           });
+
+          if (res.ok) {
+            showToast("تم رفع غلاف الفيديو وحفظه في السحابة بنجاح ✓");
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            showToast(`تم رفع الغلاف ولكن فشل الحفظ السحابي: ${errJson.error || "خطأ"}`, true);
+          }
         } catch (err) {
           console.warn("Failed to auto-sync hero poster to Turso:", err);
+          showToast("تم رفع الغلاف محلياً. اضغط حفظ التغييرات للمزامنة.");
         }
-
-        showToast("تم رفع غلاف الفيديو وحفظه بنجاح ✓");
       },
     });
   }

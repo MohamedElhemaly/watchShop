@@ -993,8 +993,8 @@ function handleCheckoutSubmit(e) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(orderData),
-    }).catch(() => {});
-  } catch {}
+    }).catch(() => { });
+  } catch { }
 
   // 3. Fire background notifications (Telegram / Web3Forms) without blocking UI
   notifyStoreOwner(orderData, currentSettings);

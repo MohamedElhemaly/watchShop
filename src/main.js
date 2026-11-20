@@ -987,7 +987,16 @@ function handleCheckoutSubmit(e) {
   // 1. Save order to persistent store
   addOrder(orderData);
 
-  // 2. Fire background notifications (Telegram / Web3Forms) without blocking UI
+  // 2. Persist order directly to Turso Cloud backend (/api/orders)
+  try {
+    fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData),
+    }).catch(() => {});
+  } catch {}
+
+  // 3. Fire background notifications (Telegram / Web3Forms) without blocking UI
   notifyStoreOwner(orderData, currentSettings);
 
   // 3. Success View Display
@@ -1069,18 +1078,23 @@ async function initStorefront() {
   renderCatalog();
   updateCartBadge();
 
-  // Try fetching API if backend is running, otherwise retain curated inventory
-  fetch("/api/products", { headers: { Accept: "application/json" } })
+  // Fetch live store state from /api/store (Vercel Serverless + Turso)
+  fetch("/api/store?t=" + Date.now(), { headers: { Accept: "application/json" }, cache: "no-store" })
     .then((res) => (res.ok ? res.json() : null))
     .then(async (data) => {
-      if (data && Array.isArray(data.products) && data.products.length > 0) {
-        // Merge API products preserving rich curated data
-        const apiMap = new Map(data.products.map(p => [p.id, p]));
-        allProducts = allProducts.map(p => apiMap.has(p.id) ? { ...p, ...apiMap.get(p.id) } : p);
-        allProducts = await resolveProductsMedia(allProducts);
-        schedulePromotionRefresh(allProducts, data.serverNow);
-        renderCatalog();
-        renderCategoryTabs();
+      if (data && data.ok) {
+        if (data.settings) {
+          currentSettings = { ...currentSettings, ...data.settings };
+          applyStoreSettings(currentSettings);
+        }
+        if (Array.isArray(data.products) && data.products.length > 0) {
+          allProducts = await resolveProductsMedia(data.products);
+          schedulePromotionRefresh(allProducts, data.serverNow);
+          renderCatalog();
+        }
+        if (Array.isArray(data.categories) && data.categories.length > 0) {
+          renderCategoryTabs();
+        }
       }
     })
     .catch(() => {

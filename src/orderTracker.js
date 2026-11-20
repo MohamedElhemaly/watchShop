@@ -335,16 +335,42 @@ export function initOrderTracker() {
       </div>
     `;
 
-    // 1. Fetch live orders from cloud first to ensure latest updates from admin are visible
+    // 1. Query Serverless backend /api/orders?query=... directly for real-time cross-device sync
+    let matching = [];
+    let cloudFound = false;
     try {
-      const cloudOrders = await pullCloudState("orders");
-      if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
-        localStorage.setItem("daffa_orders", JSON.stringify(cloudOrders));
+      const res = await fetch(`/api/orders?query=${encodeURIComponent(cleanQ)}&t=${Date.now()}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.ok && Array.isArray(json.orders)) {
+          matching = json.orders;
+          cloudFound = true;
+          // Sync found orders into local cache
+          if (matching.length > 0) {
+            const currentOrders = getOrders();
+            const map = new Map(currentOrders.map((o) => [String(o.id), o]));
+            matching.forEach((o) => map.set(String(o.id), o));
+            saveOrders(Array.from(map.values()));
+          }
+        }
       }
     } catch {}
 
-    const allOrders = getOrders();
-    const matching = allOrders.filter((order) => orderMatchesQuery(order, cleanQ));
+    // Fallback to local / cached orders if cloud query was unavailable
+    if (!cloudFound) {
+      try {
+        const cloudOrders = await pullCloudState("orders");
+        if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+          localStorage.setItem("daffa_orders", JSON.stringify(cloudOrders));
+        }
+      } catch {}
+
+      const allOrders = getOrders();
+      matching = allOrders.filter((order) => orderMatchesQuery(order, cleanQ));
+    }
 
     // Handle 0 results
     if (matching.length === 0) {

@@ -245,6 +245,23 @@ function handleLoginSubmit(e) {
     loggedInAt: new Date().toISOString(),
   };
 
+  // Obtain cloud session token from /api/auth
+  try {
+    fetch("/api/auth?action=login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, rememberMe }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.token) {
+          sessionData.token = data.token;
+          setAdminSession(sessionData, rememberMe);
+        }
+      })
+      .catch(() => {});
+  } catch {}
+
   setAdminSession(sessionData, rememberMe);
   updateAuthViews();
   showToast(`أهلاً بك يا ${result.fullName || result.username} في لوحة تحكم صُدْفَة ✓`);
@@ -648,6 +665,12 @@ function handleBulkDeleteProducts() {
       updateKpiStats();
       renderProductsList();
       showToast(`تم حذف ${idsToDelete.length} ساعة نهائياً وتحديث المتجر ✓`);
+
+      fetch("/api/products", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete }),
+      }).catch(() => {});
     },
   });
 }
@@ -1151,6 +1174,12 @@ async function handleProductFormSubmit(e) {
 
     showToast(`تم حفظ الساعة «${name}» وتحديث المتجر بنجاح ✓`);
 
+    fetch(`/api/products`, {
+      method: existingIndex > -1 ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(productData),
+    }).catch(() => { });
+
     fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
       method: existingIndex > -1 ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
@@ -1192,6 +1221,10 @@ function handleProductDelete() {
   updateKpiStats();
   renderProductsList();
   showToast(`تم حذف «${product.name}» من الكتالوج.`);
+
+  fetch(`/api/products?id=${encodeURIComponent(editingProductId)}`, {
+    method: "DELETE",
+  }).catch(() => { });
 
   fetch(`/api/admin/products/${encodeURIComponent(editingProductId)}`, {
     method: "DELETE",
@@ -1379,6 +1412,12 @@ function handleBulkDeleteOrders() {
       updateOrdersBadge();
       renderOrdersList();
       showToast(`تم حذف ${idsToDelete.length} طلب بنجاح ✓`);
+
+      fetch("/api/orders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete }),
+      }).catch(() => {});
     },
   });
 }
@@ -1402,6 +1441,10 @@ function handleDeleteSingleOrder(orderId) {
       updateOrdersBadge();
       renderOrdersList();
       showToast(`تم حذف الطلب #${orderId} بنجاح.`);
+
+      fetch(`/api/orders?id=${encodeURIComponent(orderId)}`, {
+        method: "DELETE",
+      }).catch(() => {});
     },
   });
 }
@@ -1415,6 +1458,12 @@ function handleOrderStatusChange(orderId, newStatus) {
   orders = getOrders();
   renderOrdersList();
   showToast(`تم تحديث حالة الطلب #${orderId} إلى: ${newStatus} ✓`);
+
+  fetch("/api/orders", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: orderId, status: newStatus }),
+  }).catch(() => {});
 }
 
 // ----------------------------------------------------

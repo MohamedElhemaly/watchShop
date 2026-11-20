@@ -239,7 +239,7 @@ async function loadProduct() {
   const localMatch = localProducts.find((p) => p.id === id);
 
   try {
-    const response = await fetch(`/api/products/${encodeURIComponent(id)}`, { headers: { Accept: "application/json" } });
+    const response = await fetch(`/api/products?id=${encodeURIComponent(id)}`, { headers: { Accept: "application/json" }, cache: "no-store" });
     if (response.ok) {
       const data = await response.json();
       if (data.product) {

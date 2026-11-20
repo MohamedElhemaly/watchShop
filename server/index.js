@@ -10,6 +10,20 @@ import categoriesRouter from "./routes/categories.js";
 import productsRouter from "./routes/products.js";
 import settingsRouter from "./routes/settings.js";
 import uploadsRouter from "./routes/uploads.js";
+import storeApiHandler from "../api/store.js";
+import productsApiHandler from "../api/products.js";
+import ordersApiHandler from "../api/orders.js";
+import settingsApiHandler from "../api/settings.js";
+import authApiHandler from "../api/auth.js";
+import uploadsApiHandler from "../api/uploads.js";
+
+const wrapServerless = (handler) => async (req, res, next) => {
+  try {
+    await handler(req, res);
+  } catch (err) {
+    next(err);
+  }
+};
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = express();
@@ -32,6 +46,14 @@ app.get("/api/health", async (_request, response) => {
     return response.status(503).json({ ok: false });
   }
 });
+
+// Production-Grade Vercel Serverless Endpoints (Turso LibSQL + Cloudinary)
+app.all("/api/store", wrapServerless(storeApiHandler));
+app.all("/api/products", wrapServerless(productsApiHandler));
+app.all("/api/orders", wrapServerless(ordersApiHandler));
+app.all("/api/settings", wrapServerless(settingsApiHandler));
+app.all("/api/auth", wrapServerless(authApiHandler));
+app.all("/api/uploads", wrapServerless(uploadsApiHandler));
 
 app.get("/api/auth/me", getAdminStatus);
 app.post("/api/auth/start", beginLogin);

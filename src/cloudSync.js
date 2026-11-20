@@ -72,7 +72,42 @@ export async function pushCloudState(key, data) {
     updated_at: new Date().toISOString(),
   };
 
-  // 2. Try Local Server API (when running in local dev / on network)
+  // 2. Try Vercel Serverless /api endpoints (Turso DB live sync)
+  try {
+    let token = "";
+    try {
+      const sessionRaw = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+      if (sessionRaw) {
+        const parsed = JSON.parse(sessionRaw);
+        token = parsed.token || "";
+      }
+    } catch {}
+
+    const authHeaders = { "Content-Type": "application/json" };
+    if (token) authHeaders["Authorization"] = `Bearer ${token}`;
+
+    if (key === "store_settings") {
+      fetch("/api/settings", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ settings: data }),
+      }).catch(() => {});
+    } else if (key === "ticker_items") {
+      fetch("/api/settings", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ tickerItems: data }),
+      }).catch(() => {});
+    } else if (key === "categories") {
+      fetch("/api/settings", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ categories: data }),
+      }).catch(() => {});
+    }
+  } catch {}
+
+  // 3. Try Local Server API (when running in local dev / on network)
   try {
     fetch(`/api/sync/${encodeURIComponent(key)}`, {
       method: "POST",
@@ -81,7 +116,7 @@ export async function pushCloudState(key, data) {
     }).catch(() => {});
   } catch {}
 
-  // 3. Auto-publish to GitHub if admin has configured GitHub token
+  // 4. Auto-publish to GitHub if admin has configured GitHub token
   const ghConfig = getGitHubConfig();
   if (ghConfig.isConfigured && (key === "products" || key === "orders" || key === "store_settings")) {
     clearTimeout(githubDebounceTimer);
@@ -195,6 +230,42 @@ export function handleIncomingData(key, cloudData, dispatchEvents = true) {
  * Pulls a specific key from GitHub Pages static store.json or local server
  */
 export async function pullCloudState(key) {
+  // 1. Try Vercel Serverless / Turso endpoint directly
+  try {
+    if (key === "orders") {
+      let token = "";
+      try {
+        const sessionRaw = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+        if (sessionRaw) token = JSON.parse(sessionRaw)?.token || "";
+      } catch {}
+
+      const headers = { Accept: "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/orders?t=${Date.now()}`, { headers, cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.orders)) return json.orders;
+      }
+    } else {
+      const res = await fetch(`/api/store?t=${Date.now()}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.ok) {
+          if (key === "products") return data.products || [];
+          if (key === "settings" || key === "store_settings") return data.settings || {};
+          if (key === "categories") return data.categories || [];
+          if (key === "ticker_items") return data.tickerItems || [];
+          if (data[key] !== undefined) return data[key];
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to GitHub Pages static store.json
   try {
     const res = await fetch(`./data/store.json?t=${Date.now()}`, {
       headers: { Accept: "application/json" },
@@ -223,14 +294,37 @@ export async function pullCloudState(key) {
 }
 
 /**
- * Synchronizes store data from GitHub Pages (public/data/store.json) or local server
+ * Synchronizes store data from Vercel Serverless / Turso (/api/store), GitHub Pages, or local server
  */
 export async function syncAllCloudData(options = { dispatchEvents: true }) {
   if (syncInProgress) return false;
   syncInProgress = true;
 
   try {
-    // 1. Fetch public/data/store.json from GitHub Pages / static host
+    // 1. Fetch live storefront data from Serverless Turso /api/store first
+    try {
+      const apiRes = await fetch(`/api/store?t=${Date.now()}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+
+      if (apiRes.ok) {
+        const storeData = await apiRes.json();
+        if (storeData && storeData.ok) {
+          if (storeData.settings) handleIncomingData("store_settings", storeData.settings, options.dispatchEvents);
+          if (storeData.products) handleIncomingData("products", storeData.products, options.dispatchEvents);
+          if (storeData.categories) handleIncomingData("categories", storeData.categories, options.dispatchEvents);
+          if (storeData.tickerItems) handleIncomingData("ticker_items", storeData.tickerItems, options.dispatchEvents);
+
+          lastSyncTimestamp = Date.now();
+          return true;
+        }
+      }
+    } catch (err) {
+      // Serverless API offline or not available
+    }
+
+    // 2. Fetch public/data/store.json from GitHub Pages / static host
     try {
       const storeRes = await fetch(`./data/store.json?t=${Date.now()}`, {
         headers: { Accept: "application/json" },

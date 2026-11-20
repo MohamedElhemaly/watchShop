@@ -193,6 +193,7 @@ test("API: Product creation, update, and bulk deletion via /api/products", async
 test("API: Order creation, Order Tracking query lookup, and Status update via /api/orders", async () => {
   const superToken = signAdminToken({ userId: "usr_super_admin", username: "admin", role: "super_admin" });
   const testOrderId = `DAF-TEST-${Math.floor(1000 + Math.random() * 9000)}`;
+  const testPhone = `010${Math.floor(10000000 + Math.random() * 90000000)}`;
 
   // 1. Customer places order
   const checkoutMock = createMockReqRes({
@@ -200,7 +201,7 @@ test("API: Order creation, Order Tracking query lookup, and Status update via /a
     body: {
       id: testOrderId,
       customerName: "أحمد محمود",
-      phone: "01012345678",
+      phone: testPhone,
       governorate: "القاهرة",
       city: "مدينة نصر",
       address: "شارع عباس العقاد",
@@ -231,7 +232,7 @@ test("API: Order creation, Order Tracking query lookup, and Status update via /a
   // 3. Customer tracks order by Phone with Egyptian normalization
   const trackByPhone = createMockReqRes({
     method: "GET",
-    query: { query: "+20 010 1234 5678" },
+    query: { query: `+20 ${testPhone.slice(1, 4)} ${testPhone.slice(4, 7)} ${testPhone.slice(7)}` },
   });
   await ordersHandler(trackByPhone.req, trackByPhone.res);
   assert.equal(trackByPhone.res.statusCode, 200);

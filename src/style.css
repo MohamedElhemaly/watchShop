@@ -607,7 +607,7 @@ a {
   aspect-ratio: 9 / 14;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #081D1C;
+  background: #081D1C url('/sodfa-promo-poster.jpg') center/cover no-repeat;
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
   margin-inline-start: auto;
@@ -620,6 +620,7 @@ a {
   display: block;
   transform: scale(1.04);
   transform-origin: top center;
+  transition: opacity 0.3s ease;
 }
 
 .hero-art-scrim {

@@ -273,12 +273,27 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "معرف الطلب مطلوب." });
       }
 
+      const cleanId = id.replace(/^[#]/, "").trim();
+      const hashId = "#" + cleanId;
+
       const updates = [];
       const args = [];
 
       if (b.status !== undefined) {
+        let rawStatus = String(b.status).toLowerCase().trim();
+        if (rawStatus === "shipping" || rawStatus === "تم الشحن" || rawStatus === "جاري الشحن" || rawStatus === "مع المندوب") {
+          rawStatus = "shipped";
+        } else if (rawStatus === "تم التأكيد" || rawStatus === "مؤكد") {
+          rawStatus = "confirmed";
+        } else if (rawStatus === "تم التسليم" || rawStatus === "مكتمل") {
+          rawStatus = "delivered";
+        } else if (rawStatus === "ملغي" || rawStatus === "ملغى") {
+          rawStatus = "cancelled";
+        } else if (rawStatus === "received" || rawStatus === "تم استلام الطلب") {
+          rawStatus = "new";
+        }
         updates.push("status = ?");
-        args.push(String(b.status).trim());
+        args.push(rawStatus);
       }
       if (b.isRead !== undefined) {
         updates.push("is_read = ?");
@@ -291,14 +306,19 @@ export default async function handler(req, res) {
 
       updates.push("updated_at = ?");
       args.push(new Date().toISOString());
-      args.push(id);
+
+      // Pass ID targets for robust match
+      args.push(id, cleanId, hashId);
 
       await db.execute({
-        sql: `UPDATE orders SET ${updates.join(", ")} WHERE id = ?;`,
+        sql: `UPDATE orders SET ${updates.join(", ")} WHERE id = ? OR id = ? OR id = ?;`,
         args,
       });
 
-      const updated = await db.execute({ sql: "SELECT * FROM orders WHERE id = ? LIMIT 1;", args: [id] });
+      const updated = await db.execute({
+        sql: "SELECT * FROM orders WHERE id = ? OR id = ? OR id = ? LIMIT 1;",
+        args: [id, cleanId, hashId],
+      });
       if (updated.rows.length === 0) {
         return res.status(404).json({ ok: false, error: "الطلب غير موجود." });
       }
@@ -328,10 +348,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "يرجى تحديد أرقام الطلبات المراد حذفها." });
       }
 
-      const deleteQueries = idsToDelete.map((id) => ({
-        sql: "DELETE FROM orders WHERE id = ?;",
-        args: [id],
-      }));
+      const deleteQueries = [];
+      for (const target of idsToDelete) {
+        const raw = String(target).trim();
+        const clean = raw.replace(/^[#]/, "").trim();
+        const hash = "#" + clean;
+        deleteQueries.push({
+          sql: "DELETE FROM orders WHERE id = ? OR id = ? OR id = ?;",
+          args: [raw, clean, hash],
+        });
+      }
 
       await db.batch(deleteQueries);
 

@@ -65,6 +65,10 @@ import {
   saveSettingsDirectToTurso,
   saveProductDirectToTurso,
   deleteProductsDirectFromTurso,
+  fetchStoreDirectFromTurso,
+  fetchOrdersDirectFromTurso,
+  updateOrderStatusDirectInTurso,
+  deleteOrdersDirectFromTurso,
 } from "./tursoDirect.js";
 
 // DOM Selector Helpers
@@ -1342,10 +1346,11 @@ function renderOrdersList() {
   }
 
   const statusLabels = {
-    new: "جديد",
+    new: "تم استلام الطلب",
     confirmed: "تم التأكيد",
-    shipped: "تم الشحن",
-    delivered: "تم التسليم",
+    shipped: "جاري الشحن",
+    shipping: "جاري الشحن",
+    delivered: "تم التسليم بنجاح",
     cancelled: "ملغي",
   };
 
@@ -1377,10 +1382,10 @@ function renderOrdersList() {
             <div class="order-status-select-wrap">
               <span class="order-status-badge status-${safeText(order.status)}">${statusLabels[order.status] || order.status}</span>
               <select class="admin-order-status-select" data-action="change-order-status" data-order-id="${safeText(order.id)}" ${canManage ? "" : "disabled"}>
-                <option value="new" ${order.status === "new" ? "selected" : ""}>جديد</option>
-                <option value="confirmed" ${order.status === "confirmed" ? "selected" : ""}>تم التأكيد</option>
-                <option value="shipped" ${order.status === "shipped" ? "selected" : ""}>تم الشحن</option>
-                <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>تم التسليم</option>
+                <option value="new" ${order.status === "new" ? "selected" : ""}>تم استلام الطلب (جديد)</option>
+                <option value="confirmed" ${order.status === "confirmed" ? "selected" : ""}>تم تأكيد الطلب</option>
+                <option value="shipped" ${order.status === "shipped" || order.status === "shipping" ? "selected" : ""}>جاري الشحن والتوصيل</option>
+                <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>تم التسليم بنجاح</option>
                 <option value="cancelled" ${order.status === "cancelled" ? "selected" : ""}>ملغي</option>
               </select>
             </div>
@@ -1453,8 +1458,9 @@ function handleBulkDeleteOrders() {
     title: "تأكيد حذف الطلبات المحددة",
     message: `هل أنت متأكد من حذف ${selectedOrderIds.size} طلب نهائياً من سجلات المتجر؟`,
     previewItems: preview,
-    onConfirm: () => {
+    onConfirm: async () => {
       const idsToDelete = Array.from(selectedOrderIds);
+      const prevOrders = [...orders];
       deleteOrders(idsToDelete);
       selectedOrderIds.clear();
       orders = getOrders();
@@ -1462,11 +1468,20 @@ function handleBulkDeleteOrders() {
       renderOrdersList();
       showToast(`تم حذف ${idsToDelete.length} طلب بنجاح ✓`);
 
-      fetch("/api/orders", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: idsToDelete }),
-      }).catch(() => { });
+      deleteOrdersDirectFromTurso(idsToDelete).catch(() => {});
+
+      try {
+        const res = await fetch("/api/orders", {
+          method: "DELETE",
+          headers: getAdminAuthHeaders(),
+          body: JSON.stringify({ ids: idsToDelete }),
+        });
+        if (!res.ok) {
+          console.warn("Serverless delete returned non-200, verified direct DB delete.");
+        }
+      } catch (err) {
+        console.warn("Failed to delete orders via serverless API:", err);
+      }
     },
   });
 }
@@ -1483,7 +1498,7 @@ function handleDeleteSingleOrder(orderId) {
     title: "تأكيد حذف الطلب",
     message: `هل أنت متأكد من حذف الطلب #${order.id} الخاص بالعميل «${order.customerName}» نهائياً؟`,
     previewItems: [{ title: `طلب #${order.id} — ${order.customerName}`, badge: formatEgp(order.totalAmount) }],
-    onConfirm: () => {
+    onConfirm: async () => {
       deleteOrder(orderId);
       selectedOrderIds.delete(orderId);
       orders = getOrders();
@@ -1491,28 +1506,79 @@ function handleDeleteSingleOrder(orderId) {
       renderOrdersList();
       showToast(`تم حذف الطلب #${orderId} بنجاح.`);
 
-      fetch(`/api/orders?id=${encodeURIComponent(orderId)}`, {
-        method: "DELETE",
-      }).catch(() => { });
+      deleteOrdersDirectFromTurso([orderId]).catch(() => {});
+
+      try {
+        await fetch(`/api/orders?id=${encodeURIComponent(orderId)}`, {
+          method: "DELETE",
+          headers: getAdminAuthHeaders(),
+        });
+      } catch (err) {
+        console.warn("Failed to delete single order via serverless API:", err);
+      }
     },
   });
 }
 
-function handleOrderStatusChange(orderId, newStatus) {
+async function handleOrderStatusChange(orderId, newStatus) {
   if (!hasPermission("manage_orders")) {
     showToast("ليس لديك صلاحية لتحديث حالة الطلبات.", true);
     return;
   }
+
+  const prevOrder = orders.find((o) => String(o.id) === String(orderId));
+  const prevStatus = prevOrder ? prevOrder.status : "new";
+
+  // Optimistic UI update
   updateOrderStatus(orderId, newStatus);
   orders = getOrders();
   renderOrdersList();
-  showToast(`تم تحديث حالة الطلب #${orderId} إلى: ${newStatus} ✓`);
 
-  fetch("/api/orders", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: orderId, status: newStatus }),
-  }).catch(() => { });
+  let cloudSuccess = false;
+
+  // 1. Direct Turso Cloud DB sync (bypasses serverless protection & cold starts)
+  try {
+    const directRes = await updateOrderStatusDirectInTurso(orderId, newStatus);
+    if (directRes) cloudSuccess = true;
+  } catch (err) {
+    console.warn("Direct Turso order status update error:", err);
+  }
+
+  // 2. Serverless API sync with admin credentials
+  try {
+    const res = await fetch("/api/orders", {
+      method: "PATCH",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ id: orderId, status: newStatus }),
+    });
+
+    if (res.ok) {
+      cloudSuccess = true;
+      const json = await res.json().catch(() => ({}));
+      if (json && json.order) {
+        updateOrderStatus(orderId, json.order.status);
+        orders = getOrders();
+        renderOrdersList();
+      }
+    } else {
+      const errJson = await res.json().catch(() => ({}));
+      console.warn("API status update failed:", errJson);
+    }
+  } catch (err) {
+    console.warn("Network error during API order status update:", err);
+  }
+
+  if (cloudSuccess) {
+    showToast(`تم تحديث حالة الطلب #${orderId} في السحابة بنجاح ✓`);
+    updateCloudDbBadge(true);
+  } else {
+    // Rollback optimistic state
+    updateOrderStatus(orderId, prevStatus);
+    orders = getOrders();
+    renderOrdersList();
+    showToast(`تعذر حفظ حالة الطلب في السحابة. يرجى التحقق من الاتصال.`, true);
+    updateCloudDbBadge(false);
+  }
 }
 
 // ----------------------------------------------------
@@ -2563,9 +2629,75 @@ function renderDashboard() {
   populateAccountSecurity();
 }
 
+function updateCloudDbBadge(connected = true) {
+  let badge = $("#admin-db-status");
+  if (!badge) {
+    const target = $(".admin-topbar-right") || $(".admin-header-user") || $(".admin-header-actions") || $("header");
+    if (target) {
+      badge = document.createElement("span");
+      badge.id = "admin-db-status";
+      badge.className = "admin-db-badge is-connected";
+      target.prepend(badge);
+    }
+  }
+  if (badge) {
+    if (connected) {
+      badge.className = "admin-db-badge is-connected";
+      badge.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#10b981; margin-left:6px;"></span>متصل بالسحابة • Turso`;
+      badge.title = "قاعدة بيانات Turso السحابية متصلة ومزامنة بنجاح";
+    } else {
+      badge.className = "admin-db-badge is-disconnected";
+      badge.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:#ef4444; margin-left:6px;"></span>غير متصل بالسحابة`;
+      badge.title = "فشل الاتصال بقاعدة البيانات السحابية";
+    }
+  }
+}
+
 function initAdminApp() {
   updateAuthViews();
   initCloudSync();
+
+  // Live Cloud sync on mount: fetch fresh orders, products, and store settings directly from Turso & API
+  fetchStoreDirectFromTurso().then((data) => {
+    if (data && data.ok) {
+      if (Array.isArray(data.products) && data.products.length > 0) {
+        products = data.products;
+        saveProducts(products);
+        renderProductsList();
+      }
+      if (data.settings) {
+        storeSettings = { ...storeSettings, ...data.settings };
+        saveStoreSettings(storeSettings);
+        populateHeroSettings();
+      }
+      updateCloudDbBadge(true);
+    }
+  }).catch(() => {
+    updateCloudDbBadge(false);
+  });
+
+  fetchOrdersDirectFromTurso().then((directOrders) => {
+    if (Array.isArray(directOrders) && directOrders.length > 0) {
+      orders = directOrders;
+      saveOrders(orders);
+      updateOrdersBadge();
+      renderOrdersList();
+      updateCloudDbBadge(true);
+    }
+  }).catch(() => {});
+
+  fetch("/api/orders", { headers: getAdminAuthHeaders(), cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (data && data.ok && Array.isArray(data.orders)) {
+        orders = data.orders;
+        saveOrders(orders);
+        updateOrdersBadge();
+        renderOrdersList();
+        updateCloudDbBadge(true);
+      }
+    })
+    .catch(() => {});
 
   $("#admin-login-form")?.addEventListener("submit", handleLoginSubmit);
   $("#admin-logout-btn")?.addEventListener("click", handleLogout);

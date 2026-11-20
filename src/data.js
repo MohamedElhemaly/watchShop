@@ -804,7 +804,7 @@ export const defaultStoreSettings = {
   announcement: "شحن مجاني لكافة المحافظات • الدفع عند الاستلام بعد المعاينة والفحص",
   heroHeadline: "كل لحظة حلوة\nتستاهل وقتها.",
   heroDescription: "ساعات مختارة بعناية فائقة، تجمع بين دقة صناعة الساعات العالمية وجمال الخطوط المعاصرة. اقتنِ قطعة تعبّر عن هويتك اليومية.",
-  heroVideoUrl: "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4",
+  heroVideoUrl: "https://res.cloudinary.com/v3macb6a/video/upload/v1795188169/citox2ffcq21xnjzyaqf.mp4",
   heroPosterUrl: "/sodfa-promo-poster.jpg",
   featuredTag: "القطعة المميزة",
   featuredName: "صُدْفَة هيريتدج كرونوغراف",

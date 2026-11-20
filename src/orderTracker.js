@@ -11,6 +11,7 @@ import {
 } from "./data.js";
 import { pullCloudState } from "./cloudSync.js";
 import { resolveMediaUrl } from "./mediaStorage.js";
+import { fetchOrdersDirectFromTurso } from "./tursoDirect.js";
 
 const $ = (selector) => document.querySelector(selector);
 const safeText = (value = "") =>
@@ -80,19 +81,19 @@ export function getOrderStepState(status = "") {
     return { isCancelled: true, activeStep: 0, completedSteps: [] };
   }
 
-  if (norm === "delivered" || norm === "تم التسليم" || norm === "مكتمل") {
+  if (norm === "delivered" || norm === "تم التسليم" || norm === "تم التسليم بنجاح" || norm === "مكتمل") {
     return { isCancelled: false, activeStep: 4, completedSteps: [1, 2, 3, 4] };
   }
 
-  if (norm === "shipping" || norm === "جاري الشحن" || norm === "تم الشحن" || norm === "مع المندوب") {
+  if (norm === "shipped" || norm === "shipping" || norm === "جاري الشحن" || norm === "تم الشحن" || norm === "مع المندوب") {
     return { isCancelled: false, activeStep: 3, completedSteps: [1, 2] };
   }
 
-  if (norm === "confirmed" || norm === "تم التأكيد" || norm === "مؤكد") {
+  if (norm === "confirmed" || norm === "تم التأكيد" || norm === "تم تأكيد الطلب" || norm === "مؤكد") {
     return { isCancelled: false, activeStep: 2, completedSteps: [1] };
   }
 
-  // Default: "new" / "تم استلام الطلب"
+  // Default: "new" / "received" / "تم استلام الطلب" / "جديد"
   return { isCancelled: false, activeStep: 1, completedSteps: [] };
 }
 
@@ -208,9 +209,14 @@ async function renderSingleOrderDetail(order, container) {
           </div>
           <span class="track-meta-date">${safeText(dateFormatted)}</span>
         </div>
-        <span class="track-current-status-badge ${statusBadgeClass}">
-          ${safeText(statusBadgeText)}
-        </span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="track-current-status-badge ${statusBadgeClass}">
+            ${safeText(statusBadgeText)}
+          </span>
+          <button type="button" class="track-refresh-btn" id="track-refresh-order-btn" title="تحديث الحالة من السحابة" style="background: rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; color: var(--ink-muted, #666);">
+            تحديث الحالة ↺
+          </button>
+        </div>
       </div>
 
       <!-- Stepper Progress Tracker -->
@@ -284,6 +290,15 @@ async function renderSingleOrderDetail(order, container) {
       }
     });
   }
+
+  // Bind click for manual status refresh
+  const refreshBtn = container.querySelector("#track-refresh-order-btn");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      refreshBtn.textContent = "جاري التحديث...";
+      window.dispatchEvent(new CustomEvent("sodfa:track-order-refresh", { detail: order.id }));
+    });
+  }
 }
 
 /**
@@ -298,13 +313,41 @@ export function initOrderTracker() {
 
   if (!modal || !form || !input || !resultsContainer) return;
 
+  let pollingInterval = null;
+  let activeSearchQuery = "";
+
   function closeModal() {
     modal.classList.remove("is-open");
     document.body.classList.remove("modal-open");
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
     setTimeout(() => {
       modal.hidden = true;
     }, 240);
   }
+
+  function startPolling() {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(() => {
+      if (!modal.hidden && activeSearchQuery) {
+        executeSearch(activeSearchQuery, true);
+      }
+    }, 15000);
+  }
+
+  window.addEventListener("focus", () => {
+    if (!modal.hidden && activeSearchQuery) {
+      executeSearch(activeSearchQuery, true);
+    }
+  });
+
+  window.addEventListener("sodfa:track-order-refresh", (e) => {
+    if (e.detail) {
+      executeSearch(e.detail);
+    }
+  });
 
   function openModal(prefill = "") {
     modal.hidden = false;
@@ -320,20 +363,25 @@ export function initOrderTracker() {
     }
   }
 
-  async function executeSearch(query) {
+  async function executeSearch(query, isSilent = false) {
     const cleanQ = normalizeOrderQuery(query);
     if (!cleanQ) {
       input.focus();
       return;
     }
 
-    // Show loading spinner
-    resultsContainer.innerHTML = `
-      <div class="track-loading-state">
-        <div class="track-spinner" aria-hidden="true"></div>
-        <p>جاري البحث في سجلات الشحن والسحابة...</p>
-      </div>
-    `;
+    activeSearchQuery = cleanQ;
+    startPolling();
+
+    // Show loading spinner only if not silent poll
+    if (!isSilent) {
+      resultsContainer.innerHTML = `
+        <div class="track-loading-state">
+          <div class="track-spinner" aria-hidden="true"></div>
+          <p>جاري البحث في سجلات الشحن والسحابة...</p>
+        </div>
+      `;
+    }
 
     // 1. Query Serverless backend /api/orders?query=... directly for real-time cross-device sync
     let matching = [];
@@ -358,6 +406,21 @@ export function initOrderTracker() {
         }
       }
     } catch {}
+
+    // 2. Query Turso Cloud DB directly (bypassing serverless if down or blocked)
+    if (!cloudFound) {
+      try {
+        const directOrders = await fetchOrdersDirectFromTurso(cleanQ);
+        if (Array.isArray(directOrders) && directOrders.length > 0) {
+          matching = directOrders;
+          cloudFound = true;
+          const currentOrders = getOrders();
+          const map = new Map(currentOrders.map((o) => [String(o.id), o]));
+          matching.forEach((o) => map.set(String(o.id), o));
+          saveOrders(Array.from(map.values()));
+        }
+      } catch {}
+    }
 
     // Fallback to local / cached orders if cloud query was unavailable
     if (!cloudFound) {

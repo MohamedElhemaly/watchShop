@@ -237,3 +237,110 @@ export async function deleteProductsDirectFromTurso(ids = []) {
     return false;
   }
 }
+
+export function mapTursoOrderRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    customerName: row.customer_name || "",
+    phone: row.phone || "",
+    governorate: row.governorate || "",
+    city: row.city || "",
+    address: row.address || "",
+    notes: row.notes || "",
+    totalAmount: Number(row.total_amount) || 0,
+    items: safeParse(row.items_json, []),
+    deliveryTimeline: row.delivery_timeline || "خلال 2 إلى 4 أيام عمل",
+    status: row.status || "new",
+    isRead: Boolean(row.is_read),
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+  };
+}
+
+/**
+ * Fetches all orders directly from Turso DB, or matches by query phone/id
+ */
+export async function fetchOrdersDirectFromTurso(query = "") {
+  const client = getTursoWebClient();
+  if (!client) return [];
+
+  try {
+    const res = await client.execute("SELECT * FROM orders ORDER BY created_at DESC;");
+    const orders = res.rows.map(mapTursoOrderRow);
+
+    if (!query) return orders;
+
+    const q = String(query).toLowerCase().trim();
+    const cleanQ = q.replace(/^[#]/, "").trim();
+    const cleanDigits = q.replace(/\D/g, "");
+
+    return orders.filter((o) => {
+      const oId = String(o.id || "").toLowerCase().trim();
+      const oClean = oId.replace(/^[#]/, "").trim();
+      if (oId === q || oClean === cleanQ || oClean === q) return true;
+
+      const oPhoneDigits = String(o.phone || "").replace(/\D/g, "");
+      if (cleanDigits && oPhoneDigits) {
+        if (oPhoneDigits === cleanDigits || oPhoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(oPhoneDigits)) {
+          return true;
+        }
+      }
+      return false;
+    });
+  } catch (err) {
+    console.warn("Direct Turso fetch orders failed:", err);
+    return [];
+  }
+}
+
+/**
+ * Updates order status directly in Turso DB with robust # matching
+ */
+export async function updateOrderStatusDirectInTurso(orderId, newStatus) {
+  const client = getTursoWebClient();
+  if (!client || !orderId) return false;
+
+  const rawId = String(orderId).trim();
+  const cleanId = rawId.replace(/^[#]/, "").trim();
+  const hashId = "#" + cleanId;
+  const now = new Date().toISOString();
+
+  try {
+    await client.execute({
+      sql: `UPDATE orders SET status = ?, updated_at = ? WHERE id = ? OR id = ? OR id = ?;`,
+      args: [String(newStatus).trim(), now, rawId, cleanId, hashId],
+    });
+    return true;
+  } catch (err) {
+    console.warn("Direct Turso update order status failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Deletes orders directly from Turso DB with robust # matching
+ */
+export async function deleteOrdersDirectFromTurso(orderIds = []) {
+  const client = getTursoWebClient();
+  if (!client || !orderIds.length) return false;
+
+  const allTargets = [];
+  for (const id of orderIds) {
+    const raw = String(id).trim();
+    const clean = raw.replace(/^[#]/, "").trim();
+    allTargets.push(raw, clean, "#" + clean);
+  }
+
+  try {
+    const placeholders = allTargets.map(() => "?").join(",");
+    await client.execute({
+      sql: `DELETE FROM orders WHERE id IN (${placeholders});`,
+      args: allTargets,
+    });
+    return true;
+  } catch (err) {
+    console.warn("Direct Turso delete orders failed:", err);
+    return false;
+  }
+}

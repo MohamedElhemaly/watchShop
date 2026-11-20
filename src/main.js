@@ -250,7 +250,6 @@ function applyStoreSettings(settings = currentSettings) {
 
   // Hero Video & Poster
   const videoPlayer = $("#hero-video-player");
-  const videoSource = $("#hero-video-source");
   if (videoPlayer) {
     const rawVideo = String(settings.heroVideoUrl || settings.videoUrl || "").trim();
     const rawPoster = String(settings.heroPosterUrl || settings.posterUrl || "/sodfa-promo-poster.jpg").trim();
@@ -268,9 +267,12 @@ function applyStoreSettings(settings = currentSettings) {
         if (targetVideo) {
           // Enforce autoplay & inline video attributes across iOS Safari, Android, and Desktop
           videoPlayer.muted = true;
+          videoPlayer.defaultMuted = true;
           videoPlayer.playsInline = true;
           videoPlayer.autoplay = true;
           videoPlayer.loop = true;
+          videoPlayer.crossOrigin = "anonymous";
+          videoPlayer.setAttribute("crossorigin", "anonymous");
           videoPlayer.setAttribute("muted", "");
           videoPlayer.setAttribute("playsinline", "");
           videoPlayer.setAttribute("webkit-playsinline", "");
@@ -279,10 +281,16 @@ function applyStoreSettings(settings = currentSettings) {
 
           if (videoPlayer.getAttribute("data-applied-src") !== targetVideo) {
             videoPlayer.setAttribute("data-applied-src", targetVideo);
+            const videoSource = $("#hero-video-source");
             if (videoSource) videoSource.setAttribute("src", targetVideo);
             videoPlayer.src = targetVideo;
             videoPlayer.load();
-            videoPlayer.play().catch(() => {});
+            const playPromise = videoPlayer.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {
+                // Autoplay blocked by browser policy; poster remains beautifully displayed
+              });
+            }
           }
         }
       });
@@ -290,6 +298,7 @@ function applyStoreSettings(settings = currentSettings) {
       // Clear video source so the browser cleanly shows the luxury poster without black screen
       videoPlayer.removeAttribute("data-applied-src");
       videoPlayer.removeAttribute("src");
+      const videoSource = $("#hero-video-source");
       if (videoSource) videoSource.removeAttribute("src");
       videoPlayer.load();
     }
@@ -298,6 +307,8 @@ function applyStoreSettings(settings = currentSettings) {
     videoPlayer.onerror = () => {
       console.warn("Hero video failed to load, falling back to luxury poster.");
       videoPlayer.removeAttribute("src");
+      videoPlayer.removeAttribute("data-applied-src");
+      const videoSource = $("#hero-video-source");
       if (videoSource) videoSource.removeAttribute("src");
       videoPlayer.poster = "/sodfa-promo-poster.jpg";
     };

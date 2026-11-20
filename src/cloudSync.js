@@ -22,6 +22,7 @@ import {
   getGitHubConfig,
   publishStoreToGitHub,
 } from "./githubSync.js";
+import { fetchStoreDirectFromTurso } from "./tursoDirect.js";
 
 // In-memory sync state
 let syncInProgress = false;
@@ -311,6 +312,20 @@ export async function syncAllCloudData(options = { dispatchEvents: true }) {
   syncInProgress = true;
 
   try {
+    // 0. Fetch live data directly from Turso Cloud DB (100% resilient across Mobile & Laptop)
+    try {
+      const directData = await fetchStoreDirectFromTurso();
+      if (directData && directData.ok) {
+        if (directData.settings) handleIncomingData("store_settings", directData.settings, options.dispatchEvents);
+        if (directData.products) handleIncomingData("products", directData.products, options.dispatchEvents);
+        if (directData.categories) handleIncomingData("categories", directData.categories, options.dispatchEvents);
+        if (directData.tickerItems) handleIncomingData("ticker_items", directData.tickerItems, options.dispatchEvents);
+
+        lastSyncTimestamp = Date.now();
+        return true;
+      }
+    } catch {}
+
     // 1. Fetch live storefront data from Serverless Turso /api/store first
     try {
       const apiRes = await fetch(`/api/store?t=${Date.now()}`, {

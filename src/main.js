@@ -29,6 +29,7 @@ import "./brandLogo.css";
 import "./brandLogo.js";
 import { initCloudSync } from "./cloudSync.js";
 import { initOrderTracker } from "./orderTracker.js";
+import { fetchStoreDirectFromTurso } from "./tursoDirect.js";
 
 // DOM Selector Helpers
 const $ = (selector) => document.querySelector(selector);
@@ -1111,7 +1112,31 @@ async function initStorefront() {
   renderCatalog();
   updateCartBadge();
 
-  // Fetch live store state from /api/store (Vercel Serverless + Turso)
+  // 1. Instant Direct Turso Cloud DB sync (100% resilient across Mobile & Laptop)
+  fetchStoreDirectFromTurso().then(async (data) => {
+    if (data && data.ok) {
+      if (data.settings || data.heroSettings) {
+        const heroSettings = data.heroSettings || {};
+        currentSettings = {
+          ...currentSettings,
+          ...(data.settings || {}),
+          heroVideoUrl: heroSettings.videoUrl || heroSettings.heroVideoUrl || data.settings?.heroVideoUrl || currentSettings.heroVideoUrl,
+          heroPosterUrl: heroSettings.posterUrl || heroSettings.heroPosterUrl || data.settings?.heroPosterUrl || currentSettings.heroPosterUrl,
+        };
+        applyStoreSettings(currentSettings);
+      }
+      if (Array.isArray(data.products) && data.products.length > 0) {
+        allProducts = await resolveProductsMedia(data.products);
+        schedulePromotionRefresh(allProducts, Date.now());
+        renderCatalog();
+      }
+      if (Array.isArray(data.categories) && data.categories.length > 0) {
+        renderCategoryTabs();
+      }
+    }
+  }).catch(() => {});
+
+  // 2. Fetch live store state from /api/store (Vercel Serverless + Turso fallback)
   fetch("/api/store?t=" + Date.now(), { headers: { Accept: "application/json" }, cache: "no-store" })
     .then((res) => (res.ok ? res.json() : null))
     .then(async (data) => {

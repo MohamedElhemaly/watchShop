@@ -91,6 +91,18 @@ let heroVideoUploader = null;
 let heroPosterUploader = null;
 let visualVariants = [];
 
+function getEffectiveCloudinarySettings() {
+  const envCloudName = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) || "";
+  const envPreset = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET) || "";
+  const inputCloudName = $("#setting-cloudinary-name")?.value?.trim() || "";
+  const inputPreset = $("#setting-cloudinary-preset")?.value?.trim() || "";
+
+  return {
+    cloudName: inputCloudName || storeSettings?.cloudinaryCloudName || envCloudName || "",
+    uploadPreset: inputPreset || storeSettings?.cloudinaryUploadPreset || envPreset || "",
+  };
+}
+
 // EGP Formatter
 const formatEgp = (val) => `${formatEgpNumber(val)} ج.م`;
 
@@ -742,10 +754,7 @@ function addVisualVariantRow(colorLabel = "", imageUrl = "") {
     type: "image",
     initialUrl: variantObj.imageUrl,
     compact: true,
-    getCloudSettings: () => ({
-      cloudName: storeSettings.cloudinaryCloudName,
-      uploadPreset: storeSettings.cloudinaryUploadPreset,
-    }),
+    getCloudSettings: getEffectiveCloudinarySettings,
     onChange: (url) => {
       variantObj.imageUrl = url;
       syncVisualVariantsToTextarea();
@@ -1494,8 +1503,7 @@ function handleHeroSettingsSubmit(e) {
     return;
   }
 
-  storeSettings = {
-    ...storeSettings,
+  const updatedFields = {
     brandName: $("#setting-brand-name").value.trim(),
     brandSubtitle: $("#setting-brand-sub").value.trim(),
     announcement: $("#setting-announcement").value.trim(),
@@ -1508,7 +1516,31 @@ function handleHeroSettingsSubmit(e) {
     featuredSpec: $("#setting-flagship-spec").value.trim(),
   };
 
+  storeSettings = {
+    ...storeSettings,
+    ...updatedFields,
+  };
+
   saveStoreSettings(storeSettings);
+
+  // Sync with Turso /api/settings
+  try {
+    let token = "";
+    try {
+      const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+      if (s) token = JSON.parse(s)?.token || "";
+    } catch {}
+
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ settings: updatedFields }),
+    }).catch((err) => console.warn("Failed to sync hero settings to Turso:", err));
+  } catch {}
+
   showToast("تم تحديث إعدادات الفيديو والواجهة بنجاح ✓");
 }
 
@@ -1989,8 +2021,7 @@ function updateWhatsAppPreview() {
 
 function updateCloudinaryBadge() {
   const badge = $("#cloudinary-status-badge");
-  const cloudName = $("#setting-cloudinary-name")?.value.trim() || storeSettings.cloudinaryCloudName || "";
-  const uploadPreset = $("#setting-cloudinary-preset")?.value.trim() || storeSettings.cloudinaryUploadPreset || "";
+  const { cloudName, uploadPreset } = getEffectiveCloudinarySettings();
   if (!badge) return;
 
   if (cloudName && uploadPreset) {
@@ -1998,7 +2029,7 @@ function updateCloudinaryBadge() {
     badge.textContent = `☁️ متصل بـ Cloudinary (${cloudName})`;
   } else {
     badge.className = "cloudinary-status-badge is-local";
-    badge.textContent = "التخزين المحلي الآمن (IndexedDB) نشط";
+    badge.textContent = "التخزين المحلي الآمن (IndexedDB) نشط (يرجى إدخال بيانات Cloudinary لرفع الفيديوهات)";
   }
 }
 
@@ -2028,8 +2059,10 @@ function populateContactsAndPolicies() {
 
   const cloudNameInput = $("#setting-cloudinary-name");
   const cloudPresetInput = $("#setting-cloudinary-preset");
-  if (cloudNameInput) cloudNameInput.value = storeSettings.cloudinaryCloudName || "";
-  if (cloudPresetInput) cloudPresetInput.value = storeSettings.cloudinaryUploadPreset || "";
+  const envCloudName = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) || "";
+  const envPreset = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET) || "";
+  if (cloudNameInput) cloudNameInput.value = storeSettings.cloudinaryCloudName || envCloudName || "";
+  if (cloudPresetInput) cloudPresetInput.value = storeSettings.cloudinaryUploadPreset || envPreset || "";
 
   // GitHub Pages Settings
   const gh = getGitHubConfig();
@@ -2098,14 +2131,31 @@ function handleContactsSubmit(e) {
   updateCloudSyncBanner();
   showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات GitHub بنجاح ✓");
 
-  fetch("/api/admin/settings", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      whatsappNumber: storeSettings.defaultWhatsapp,
-      phoneNumber: storeSettings.defaultPhone,
-    }),
-  }).catch(() => { });
+  try {
+    let token = "";
+    try {
+      const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+      if (s) token = JSON.parse(s)?.token || "";
+    } catch {}
+
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        settings: {
+          defaultWhatsapp: storeSettings.defaultWhatsapp,
+          defaultPhone: storeSettings.defaultPhone,
+          shippingDetails: storeSettings.shippingDetails,
+          exchangeDetails: storeSettings.exchangeDetails,
+          cloudinaryCloudName: cName,
+          cloudinaryUploadPreset: cPreset,
+        },
+      }),
+    }).catch(() => {});
+  } catch {}
 }
 
 // ----------------------------------------------------
@@ -2810,10 +2860,7 @@ function initAdminApp() {
       initialUrl: $("#edit-image-url")?.value || "",
       label: "صورة الغلاف الرئيسية للساعة",
       hint: "اسحب صورة الساعة هنا أو اخترها من جهازك (سيتم ضغطها وتخزينها بأعلى جودة)",
-      getCloudSettings: () => ({
-        cloudName: storeSettings.cloudinaryCloudName,
-        uploadPreset: storeSettings.cloudinaryUploadPreset,
-      }),
+      getCloudSettings: getEffectiveCloudinarySettings,
       onChange: (url) => {
         const input = $("#edit-image-url");
         if (input) input.value = url;
@@ -2831,13 +2878,38 @@ function initAdminApp() {
       initialUrl: storeSettings.heroVideoUrl || "",
       label: "فيديو البطل الرئيسي (Hero Video)",
       hint: "ارفع فيديو البطل الترويجي مباشرة من جهازك (.mp4, .webm, .mov) بحجم يصل إلى 100MB",
-      getCloudSettings: () => ({
-        cloudName: storeSettings.cloudinaryCloudName,
-        uploadPreset: storeSettings.cloudinaryUploadPreset,
-      }),
-      onChange: (url) => {
+      getCloudSettings: getEffectiveCloudinarySettings,
+      onChange: async (url) => {
         const input = $("#setting-video-url");
         if (input) input.value = url;
+        storeSettings = {
+          ...storeSettings,
+          heroVideoUrl: url,
+          videoUrl: url,
+        };
+        saveStoreSettings(storeSettings);
+
+        // Also persist immediately to Turso backend if online
+        try {
+          let token = "";
+          try {
+            const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+            if (s) token = JSON.parse(s)?.token || "";
+          } catch {}
+
+          await fetch("/api/settings", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ settings: { heroVideoUrl: url, videoUrl: url } }),
+          });
+        } catch (err) {
+          console.warn("Failed to auto-sync hero video to Turso:", err);
+        }
+
+        showToast("تم رفع فيديو البطل وحفظه بنجاح ✓");
       },
     });
   }
@@ -2851,13 +2923,37 @@ function initAdminApp() {
       initialUrl: storeSettings.heroPosterUrl || "",
       label: "صورة غلاف الفيديو (Hero Poster)",
       hint: "الصورة المعروضة قبل بدء تشغيل الفيديو أو كغلاف احتياطي",
-      getCloudSettings: () => ({
-        cloudName: storeSettings.cloudinaryCloudName,
-        uploadPreset: storeSettings.cloudinaryUploadPreset,
-      }),
-      onChange: (url) => {
+      getCloudSettings: getEffectiveCloudinarySettings,
+      onChange: async (url) => {
         const input = $("#setting-poster-url");
         if (input) input.value = url;
+        storeSettings = {
+          ...storeSettings,
+          heroPosterUrl: url,
+          posterUrl: url,
+        };
+        saveStoreSettings(storeSettings);
+
+        try {
+          let token = "";
+          try {
+            const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
+            if (s) token = JSON.parse(s)?.token || "";
+          } catch {}
+
+          await fetch("/api/settings", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ settings: { heroPosterUrl: url, posterUrl: url } }),
+          });
+        } catch (err) {
+          console.warn("Failed to auto-sync hero poster to Turso:", err);
+        }
+
+        showToast("تم رفع غلاف الفيديو وحفظه بنجاح ✓");
       },
     });
   }

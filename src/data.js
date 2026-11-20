@@ -961,11 +961,30 @@ export function saveOrders(orders) {
   } catch {}
 }
 
+let _orderCounter = 0;
+
 export function addOrder(orderData) {
   const orders = getOrders();
+  const existingIds = new Set(orders.map((o) => String(o.id)));
+
+  let assignedId = orderData.id;
+  if (!assignedId) {
+    for (let i = 0; i < 50; i++) {
+      const candidate = `DAF-${Math.floor(1000 + Math.random() * 9000)}`;
+      if (!existingIds.has(candidate)) {
+        assignedId = candidate;
+        break;
+      }
+    }
+    if (!assignedId) {
+      _orderCounter = (_orderCounter + 1) % 9000;
+      assignedId = `DAF-${1000 + _orderCounter}`;
+    }
+  }
+
   const newOrder = {
     ...orderData,
-    id: orderData.id || `DAF-${Date.now().toString().slice(-4)}`,
+    id: assignedId,
     status: orderData.status || "new", // "new" | "confirmed" | "shipped" | "delivered" | "cancelled"
     createdAt: orderData.createdAt || new Date().toISOString(),
     isRead: false,

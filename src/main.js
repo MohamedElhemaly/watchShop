@@ -250,20 +250,35 @@ function applyStoreSettings(settings = currentSettings) {
   // Hero Video & Poster
   const videoPlayer = $("#hero-video-player");
   const videoSource = $("#hero-video-source");
-  if (videoPlayer && videoSource) {
-    const rawVideo = settings.heroVideoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
-    const rawPoster = settings.heroPosterUrl || "/sodfa-promo-poster.jpg";
+  if (videoPlayer) {
+    const rawVideo = settings.heroVideoUrl || settings.videoUrl || "/manus-storage/96837d80-d655-11f1-9beb-9def1d7eb227_fb348b1f.mp4";
+    const rawPoster = settings.heroPosterUrl || settings.posterUrl || "/sodfa-promo-poster.jpg";
 
     resolveMediaUrl(rawVideo).then((targetVideo) => {
-      if (videoSource.getAttribute("src") !== targetVideo) {
-        videoSource.setAttribute("src", targetVideo);
-        videoPlayer.load();
-        videoPlayer.play().catch(() => { });
+      if (targetVideo) {
+        // Enforce autoplay & inline video attributes across iOS Safari, Android, and Desktop
+        videoPlayer.muted = true;
+        videoPlayer.playsInline = true;
+        videoPlayer.autoplay = true;
+        videoPlayer.loop = true;
+        videoPlayer.setAttribute("muted", "");
+        videoPlayer.setAttribute("playsinline", "");
+        videoPlayer.setAttribute("webkit-playsinline", "");
+        videoPlayer.setAttribute("autoplay", "");
+        videoPlayer.setAttribute("loop", "");
+
+        if (videoPlayer.getAttribute("data-applied-src") !== targetVideo) {
+          videoPlayer.setAttribute("data-applied-src", targetVideo);
+          if (videoSource) videoSource.setAttribute("src", targetVideo);
+          videoPlayer.src = targetVideo;
+          videoPlayer.load();
+          videoPlayer.play().catch(() => {});
+        }
       }
     });
 
     resolveMediaUrl(rawPoster).then((targetPoster) => {
-      if (videoPlayer.getAttribute("poster") !== targetPoster) {
+      if (targetPoster && videoPlayer.getAttribute("poster") !== targetPoster) {
         videoPlayer.setAttribute("poster", targetPoster);
       }
     });
@@ -1083,8 +1098,14 @@ async function initStorefront() {
     .then((res) => (res.ok ? res.json() : null))
     .then(async (data) => {
       if (data && data.ok) {
-        if (data.settings) {
-          currentSettings = { ...currentSettings, ...data.settings };
+        if (data.settings || data.heroSettings) {
+          const heroSettings = data.heroSettings || {};
+          currentSettings = {
+            ...currentSettings,
+            ...(data.settings || {}),
+            heroVideoUrl: heroSettings.videoUrl || heroSettings.heroVideoUrl || data.settings?.heroVideoUrl || currentSettings.heroVideoUrl,
+            heroPosterUrl: heroSettings.posterUrl || heroSettings.heroPosterUrl || data.settings?.heroPosterUrl || currentSettings.heroPosterUrl,
+          };
           applyStoreSettings(currentSettings);
         }
         if (Array.isArray(data.products) && data.products.length > 0) {

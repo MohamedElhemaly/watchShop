@@ -200,3 +200,13 @@ test("deleteOrders and deleteOrder permanently remove orders individually and in
   allOrders = getOrders();
   assert.equal(allOrders.length, 0, "All orders should be deleted permanently");
 });
+
+test("addOrder guarantees unique order IDs even when called rapidly in the same millisecond", () => {
+  localStorage.clear();
+  const createdOrders = [];
+  for (let i = 0; i < 50; i++) {
+    createdOrders.push(addOrder({ customerName: `عميل ${i}`, totalAmount: 1000 + i }));
+  }
+  const idSet = new Set(createdOrders.map((o) => o.id));
+  assert.equal(idSet.size, 50, "Every generated order ID must be unique without collision");
+});

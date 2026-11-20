@@ -64,6 +64,11 @@ export default async function handler(req, res) {
         const currentRes = await db.execute("SELECT value_json FROM store_settings WHERE key = 'general' LIMIT 1;");
         const current = currentRes.rows[0] ? safeParseJson(currentRes.rows[0].value_json, {}) : {};
 
+        // Unify hero video field naming across formats
+        if (incoming.videoUrl && !incoming.heroVideoUrl) {
+          incoming.heroVideoUrl = incoming.videoUrl;
+        }
+
         const merged = { ...current, ...incoming };
 
         await db.execute({

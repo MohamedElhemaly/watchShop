@@ -306,48 +306,133 @@ export function fileToDataUrl(file) {
 }
 
 /**
- * Uploads media file to Cloudinary Unsigned Upload Preset
+ * Uploads media file to Cloudinary Unsigned Upload Preset with real-time XMLHttpRequest progress
  */
-export async function uploadToCloudinary(file, cloudName, uploadPreset) {
+export function uploadToCloudinary(file, cloudName, uploadPreset, options = {}) {
+  const isProgressFn = typeof options === "function";
+  const opts = isProgressFn ? { onProgress: options } : (options || {});
+  const isVideo = Boolean(opts.isVideo || (file?.type && file.type.startsWith("video/")));
+  const onProgress = opts.onProgress || null;
+
   if (!file || !cloudName || !uploadPreset) {
-    throw new Error("Missing Cloudinary parameters (Cloud Name or Upload Preset).");
+    return Promise.reject(
+      new Error("بيانات Cloudinary غير مكتملة: اسم السحابة (Cloud Name) أو بريسيت الرفع (Upload Preset) غير محدد.")
+    );
   }
 
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
+  const endpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName.trim())}/${isVideo ? "video" : "auto"}/upload`;
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/auto/upload`, {
-    method: "POST",
-    body: formData,
-  });
+  // Use XMLHttpRequest in browser environments for live upload progress
+  if (typeof XMLHttpRequest !== "undefined") {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", uploadPreset.trim());
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Cloudinary upload failed: ${res.statusText} ${errText}`);
+      if (xhr.upload) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && typeof onProgress === "function") {
+            const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+            onProgress({
+              percent,
+              loaded: event.loaded,
+              total: event.total,
+              text: `جاري رفع ${isVideo ? "الفيديو" : "الملف"}... ${percent}%`,
+            });
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        let data = {};
+        try {
+          data = JSON.parse(xhr.responseText || "{}");
+        } catch {
+          data = {};
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const secureUrl = data.secure_url || data.url;
+          if (!secureUrl) {
+            return reject(new Error("استجابة Cloudinary لم تتضمن رابط secure_url صالحًا."));
+          }
+          if (typeof onProgress === "function") {
+            onProgress({ percent: 100, text: `اكتمل رفع ${isVideo ? "الفيديو" : "الملف"} بنجاح 100% ✓` });
+          }
+          return resolve(secureUrl);
+        }
+
+        const cloudMsg = data?.error?.message || xhr.statusText || `رمز الاستجابة ${xhr.status}`;
+        return reject(new Error(`رفض Cloudinary العملية: ${cloudMsg}`));
+      };
+
+      xhr.onerror = () => {
+        reject(new Error("فشل الاتصال بشبكة Cloudinary. تأكد من اتصال الإنترنت وصحة اسم السحابة."));
+      };
+
+      xhr.ontimeout = () => {
+        reject(new Error("انتهت مهلة الرفع السحابي. تحقق من سرعة الاتصال أو حجم الملف."));
+      };
+
+      xhr.timeout = 240000; // 4 minutes
+      xhr.open("POST", endpoint, true);
+      xhr.send(formData);
+    });
   }
 
-  const data = await res.json();
-  if (!data.secure_url) {
-    throw new Error("Cloudinary response missing secure_url.");
-  }
+  // Fallback for Node / test environments
+  return (async () => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset.trim());
 
-  return data.secure_url;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const cloudMsg = data?.error?.message || res.statusText || `رمز الاستجابة ${res.status}`;
+      throw new Error(`رفض Cloudinary العملية: ${cloudMsg}`);
+    }
+
+    if (!data.secure_url && !data.url) {
+      throw new Error("استجابة Cloudinary لم تتضمن رابط secure_url صالحًا.");
+    }
+
+    if (typeof onProgress === "function") {
+      onProgress({ percent: 100, text: "اكتمل الرفع بنجاح 100% ✓" });
+    }
+
+    return data.secure_url || data.url;
+  })();
 }
 
 /**
  * High-level Processor:
- * Optimizes image, checks GitHub Pages repo upload first for 100% free unlimited hosting,
- * then Cloudinary, and falls back gracefully to compact Data URL / IndexedDB.
+ * For Videos: Mandates Cloudinary with real progress and zero silent failures.
+ * For Images: Optimizes image, checks Cloudinary/GitHub first, falls back to IndexedDB.
  */
 export async function processMediaUpload(file, options = {}) {
-  const { isVideo = false, cloudSettings = null, onProgress = null } = options;
+  const isVideoExplicit = options?.isVideo;
+  const isVideoFile = Boolean(isVideoExplicit || (file?.type && file.type.startsWith("video/")));
+  const isVideo = isVideoFile;
+  const { cloudSettings = null, onProgress = null } = options;
 
-  if (onProgress) onProgress("جاري فحص الملف...");
+  const notify = (msg) => {
+    if (typeof onProgress === "function") {
+      if (typeof msg === "string") onProgress({ percent: 0, text: msg });
+      else onProgress(msg);
+    }
+  };
+
+  notify("جاري فحص الملف...");
 
   let processedFile = file;
   if (!isVideo && file.type && file.type.startsWith("image/")) {
-    if (onProgress) onProgress("جاري تحسين وضغط الصورة...");
+    notify("جاري تحسين وضغط الصورة...");
     try {
       processedFile = await optimizeImageFile(file, 1200, 0.88);
     } catch {
@@ -355,13 +440,76 @@ export async function processMediaUpload(file, options = {}) {
     }
   }
 
-  // 1. Try GitHub Pages Upload first (100% free unlimited media hosting)
+  // Resolve Cloudinary settings from runtime storeSettings or environment variables
+  const cloudName = (
+    options?.cloudName ||
+    cloudSettings?.cloudName ||
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME) ||
+    (typeof window !== "undefined" && window.__CLOUDINARY_CLOUD_NAME) ||
+    ""
+  ).trim();
+
+  const uploadPreset = (
+    options?.uploadPreset ||
+    cloudSettings?.uploadPreset ||
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET) ||
+    (typeof window !== "undefined" && window.__CLOUDINARY_UPLOAD_PRESET) ||
+    ""
+  ).trim();
+
+  // For Videos: Cloudinary is mandatory for cross-device live playback. Never fail silently!
+  if (isVideo) {
+    if (!cloudName || !uploadPreset) {
+      throw new Error(
+        "لم يتم ضبط بيانات Cloudinary: يرجى إدخال اسم السحابة (Cloud Name) وبريسيت الرفع (Upload Preset) في إعدادات التواصل أسفل الصفحة، أو تعيين متغيرات البيئة (VITE_CLOUDINARY_*)."
+      );
+    }
+
+    notify({ percent: 5, text: "جاري الاتصال بسحابة Cloudinary..." });
+    const cloudUrl = await uploadToCloudinary(processedFile, cloudName, uploadPreset, {
+      isVideo: true,
+      onProgress: notify,
+    });
+
+    return {
+      url: cloudUrl,
+      previewUrl: cloudUrl,
+      isCloud: true,
+      size: processedFile.size,
+      name: processedFile.name,
+      type: processedFile.type,
+    };
+  }
+
+  // For Images:
+  // 1. Try Cloudinary first if configured
+  if (cloudName && uploadPreset) {
+    try {
+      notify({ percent: 10, text: "جاري الرفع إلى سحابة Cloudinary..." });
+      const cloudUrl = await uploadToCloudinary(processedFile, cloudName, uploadPreset, {
+        isVideo: false,
+        onProgress: notify,
+      });
+      return {
+        url: cloudUrl,
+        previewUrl: cloudUrl,
+        isCloud: true,
+        size: processedFile.size,
+        name: processedFile.name,
+        type: processedFile.type,
+      };
+    } catch (cloudErr) {
+      console.warn("Cloudinary image upload failed, checking fallbacks:", cloudErr);
+    }
+  }
+
+  // 2. Try GitHub Pages Upload if configured
   try {
     const ghConfig = getGitHubConfig();
     if (ghConfig.isConfigured) {
-      if (onProgress) onProgress("جاري الرفع المباشر إلى مستودع GitHub Pages...");
+      notify("جاري الرفع المباشر إلى مستودع GitHub Pages...");
       const ghResult = await uploadMediaToGitHub(processedFile, "public/uploads");
-      if (onProgress) onProgress("اكتمل الرفع على GitHub Pages بنجاح ✓");
+      notify("اكتمل الرفع على GitHub Pages بنجاح ✓");
       return {
         url: ghResult.url,
         previewUrl: ghResult.rawUrl || ghResult.url,
@@ -375,44 +523,19 @@ export async function processMediaUpload(file, options = {}) {
     console.warn("GitHub upload failed, falling back:", ghErr);
   }
 
-  // 2. Try Cloudinary if configured
-  if (cloudSettings && cloudSettings.cloudName && cloudSettings.uploadPreset) {
-    try {
-      if (onProgress) onProgress("جاري الرفع إلى السحابة (Cloudinary)...");
-      const cloudUrl = await uploadToCloudinary(
-        processedFile,
-        cloudSettings.cloudName.trim(),
-        cloudSettings.uploadPreset.trim()
-      );
-      if (onProgress) onProgress("اكتمل الرفع بنجاح ✓");
-      return {
-        url: cloudUrl,
-        previewUrl: cloudUrl,
-        isCloud: true,
-        size: processedFile.size,
-        name: processedFile.name,
-        type: processedFile.type,
-      };
-    } catch (cloudErr) {
-      console.warn("Cloudinary failed, falling back to local storage:", cloudErr);
-    }
-  }
-
-  // 3. Resilient Local / Cross-device fallback
-  if (onProgress) onProgress("جاري المعالجة الآمنة...");
+  // 3. Resilient Local / IndexedDB fallback for images
+  notify("جاري الحفظ المحلي الآمن...");
   const mediaId = await saveMediaBlob(processedFile, processedFile.name, processedFile.type);
   const previewUrl = await resolveMediaUrl(mediaId);
 
-  // If optimized image is under 250KB, convert to Data URL so it syncs across devices via store.json
   let dataUrl = "";
-  if (!isVideo && processedFile.size < 250 * 1024) {
+  if (processedFile.size < 250 * 1024) {
     try {
       dataUrl = await fileToDataUrl(processedFile);
     } catch {}
   }
 
-  if (onProgress) onProgress("تم الحفظ بنجاح ✓");
-
+  notify("تم الحفظ بنجاح ✓");
   return {
     url: dataUrl || mediaId,
     previewUrl,

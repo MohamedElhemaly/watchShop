@@ -186,7 +186,7 @@
   padding: 5px 10px;
 }
 
-/* Upload Progress Overlay */
+/* Upload Progress Overlay & Bar */
 .media-uploading-bar {
   display: flex;
   align-items: center;
@@ -200,6 +200,94 @@
   font-weight: 700;
   color: var(--teal-950, #072624);
   animation: pulseMedia 1.5s infinite ease-in-out;
+}
+
+.media-uploading-bar.is-progress {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  animation: none;
+  background: #ffffff;
+  border: 1.5px solid var(--copper, #be724c);
+  box-shadow: 0 4px 16px rgba(190, 114, 76, 0.12);
+}
+
+.media-progress-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--teal-950, #072624);
+}
+
+.media-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(190, 114, 76, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.media-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #be724c 0%, #25d366 100%);
+  border-radius: 6px;
+  transition: width 0.22s ease-out;
+}
+
+/* Prominent Red Error Banner (Zero Silent Failures) */
+.media-error-banner {
+  border: 2px solid #ef4444;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15);
+  margin-bottom: 8px;
+  animation: slideDownError 0.25s ease-out;
+}
+
+@keyframes slideDownError {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.media-error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.media-error-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.media-error-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #7f1d1d;
+  margin: 0;
+  word-break: break-word;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-inline-start: 3px solid #dc2626;
+}
+
+.media-error-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
 }
 
 @keyframes pulseMedia {

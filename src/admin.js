@@ -271,8 +271,8 @@ function handleLoginSubmit(e) {
           setAdminSession(sessionData, rememberMe);
         }
       })
-      .catch(() => {});
-  } catch {}
+      .catch(() => { });
+  } catch { }
 
   setAdminSession(sessionData, rememberMe);
   updateAuthViews();
@@ -682,7 +682,7 @@ function handleBulkDeleteProducts() {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: idsToDelete }),
-      }).catch(() => {});
+      }).catch(() => { });
     },
   });
 }
@@ -1426,7 +1426,7 @@ function handleBulkDeleteOrders() {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: idsToDelete }),
-      }).catch(() => {});
+      }).catch(() => { });
     },
   });
 }
@@ -1453,7 +1453,7 @@ function handleDeleteSingleOrder(orderId) {
 
       fetch(`/api/orders?id=${encodeURIComponent(orderId)}`, {
         method: "DELETE",
-      }).catch(() => {});
+      }).catch(() => { });
     },
   });
 }
@@ -1472,7 +1472,7 @@ function handleOrderStatusChange(orderId, newStatus) {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: orderId, status: newStatus }),
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 // ----------------------------------------------------
@@ -1529,7 +1529,7 @@ function handleHeroSettingsSubmit(e) {
     try {
       const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
       if (s) token = JSON.parse(s)?.token || "";
-    } catch {}
+    } catch { }
 
     fetch("/api/settings", {
       method: "PUT",
@@ -1539,7 +1539,7 @@ function handleHeroSettingsSubmit(e) {
       },
       body: JSON.stringify({ settings: updatedFields }),
     }).catch((err) => console.warn("Failed to sync hero settings to Turso:", err));
-  } catch {}
+  } catch { }
 
   showToast("تم تحديث إعدادات الفيديو والواجهة بنجاح ✓");
 }
@@ -2136,7 +2136,7 @@ function handleContactsSubmit(e) {
     try {
       const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
       if (s) token = JSON.parse(s)?.token || "";
-    } catch {}
+    } catch { }
 
     fetch("/api/settings", {
       method: "PUT",
@@ -2154,8 +2154,8 @@ function handleContactsSubmit(e) {
           cloudinaryUploadPreset: cPreset,
         },
       }),
-    }).catch(() => {});
-  } catch {}
+    }).catch(() => { });
+  } catch { }
 }
 
 // ----------------------------------------------------
@@ -2895,7 +2895,7 @@ function initAdminApp() {
           try {
             const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
             if (s) token = JSON.parse(s)?.token || "";
-          } catch {}
+          } catch { }
 
           await fetch("/api/settings", {
             method: "PUT",
@@ -2939,7 +2939,7 @@ function initAdminApp() {
           try {
             const s = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
             if (s) token = JSON.parse(s)?.token || "";
-          } catch {}
+          } catch { }
 
           await fetch("/api/settings", {
             method: "PUT",

@@ -446,7 +446,7 @@ export async function processMediaUpload(file, options = {}) {
     cloudSettings?.cloudName ||
     (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME) ||
     (typeof window !== "undefined" && window.__CLOUDINARY_CLOUD_NAME) ||
-    ""
+    "v3macb6a"
   ).trim();
 
   const uploadPreset = (
@@ -454,7 +454,7 @@ export async function processMediaUpload(file, options = {}) {
     cloudSettings?.uploadPreset ||
     (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET) ||
     (typeof window !== "undefined" && window.__CLOUDINARY_UPLOAD_PRESET) ||
-    ""
+    "SodfaShop"
   ).trim();
 
   // For Videos: Cloudinary is mandatory for cross-device live playback. Never fail silently!

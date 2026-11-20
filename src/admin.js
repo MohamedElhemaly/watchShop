@@ -98,8 +98,8 @@ function getEffectiveCloudinarySettings() {
   const inputPreset = $("#setting-cloudinary-preset")?.value?.trim() || "";
 
   return {
-    cloudName: inputCloudName || storeSettings?.cloudinaryCloudName || envCloudName || "",
-    uploadPreset: inputPreset || storeSettings?.cloudinaryUploadPreset || envPreset || "",
+    cloudName: inputCloudName || storeSettings?.cloudinaryCloudName || envCloudName || "v3macb6a",
+    uploadPreset: inputPreset || storeSettings?.cloudinaryUploadPreset || envPreset || "SodfaShop",
   };
 }
 

@@ -828,8 +828,8 @@ export const defaultStoreSettings = {
   deliveryMaxDays: 4,
   deliveryUnitText: "أيام عمل",
   // Cloudinary Optional Media Sync
-  cloudinaryCloudName: "",
-  cloudinaryUploadPreset: "",
+  cloudinaryCloudName: "v3macb6a",
+  cloudinaryUploadPreset: "SodfaShop",
   // GitHub Pages Live Publish & Cloud Persistence
   githubOwner: "",
   githubRepo: "",

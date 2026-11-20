@@ -103,8 +103,14 @@ export function formatWhatsAppPhone(rawPhone) {
 export function getDb() {
   if (dbClient) return dbClient;
 
-  const url = process.env.TURSO_DATABASE_URL || "file:local.db";
-  const authToken = process.env.TURSO_AUTH_TOKEN || undefined;
+  const isTest = process.env.NODE_ENV === "test" || process.argv.includes("--test");
+  const defaultUrl = isTest ? "file:local.db" : "libsql://sodfa-mohamedelhemaly.aws-eu-central-1.turso.io";
+  const defaultToken = isTest
+    ? undefined
+    : "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTUxNzcyMjgsImlkIjoiMDFhMWY4ZTYtOGQwMS03NTA4LThiYzQtOTIyOTZiYzE4MGY1Iiwia2lkIjoiM3pFZ1FBX19Td1FKVkwtVGpScUhOdDZLWnlXSmdwaVU2aXc4ODd0Z3NtTSIsInJpZCI6ImJjMzA5Yjk4LWFjNWMtNGE3My05NjIxLTE2N2YxNjk4YzcyZCJ9.wAMbFvk3nqBrR6oqg0gSy37_tvXktau-Lm2pipr5XzzzdsUg1hjdWtsnfnbjurq5NLLI7YqvuQIW7wbrhapqAA";
+
+  const url = process.env.TURSO_DATABASE_URL || defaultUrl;
+  const authToken = process.env.TURSO_AUTH_TOKEN || defaultToken;
 
   try {
     dbClient = createClient({

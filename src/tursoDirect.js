@@ -155,6 +155,26 @@ export async function saveSettingsDirectToTurso(settings) {
 }
 
 /**
+ * Persists ticker items directly to Turso DB
+ */
+export async function saveTickerItemsDirectToTurso(items) {
+  const client = getTursoWebClient();
+  if (!client || !Array.isArray(items)) return false;
+
+  try {
+    const now = new Date().toISOString();
+    await client.execute({
+      sql: "INSERT OR REPLACE INTO store_settings (key, value_json, updated_at) VALUES ('ticker_items', ?, ?);",
+      args: [JSON.stringify(items), now],
+    });
+    return true;
+  } catch (err) {
+    console.warn("Direct Turso save ticker items failed:", err);
+    return false;
+  }
+}
+
+/**
  * Persists a product directly to Turso DB
  */
 export async function saveProductDirectToTurso(b) {

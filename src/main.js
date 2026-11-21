@@ -129,21 +129,34 @@ function renderNewsTicker() {
   tickerBar.hidden = false;
 
   const speed = currentSettings.tickerSpeed || "medium";
-  const duration = speed === "slow" ? "38s" : speed === "fast" ? "16s" : "26s";
+  const duration = speed === "slow" ? "42s" : speed === "fast" ? "18s" : "28s";
   track.style.setProperty("--ticker-duration", duration);
 
-  const items = getTickerItems();
-  if (!items || items.length === 0) {
-    tickerBar.hidden = true;
-    return;
+  const rawItems = getTickerItems();
+  const announcement = (currentSettings.announcement || currentSettings.announcementBar || "").trim();
+
+  let displayItems = Array.isArray(rawItems) ? [...rawItems] : [];
+  if (announcement) {
+    if (!displayItems.includes(announcement)) {
+      displayItems.unshift(announcement);
+    }
   }
 
-  // Ensure enough repetitions per segment so it fills any wide display seamlessly (minimum 8-10 repetitions)
-  const minItemsPerSegment = 8;
-  const repeatCount = Math.max(1, Math.ceil(minItemsPerSegment / items.length));
+  if (displayItems.length === 0) {
+    displayItems = [
+      "شحن مجاني لكافة محافظات مصر • متاح المعاينة والفحص الدقيق قبل السداد للمندوب",
+      "ضمان رسمي شامل لمدة عامين على جميع الساعات الأصلية مع استبدال فوري",
+      "خصومات حصرية بمناسبة إطلاق تشكيلة ساعات صُدْفَة 2026 الفاخرة",
+      "توصيل سريع وموثوق خلال 2 إلى 4 أيام عمل لباب منزلك مباشرة",
+    ];
+  }
+
+  // Ensure enough repetitions per segment so it fills any wide display seamlessly (minimum 10-12 repetitions)
+  const minItemsPerSegment = 10;
+  const repeatCount = Math.max(2, Math.ceil(minItemsPerSegment / displayItems.length));
   const fullList = [];
   for (let i = 0; i < repeatCount; i++) {
-    fullList.push(...items);
+    fullList.push(...displayItems);
   }
 
   const segmentHtml = `

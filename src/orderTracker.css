@@ -632,7 +632,7 @@
 }
 
 .nav-track-btn {
-  display: none; /* Hide on desktop to prevent duplication with .header-track-button */
+  display: none !important; /* Hide on desktop to prevent duplication with .header-track-button */
 }
 
 @media (max-width: 900px) {

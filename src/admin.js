@@ -63,6 +63,7 @@ import "./brandLogo.css";
 import "./brandLogo.js";
 import {
   saveSettingsDirectToTurso,
+  saveTickerItemsDirectToTurso,
   saveProductDirectToTurso,
   deleteProductsDirectFromTurso,
   fetchStoreDirectFromTurso,
@@ -1613,10 +1614,13 @@ async function handleHeroSettingsSubmit(e) {
     return;
   }
 
+  const announcementVal = $("#setting-announcement").value.trim();
+  const heroBadgeVal = $("#setting-hero-badge")?.value.trim() || "دقة متناهية • ضمان سنتين";
+
   const updatedFields = {
     brandName: $("#setting-brand-name").value.trim(),
     brandSubtitle: $("#setting-brand-sub").value.trim(),
-    announcement: $("#setting-announcement").value.trim(),
+    announcement: announcementVal,
     heroVideoUrl: $("#setting-video-url").value.trim(),
     heroPosterUrl: $("#setting-poster-url").value.trim(),
     heroHeadline: $("#setting-hero-headline").value.trim(),
@@ -1624,8 +1628,8 @@ async function handleHeroSettingsSubmit(e) {
     featuredTag: $("#setting-flagship-tag").value.trim(),
     featuredName: $("#setting-flagship-name").value.trim(),
     featuredSpec: $("#setting-flagship-spec").value.trim(),
-    heroTrustBadge: $("#setting-hero-badge")?.value.trim() || "دقة متناهية • ضمان سنتين",
-    heroBadge: $("#setting-hero-badge")?.value.trim() || "دقة متناهية • ضمان سنتين",
+    heroTrustBadge: heroBadgeVal,
+    heroBadge: heroBadgeVal,
   };
 
   storeSettings = {
@@ -1637,6 +1641,14 @@ async function handleHeroSettingsSubmit(e) {
 
   saveStoreSettings(storeSettings);
 
+  // Keep ticker items in sync with announcement text
+  if (announcementVal && !tickerItems.includes(announcementVal)) {
+    tickerItems.unshift(announcementVal);
+    saveTickerItems(tickerItems);
+    saveTickerItemsDirectToTurso(tickerItems).catch(() => {});
+    renderTickerItemsList();
+  }
+
   // Direct Turso Cloud DB sync (100% resilient across Mobile & Laptop)
   saveSettingsDirectToTurso(updatedFields).catch(() => {});
 
@@ -1645,7 +1657,7 @@ async function handleHeroSettingsSubmit(e) {
     const res = await fetch("/api/settings", {
       method: "PUT",
       headers: getAdminAuthHeaders(),
-      body: JSON.stringify({ settings: updatedFields }),
+      body: JSON.stringify({ settings: updatedFields, tickerItems }),
     });
 
     if (res.ok) {
@@ -1657,6 +1669,19 @@ async function handleHeroSettingsSubmit(e) {
   } catch (err) {
     console.warn("Failed to sync hero settings to Turso:", err);
     showToast("تم حفظ التغييرات محلياً.");
+  }
+}
+
+async function syncTickerItemsToBackend(items) {
+  saveTickerItemsDirectToTurso(items).catch(() => {});
+  try {
+    await fetch("/api/settings", {
+      method: "PUT",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ tickerItems: items }),
+    });
+  } catch (err) {
+    console.warn("Failed to sync ticker items to backend:", err);
   }
 }
 
@@ -1756,6 +1781,7 @@ function handleBulkDeleteTicker() {
       selectedTickerIndices.clear();
       tickerItems = getTickerItems();
       renderTickerItemsList();
+      syncTickerItemsToBackend(tickerItems);
       showToast(`تم حذف ${indicesToDelete.length} عبارة من الشريط المتحرك ✓`);
     },
   });
@@ -1773,6 +1799,7 @@ function handleAddTickerItem() {
 
   tickerItems.push(text);
   saveTickerItems(tickerItems);
+  syncTickerItemsToBackend(tickerItems);
   if (input) input.value = "";
   renderTickerItemsList();
   showToast("تمت إضافة العبارة إلى شريط الأخبار بنجاح ✓");
@@ -1790,6 +1817,7 @@ function handleTickerAction(action, index) {
     deleteTickerItems([idx]);
     tickerItems = getTickerItems();
     renderTickerItemsList();
+    syncTickerItemsToBackend(tickerItems);
     showToast("تم حذف العبارة.");
   } else if (action === "move-ticker-up" && idx > 0) {
     const temp = tickerItems[idx];
@@ -1797,16 +1825,18 @@ function handleTickerAction(action, index) {
     tickerItems[idx - 1] = temp;
     saveTickerItems(tickerItems);
     renderTickerItemsList();
+    syncTickerItemsToBackend(tickerItems);
   } else if (action === "move-ticker-down" && idx < tickerItems.length - 1) {
     const temp = tickerItems[idx];
     tickerItems[idx] = tickerItems[idx + 1];
     tickerItems[idx + 1] = temp;
     saveTickerItems(tickerItems);
     renderTickerItemsList();
+    syncTickerItemsToBackend(tickerItems);
   }
 }
 
-function handleTickerSettingsSubmit(e) {
+async function handleTickerSettingsSubmit(e) {
   e.preventDefault();
 
   if (!hasPermission("manage_storefront")) {
@@ -1814,13 +1844,32 @@ function handleTickerSettingsSubmit(e) {
     return;
   }
 
-  storeSettings = {
-    ...storeSettings,
+  const tickerSettings = {
     tickerEnabled: $("#setting-ticker-enabled").checked,
     tickerSpeed: $("#setting-ticker-speed").value,
   };
+
+  storeSettings = {
+    ...storeSettings,
+    ...tickerSettings,
+  };
   saveStoreSettings(storeSettings);
-  showToast("تم حفظ إعدادات شريط الأخبار بنجاح ✓");
+
+  // Sync settings and ticker items to Turso and API
+  saveSettingsDirectToTurso(tickerSettings).catch(() => {});
+  syncTickerItemsToBackend(tickerItems);
+
+  try {
+    await fetch("/api/settings", {
+      method: "PUT",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ settings: tickerSettings, tickerItems }),
+    });
+  } catch (err) {
+    console.warn("Failed to sync ticker settings:", err);
+  }
+
+  showToast("تم حفظ إعدادات شريط الأخبار ومزامنتها سحابياً بنجاح ✓");
 }
 
 // ----------------------------------------------------

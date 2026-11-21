@@ -136,23 +136,25 @@ a {
   display: flex;
   position: relative;
   user-select: none;
+  direction: ltr; /* Deterministic layout coordinate system for flawless marquee across all browsers */
 }
 
 .ticker-track {
   display: flex;
   align-items: center;
+  width: max-content;
   white-space: nowrap;
   will-change: transform;
-  animation: ticker-scroll-rtl var(--ticker-duration, 26s) linear infinite;
+  animation: ticker-marquee var(--ticker-duration, 28s) linear infinite;
 }
 
-@keyframes ticker-scroll-rtl {
+@keyframes ticker-marquee {
   0% {
     transform: translate3d(0, 0, 0);
   }
 
   100% {
-    transform: translate3d(50%, 0, 0);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
@@ -165,10 +167,12 @@ a {
 .ticker-item {
   display: inline-flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 18px;
   gap: 14px;
   color: var(--cream-50);
   letter-spacing: 0.01em;
+  direction: rtl; /* Proper Arabic text layout */
+  unicode-bidi: isolate;
 }
 
 .ticker-divider {

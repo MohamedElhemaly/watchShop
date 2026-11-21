@@ -632,14 +632,21 @@
 }
 
 .nav-track-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  color: var(--copper, #be724c);
-  background: transparent;
-  border: none;
-  cursor: pointer;
+  display: none; /* Hide on desktop to prevent duplication with .header-track-button */
+}
+
+@media (max-width: 900px) {
+  .nav-track-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--copper, #be724c);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px 0;
+  }
 }
 
 .success-track-btn {

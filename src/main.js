@@ -138,9 +138,17 @@ function renderNewsTicker() {
     return;
   }
 
+  // Ensure enough repetitions per segment so it fills any wide display seamlessly (minimum 8-10 repetitions)
+  const minItemsPerSegment = 8;
+  const repeatCount = Math.max(1, Math.ceil(minItemsPerSegment / items.length));
+  const fullList = [];
+  for (let i = 0; i < repeatCount; i++) {
+    fullList.push(...items);
+  }
+
   const segmentHtml = `
     <div class="ticker-segment" aria-hidden="true">
-      ${items.map((item) => `
+      ${fullList.map((item) => `
         <span class="ticker-item">
           <span>${safeText(item)}</span>
           <span class="ticker-divider">✦</span>
@@ -247,6 +255,12 @@ function applyStoreSettings(settings = currentSettings) {
   if (flagshipTag && settings.featuredTag) flagshipTag.textContent = settings.featuredTag;
   if (flagshipName && settings.featuredName) flagshipName.textContent = settings.featuredName;
   if (flagshipSpec && settings.featuredSpec) flagshipSpec.textContent = settings.featuredSpec;
+
+  // Hero Trust Badge & Warranty ("دقة متناهية • ضمان سنتين")
+  const heroTrustBadge = $("#hero-trust-badge");
+  if (heroTrustBadge) {
+    heroTrustBadge.textContent = settings.heroTrustBadge || settings.heroBadge || "دقة متناهية • ضمان سنتين";
+  }
 
   // Hero Video & Poster
   const videoPlayer = $("#hero-video-player");
@@ -1133,8 +1147,14 @@ async function initStorefront() {
           ...(data.settings || {}),
           heroVideoUrl: heroSettings.videoUrl || heroSettings.heroVideoUrl || data.settings?.heroVideoUrl || currentSettings.heroVideoUrl,
           heroPosterUrl: heroSettings.posterUrl || heroSettings.heroPosterUrl || data.settings?.heroPosterUrl || currentSettings.heroPosterUrl,
+          heroTrustBadge: heroSettings.trustBadge || heroSettings.heroTrustBadge || data.settings?.heroTrustBadge || data.settings?.heroBadge || currentSettings.heroTrustBadge,
+          heroBadge: heroSettings.heroBadge || heroSettings.trustBadge || data.settings?.heroBadge || data.settings?.heroTrustBadge || currentSettings.heroBadge,
         };
         applyStoreSettings(currentSettings);
+      }
+      if (Array.isArray(data.tickerItems) && data.tickerItems.length > 0) {
+        saveTickerItems(data.tickerItems);
+        renderNewsTicker();
       }
       if (Array.isArray(data.products) && data.products.length > 0) {
         allProducts = await resolveProductsMedia(data.products);
@@ -1159,8 +1179,14 @@ async function initStorefront() {
             ...(data.settings || {}),
             heroVideoUrl: heroSettings.videoUrl || heroSettings.heroVideoUrl || data.settings?.heroVideoUrl || currentSettings.heroVideoUrl,
             heroPosterUrl: heroSettings.posterUrl || heroSettings.heroPosterUrl || data.settings?.heroPosterUrl || currentSettings.heroPosterUrl,
+            heroTrustBadge: heroSettings.trustBadge || heroSettings.heroTrustBadge || data.settings?.heroTrustBadge || data.settings?.heroBadge || currentSettings.heroTrustBadge,
+            heroBadge: heroSettings.heroBadge || heroSettings.trustBadge || data.settings?.heroBadge || data.settings?.heroTrustBadge || currentSettings.heroBadge,
           };
           applyStoreSettings(currentSettings);
+        }
+        if (Array.isArray(data.tickerItems) && data.tickerItems.length > 0) {
+          saveTickerItems(data.tickerItems);
+          renderNewsTicker();
         }
         if (Array.isArray(data.products) && data.products.length > 0) {
           allProducts = await resolveProductsMedia(data.products);

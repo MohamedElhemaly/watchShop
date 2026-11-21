@@ -1599,6 +1599,10 @@ function populateHeroSettings() {
   $("#setting-flagship-tag").value = storeSettings.featuredTag || "القطعة المميزة";
   $("#setting-flagship-name").value = storeSettings.featuredName || "";
   $("#setting-flagship-spec").value = storeSettings.featuredSpec || "";
+  const heroBadgeEl = $("#setting-hero-badge");
+  if (heroBadgeEl) {
+    heroBadgeEl.value = storeSettings.heroTrustBadge || storeSettings.heroBadge || "دقة متناهية • ضمان سنتين";
+  }
 }
 
 async function handleHeroSettingsSubmit(e) {
@@ -1620,6 +1624,8 @@ async function handleHeroSettingsSubmit(e) {
     featuredTag: $("#setting-flagship-tag").value.trim(),
     featuredName: $("#setting-flagship-name").value.trim(),
     featuredSpec: $("#setting-flagship-spec").value.trim(),
+    heroTrustBadge: $("#setting-hero-badge")?.value.trim() || "دقة متناهية • ضمان سنتين",
+    heroBadge: $("#setting-hero-badge")?.value.trim() || "دقة متناهية • ضمان سنتين",
   };
 
   storeSettings = {

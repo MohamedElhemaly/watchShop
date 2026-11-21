@@ -146,17 +146,13 @@ a {
   animation: ticker-scroll-rtl var(--ticker-duration, 26s) linear infinite;
 }
 
-.ticker-track-wrap:hover .ticker-track {
-  animation-play-state: paused;
-}
-
 @keyframes ticker-scroll-rtl {
   0% {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 
   100% {
-    transform: translateX(50%);
+    transform: translate3d(50%, 0, 0);
   }
 }
 

@@ -809,6 +809,8 @@ export const defaultStoreSettings = {
   featuredTag: "القطعة المميزة",
   featuredName: "صُدْفَة هيريتدج كرونوغراف",
   featuredSpec: "سافاير • مقاومة 100م • ستيل 316L",
+  heroTrustBadge: "دقة متناهية • ضمان سنتين",
+  heroBadge: "دقة متناهية • ضمان سنتين",
   defaultPhone: "",
   defaultWhatsapp: "",
   shippingDetails: "سعر الساعة شامل الشحن إلى كافة المحافظات. تُضاف رسوم إضافية لمحافظات جنوب مصر ومرسى مطروح والغردقة.",

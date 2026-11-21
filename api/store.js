@@ -81,6 +81,9 @@ export default async function handler(req, res) {
         featuredTag: generalSettings.featuredTag || "القطعة المميزة",
         featuredName: generalSettings.featuredName || "صُدْفَة هيريتدج كرونوغراف",
         featuredSpec: generalSettings.featuredSpec || "",
+        trustBadge: generalSettings.heroTrustBadge || generalSettings.heroBadge || "دقة متناهية • ضمان سنتين",
+        heroTrustBadge: generalSettings.heroTrustBadge || generalSettings.heroBadge || "دقة متناهية • ضمان سنتين",
+        heroBadge: generalSettings.heroTrustBadge || generalSettings.heroBadge || "دقة متناهية • ضمان سنتين",
       },
       serverNow: new Date().toISOString(),
     };

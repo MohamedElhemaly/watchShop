@@ -49,7 +49,7 @@ import {
   formatEgpNumber,
 } from "./pricing.js";
 import { createMediaUploader } from "./mediaUploader.js";
-import { resolveMediaUrl, resolveProductsMedia, getCachedMediaUrl } from "./mediaStorage.js";
+import { resolveMediaUrl, resolveProductsMedia, getCachedMediaUrl, processMediaUpload } from "./mediaStorage.js";
 import { initCloudSync, syncAllCloudData, getCloudSyncConfig, pushCloudState } from "./cloudSync.js";
 import {
   getGitHubConfig,
@@ -64,6 +64,7 @@ import "./brandLogo.js";
 import {
   saveSettingsDirectToTurso,
   saveTickerItemsDirectToTurso,
+  saveCategoriesDirectToTurso,
   saveProductDirectToTurso,
   deleteProductsDirectFromTurso,
   fetchStoreDirectFromTurso,
@@ -474,8 +475,8 @@ function applyPermissionVisibility(session) {
   const canManageDelivery = isSuper || Boolean(permissions.manage_delivery_settings);
   const deliverySubmit = $("#delivery-settings-form button[type='submit']");
   if (deliverySubmit) deliverySubmit.disabled = !canManageDelivery;
-  const notifSubmit = $("#notifications-settings-form button[type='submit']");
-  if (notifSubmit) notifSubmit.disabled = !canManageDelivery;
+  const socialSubmit = $("#social-links-settings-form button[type='submit']");
+  if (socialSubmit) socialSubmit.disabled = !canManageDelivery;
 
   // Multi-select Bulk Toolbars permissions
   const pToolbar = $("#products-selection-toolbar");
@@ -695,8 +696,9 @@ function handleBulkDeleteProducts() {
     title: "تأكيد حذف الساعات المحددة",
     message: `هل أنت متأكد من حذف ${selectedProductIds.size} ساعة نهائياً من الكتالوج والمتجر؟`,
     previewItems: preview,
-    onConfirm: () => {
+    onConfirm: async () => {
       const idsToDelete = Array.from(selectedProductIds);
+      const prevProducts = [...products];
       deleteProducts(idsToDelete);
       selectedProductIds.clear();
       products = getStoredProducts();
@@ -705,15 +707,34 @@ function handleBulkDeleteProducts() {
       }
       updateKpiStats();
       renderProductsList();
-      showToast(`تم حذف ${idsToDelete.length} ساعة نهائياً وتحديث المتجر ✓`);
 
-      deleteProductsDirectFromTurso(idsToDelete).catch(() => {});
+      let deleteSuccess = false;
+      try {
+        const directRes = await deleteProductsDirectFromTurso(idsToDelete);
+        if (directRes) deleteSuccess = true;
+      } catch {}
 
-      fetch("/api/products", {
-        method: "DELETE",
-        headers: getAdminAuthHeaders(),
-        body: JSON.stringify({ ids: idsToDelete }),
-      }).catch(() => { });
+      try {
+        const res = await fetch("/api/products", {
+          method: "DELETE",
+          headers: getAdminAuthHeaders(),
+          body: JSON.stringify({ ids: idsToDelete }),
+        });
+        if (res.ok) deleteSuccess = true;
+      } catch {}
+
+      if (!deleteSuccess) {
+        products = prevProducts;
+        saveStoredProducts(products);
+        updateKpiStats();
+        renderProductsList();
+        showToast("تعذر حذف الساعات من السحابة. تم استرجاع البيانات.", true);
+        updateCloudDbBadge(false);
+        return;
+      }
+
+      showToast(`تم حذف ${idsToDelete.length} ساعة نهائياً وتحديث المتجر والسحابة ✓`);
+      updateCloudDbBadge(true);
     },
   });
 }
@@ -916,6 +937,156 @@ function updateFramingPreview() {
   }
 }
 
+// ----------------------------------------------------
+// BATCH MULTI-IMAGE UPLOADER & PRODUCT GALLERY MANAGER
+// ----------------------------------------------------
+let productGalleryImages = [];
+
+function renderProductGalleryGrid() {
+  const grid = $("#product-gallery-grid");
+  const countBadge = $("#gallery-count-badge");
+  const editImageUrlInput = $("#edit-image-url");
+  if (!grid) return;
+
+  if (countBadge) {
+    countBadge.textContent = `${productGalleryImages.length} صور`;
+  }
+
+  // Ensure at least one image is primary if images exist
+  if (productGalleryImages.length > 0 && !productGalleryImages.some((img) => img.isPrimary)) {
+    productGalleryImages[0].isPrimary = true;
+  }
+
+  const primaryItem = productGalleryImages.find((img) => img.isPrimary);
+  if (editImageUrlInput) {
+    editImageUrlInput.value = primaryItem?.imageUrl || "";
+  }
+
+  if (productGalleryImages.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 22px 16px; color: var(--ink-muted); font-size: 13px; background: rgba(0,0,0,0.02); border-radius: 8px; border: 1px dashed var(--line);">
+        لا توجد صور مضافة لهذه الساعة حتى الآن. اسحب صوراً بالأعلى أو اضغط لتحديد عدة صور دفعة واحدة.
+      </div>
+    `;
+    updateFramingPreview();
+    return;
+  }
+
+  grid.innerHTML = productGalleryImages.map((img, idx) => `
+    <div class="gallery-card-item ${img.isPrimary ? "is-primary-card" : ""}" data-index="${idx}">
+      <div class="gallery-thumb-stage">
+        <img src="${safeText(img.imageUrl)}" alt="${safeText(img.colorLabel || `صورة ${idx + 1}`)}" style="object-fit: contain;" />
+        ${img.isPrimary ? '<span class="gallery-primary-badge">الصورة الرئيسية ★</span>' : ''}
+      </div>
+      <div class="gallery-card-meta">
+        <input 
+          type="text" 
+          class="gallery-color-input" 
+          data-index="${idx}" 
+          value="${safeText(img.colorLabel || '')}" 
+          placeholder="اسم اللون / الموديل" 
+          title="اسم اللون أو الخيار الخاص بهذه الصورة"
+        />
+        <div class="gallery-card-actions">
+          ${!img.isPrimary ? `
+            <button type="button" class="gallery-set-primary-btn" data-action="set-primary" data-index="${idx}">
+              ★ تعيين كرئيسية
+            </button>
+          ` : `
+            <span class="gallery-active-label">✓ الرئيسية</span>
+          `}
+          <button type="button" class="gallery-delete-btn" data-action="delete-image" data-index="${idx}" title="حذف الصورة من المعرض">
+            ✕ حذف
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join("");
+
+  updateFramingPreview();
+}
+
+async function handleBatchFilesUpload(files) {
+  if (!files || files.length === 0) return;
+
+  const validFiles = Array.from(files).filter((f) => f.type && f.type.startsWith("image/"));
+  if (validFiles.length === 0) {
+    showToast("يرجى تحديد ملفات صور صالحة (PNG, JPG, WebP).", true);
+    return;
+  }
+
+  const progressEl = $("#gallery-upload-progress");
+  const progressFill = $("#gallery-progress-fill");
+  const progressText = $("#gallery-progress-text");
+
+  if (progressEl) progressEl.hidden = false;
+  if (progressFill) progressFill.style.width = "10%";
+  if (progressText) progressText.textContent = `جاري رفع ${validFiles.length} صورة إلى السحابة...`;
+
+  let completed = 0;
+  try {
+    const uploadPromises = validFiles.map(async (file, idx) => {
+      const res = await processMediaUpload(file, {
+        onProgress: (p) => {
+          const pct = typeof p === "object" ? p.percent || 0 : 0;
+          const overall = Math.round(((completed + pct / 100) / validFiles.length) * 100);
+          if (progressFill) progressFill.style.width = `${Math.min(95, overall)}%`;
+        },
+      });
+      completed++;
+      const overall = Math.round((completed / validFiles.length) * 100);
+      if (progressFill) progressFill.style.width = `${overall}%`;
+      if (progressText) progressText.textContent = `تم رفع ${completed} من ${validFiles.length} صور...`;
+      return {
+        id: `img_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+        imageUrl: res.url || res.previewUrl,
+        colorLabel: "",
+        isPrimary: false,
+      };
+    });
+
+    const newImages = await Promise.all(uploadPromises);
+    const validImages = newImages.filter((img) => img.imageUrl);
+
+    if (validImages.length > 0) {
+      if (productGalleryImages.length === 0) {
+        validImages[0].isPrimary = true;
+      }
+      productGalleryImages.push(...validImages);
+      renderProductGalleryGrid();
+      showToast(`تم رفع ${validImages.length} صورة للساعة بنجاح ✓`);
+    }
+  } catch (err) {
+    console.error("Batch upload error:", err);
+    showToast("حدث خطأ أثناء رفع بعض الصور. يرجى المحاولة مجدداً.", true);
+  } finally {
+    if (progressFill) progressFill.style.width = "100%";
+    setTimeout(() => {
+      if (progressEl) progressEl.hidden = true;
+      if (progressFill) progressFill.style.width = "0%";
+    }, 600);
+  }
+}
+
+function handleAddDirectGalleryUrl() {
+  const input = $("#gallery-direct-url-input");
+  const url = input?.value.trim();
+  if (!url || !url.startsWith("http")) {
+    showToast("يرجى إدخال رابط صورة صالح يبدأ بـ http:// أو https://", true);
+    return;
+  }
+  const isFirst = productGalleryImages.length === 0;
+  productGalleryImages.push({
+    id: `img_url_${Date.now()}`,
+    imageUrl: url,
+    colorLabel: "",
+    isPrimary: isFirst,
+  });
+  if (input) input.value = "";
+  renderProductGalleryGrid();
+  showToast("تمت إضافة رابط الصورة للمعرض بنجاح ✓");
+}
+
 function resetProductEditor() {
   editingProductId = null;
   const form = $("#admin-product-form");
@@ -948,6 +1119,8 @@ function resetProductEditor() {
 
   productImageUploader?.setUrl("");
   clearVisualVariants();
+  productGalleryImages = [];
+  renderProductGalleryGrid();
 
   updatePricePreview();
   updateFramingPreview();
@@ -992,6 +1165,33 @@ function loadProductIntoEditor(productId) {
 
   productImageUploader?.setUrl(product.imageUrl || "");
   loadVariantsIntoVisualManager(product.images || product.imageUrl || "");
+
+  // Load product gallery images
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    productGalleryImages = product.images.map((img, idx) => {
+      const u = typeof img === "string" ? img : img.imageUrl;
+      const lbl = typeof img === "object" ? (img.colorLabel || "") : "";
+      return {
+        id: `img_${idx}_${Date.now()}`,
+        imageUrl: u,
+        colorLabel: lbl,
+        isPrimary: u === product.imageUrl || idx === 0,
+      };
+    });
+  } else if (product.imageUrl) {
+    productGalleryImages = [{
+      id: `img_0_${Date.now()}`,
+      imageUrl: product.imageUrl,
+      colorLabel: "الأصلي",
+      isPrimary: true,
+    }];
+  } else {
+    productGalleryImages = [];
+  }
+  if (productGalleryImages.length > 0 && !productGalleryImages.some((img) => img.isPrimary)) {
+    productGalleryImages[0].isPrimary = true;
+  }
+  renderProductGalleryGrid();
 
   $("#edit-sort-order").value = product.sortOrder || 0;
   $("#edit-stock-count").value = product.stockCount !== undefined ? product.stockCount : 10;
@@ -1113,7 +1313,15 @@ async function handleProductFormSubmit(e) {
 
   try {
     let images = [];
-    if (visualVariants.length > 0) {
+    if (productGalleryImages.length > 0) {
+      images = productGalleryImages
+        .filter((img) => img.imageUrl)
+        .map((img, idx) => ({
+          imageUrl: img.imageUrl,
+          colorLabel: img.colorLabel || (idx === 0 ? "الأصلي" : `خيار ${idx + 1}`),
+          sortOrder: idx,
+        }));
+    } else if (visualVariants.length > 0) {
       images = visualVariants
         .filter((v) => v.imageUrl)
         .map((v, idx) => ({
@@ -1130,7 +1338,8 @@ async function handleProductFormSubmit(e) {
       }).filter((img) => img.imageUrl);
     }
 
-    const finalImageUrl = imageUrl || (images[0]?.imageUrl || "/sodfa-promo-poster.jpg");
+    const primaryGalleryItem = productGalleryImages.find((img) => img.isPrimary);
+    const finalImageUrl = primaryGalleryItem?.imageUrl || imageUrl || (images[0]?.imageUrl || "/sodfa-promo-poster.jpg");
     if (images.length === 0 && finalImageUrl) {
       images = [{ imageUrl: finalImageUrl, colorLabel: "الأصلي", sortOrder: 0 }];
     }
@@ -1190,6 +1399,8 @@ async function handleProductFormSubmit(e) {
       updatedAt: new Date().toISOString(),
     };
 
+    const prevProducts = [...products];
+
     if (isFlagship) {
       products.forEach((p) => { if (p.id !== id) p.isFlagship = false; });
     }
@@ -1212,30 +1423,53 @@ async function handleProductFormSubmit(e) {
       renderProductsList();
     });
 
-    // Save directly to Turso Cloud DB (100% resilient across Mobile & Laptop)
-    saveProductDirectToTurso(productData).catch(() => {});
+    let cloudSuccess = false;
+    let cloudErrMsg = "";
 
+    // 1. Save directly to Turso Cloud DB (100% resilient across Mobile & Laptop)
+    try {
+      const directRes = await saveProductDirectToTurso(productData);
+      if (directRes) cloudSuccess = true;
+    } catch (err) {
+      console.warn("Direct Turso product save error:", err);
+    }
+
+    // 2. Serverless API sync
     try {
       const cloudRes = await fetch(`/api/products`, {
         method: existingIndex > -1 ? "PUT" : "POST",
         headers: getAdminAuthHeaders(),
         body: JSON.stringify(productData),
       });
-      if (cloudRes.ok) {
-        showToast(`تم حفظ الساعة «${name}» ومزامنتها سحابياً بنجاح ✓`);
-      } else {
-        showToast(`تم حفظ الساعة «${name}» سحابياً بنجاح ✓`);
+      const cloudJson = await cloudRes.json().catch(() => ({}));
+      if (cloudRes.ok && cloudJson.ok) {
+        cloudSuccess = true;
+      } else if (!cloudSuccess) {
+        cloudErrMsg = cloudJson.error || `HTTP ${cloudRes.status}`;
       }
-    } catch {
-      showToast(`تم حفظ الساعة «${name}» ومزامنتها سحابياً بنجاح ✓`);
+    } catch (err) {
+      if (!cloudSuccess) cloudErrMsg = err.message || "خطأ اتصال";
     }
 
-    fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
-      method: existingIndex > -1 ? "PUT" : "POST",
-      headers: getAdminAuthHeaders(),
-      body: JSON.stringify(productData),
-    }).catch(() => { });
+    if (!cloudSuccess) {
+      // Rollback optimistic state on failure
+      products = prevProducts;
+      saveStoredProducts(products);
+      updateKpiStats();
+      renderProductsList();
+      updateCloudDbBadge(false);
+      const msg = cloudErrMsg || "تعذر مزامنة الساعة مع قاعدة بيانات Turso السحابية.";
+      if (errorEl) {
+        errorEl.textContent = `فشل الحفظ السحابي: ${msg}`;
+        errorEl.hidden = false;
+        errorEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      showToast(`فشل حفظ الساعة في السحابة: ${msg}`, true);
+      return;
+    }
 
+    updateCloudDbBadge(true);
+    showToast(`تم حفظ الساعة «${name}» ومزامنتها سحابياً بنجاح ✓`);
     resetProductEditor();
   } catch (err) {
     console.error("Product save error:", err);
@@ -1252,7 +1486,7 @@ async function handleProductFormSubmit(e) {
   }
 }
 
-function handleProductDelete() {
+async function handleProductDelete() {
   if (!hasPermission("manage_products")) {
     showToast("ليس لديك صلاحية لحذف الساعات.", true);
     return;
@@ -1265,25 +1499,39 @@ function handleProductDelete() {
   const confirmDelete = confirm(`هل أنت متأكد من حذف ساعة «${product.name}» نهائيًا من الكتالوج؟`);
   if (!confirmDelete) return;
 
+  const prevProducts = [...products];
   selectedProductIds.delete(editingProductId);
   deleteProduct(editingProductId);
   products = getStoredProducts();
   updateKpiStats();
   renderProductsList();
-  showToast(`تم حذف «${product.name}» من الكتالوج.`);
 
-  deleteProductsDirectFromTurso([editingProductId]).catch(() => {});
+  let deleteSuccess = false;
+  try {
+    const directRes = await deleteProductsDirectFromTurso([editingProductId]);
+    if (directRes) deleteSuccess = true;
+  } catch {}
 
-  fetch(`/api/products?id=${encodeURIComponent(editingProductId)}`, {
-    method: "DELETE",
-    headers: getAdminAuthHeaders(),
-  }).catch(() => { });
+  try {
+    const res = await fetch(`/api/products?id=${encodeURIComponent(editingProductId)}`, {
+      method: "DELETE",
+      headers: getAdminAuthHeaders(),
+    });
+    if (res.ok) deleteSuccess = true;
+  } catch {}
 
-  fetch(`/api/admin/products/${encodeURIComponent(editingProductId)}`, {
-    method: "DELETE",
-    headers: getAdminAuthHeaders(),
-  }).catch(() => { });
+  if (!deleteSuccess) {
+    products = prevProducts;
+    saveStoredProducts(products);
+    updateKpiStats();
+    renderProductsList();
+    showToast(`تعذر حذف الساعة من السحابة. تم استرجاع الحالة.`, true);
+    updateCloudDbBadge(false);
+    return;
+  }
 
+  updateCloudDbBadge(true);
+  showToast(`تم حذف «${product.name}» من الكتالوج والسحابة بنجاح ✓`);
   resetProductEditor();
 }
 
@@ -1347,12 +1595,13 @@ function renderOrdersList() {
   }
 
   const statusLabels = {
+    received: "تم استلام الطلب",
     new: "تم استلام الطلب",
-    confirmed: "تم التأكيد",
-    shipped: "جاري الشحن",
-    shipping: "جاري الشحن",
+    confirmed: "تم تأكيد الطلب",
+    shipped: "جاري الشحن والتوصيل",
+    shipping: "جاري الشحن والتوصيل",
     delivered: "تم التسليم بنجاح",
-    cancelled: "ملغي",
+    cancelled: "تم إلغاء الطلب",
   };
 
   container.innerHTML = filtered.map((order) => {
@@ -1383,11 +1632,11 @@ function renderOrdersList() {
             <div class="order-status-select-wrap">
               <span class="order-status-badge status-${safeText(order.status)}">${statusLabels[order.status] || order.status}</span>
               <select class="admin-order-status-select" data-action="change-order-status" data-order-id="${safeText(order.id)}" ${canManage ? "" : "disabled"}>
-                <option value="new" ${order.status === "new" ? "selected" : ""}>تم استلام الطلب (جديد)</option>
-                <option value="confirmed" ${order.status === "confirmed" ? "selected" : ""}>تم تأكيد الطلب</option>
-                <option value="shipped" ${order.status === "shipped" || order.status === "shipping" ? "selected" : ""}>جاري الشحن والتوصيل</option>
-                <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>تم التسليم بنجاح</option>
-                <option value="cancelled" ${order.status === "cancelled" ? "selected" : ""}>ملغي</option>
+                <option value="received" ${order.status === "received" || order.status === "new" ? "selected" : ""}>تم استلام الطلب (Step 1)</option>
+                <option value="confirmed" ${order.status === "confirmed" ? "selected" : ""}>تم تأكيد الطلب (Step 2)</option>
+                <option value="shipped" ${order.status === "shipped" || order.status === "shipping" ? "selected" : ""}>جاري الشحن والتوصيل (Step 3)</option>
+                <option value="delivered" ${order.status === "delivered" ? "selected" : ""}>تم التسليم بنجاح (Step 4)</option>
+                <option value="cancelled" ${order.status === "cancelled" ? "selected" : ""}>تم إلغاء الطلب</option>
               </select>
             </div>
             ${canManage ? `
@@ -1457,7 +1706,7 @@ function handleBulkDeleteOrders() {
 
   openBulkDeleteModal({
     title: "تأكيد حذف الطلبات المحددة",
-    message: `هل أنت متأكد من حذف ${selectedOrderIds.size} طلب نهائياً من سجلات المتجر؟`,
+    message: `هل أنت متأكد من حذف ${selectedOrderIds.size} طلب نهائياً من سجلات المتجر والسحابة؟`,
     previewItems: preview,
     onConfirm: async () => {
       const idsToDelete = Array.from(selectedOrderIds);
@@ -1467,9 +1716,12 @@ function handleBulkDeleteOrders() {
       orders = getOrders();
       updateOrdersBadge();
       renderOrdersList();
-      showToast(`تم حذف ${idsToDelete.length} طلب بنجاح ✓`);
 
-      deleteOrdersDirectFromTurso(idsToDelete).catch(() => {});
+      let deleteSuccess = false;
+      try {
+        const directRes = await deleteOrdersDirectFromTurso(idsToDelete);
+        if (directRes) deleteSuccess = true;
+      } catch {}
 
       try {
         const res = await fetch("/api/orders", {
@@ -1477,12 +1729,23 @@ function handleBulkDeleteOrders() {
           headers: getAdminAuthHeaders(),
           body: JSON.stringify({ ids: idsToDelete }),
         });
-        if (!res.ok) {
-          console.warn("Serverless delete returned non-200, verified direct DB delete.");
-        }
+        if (res.ok) deleteSuccess = true;
       } catch (err) {
         console.warn("Failed to delete orders via serverless API:", err);
       }
+
+      if (!deleteSuccess) {
+        orders = prevOrders;
+        saveOrders(orders);
+        updateOrdersBadge();
+        renderOrdersList();
+        showToast("تعذر حذف الطلبات من السحابة. تم استرجاع البيانات.", true);
+        updateCloudDbBadge(false);
+        return;
+      }
+
+      showToast(`تم حذف ${idsToDelete.length} طلب بنجاح من السحابة ✓`);
+      updateCloudDbBadge(true);
     },
   });
 }
@@ -1500,23 +1763,41 @@ function handleDeleteSingleOrder(orderId) {
     message: `هل أنت متأكد من حذف الطلب #${order.id} الخاص بالعميل «${order.customerName}» نهائياً؟`,
     previewItems: [{ title: `طلب #${order.id} — ${order.customerName}`, badge: formatEgp(order.totalAmount) }],
     onConfirm: async () => {
+      const prevOrders = [...orders];
       deleteOrder(orderId);
       selectedOrderIds.delete(orderId);
       orders = getOrders();
       updateOrdersBadge();
       renderOrdersList();
-      showToast(`تم حذف الطلب #${orderId} بنجاح.`);
 
-      deleteOrdersDirectFromTurso([orderId]).catch(() => {});
+      let deleteSuccess = false;
+      try {
+        const directRes = await deleteOrdersDirectFromTurso([orderId]);
+        if (directRes) deleteSuccess = true;
+      } catch {}
 
       try {
-        await fetch(`/api/orders?id=${encodeURIComponent(orderId)}`, {
+        const res = await fetch(`/api/orders?id=${encodeURIComponent(orderId)}`, {
           method: "DELETE",
           headers: getAdminAuthHeaders(),
         });
+        if (res.ok) deleteSuccess = true;
       } catch (err) {
         console.warn("Failed to delete single order via serverless API:", err);
       }
+
+      if (!deleteSuccess) {
+        orders = prevOrders;
+        saveOrders(orders);
+        updateOrdersBadge();
+        renderOrdersList();
+        showToast(`تعذر حذف الطلب #${orderId} من السحابة. تم استرجاع البيانات.`, true);
+        updateCloudDbBadge(false);
+        return;
+      }
+
+      showToast(`تم حذف الطلب #${orderId} بنجاح من السحابة ✓`);
+      updateCloudDbBadge(true);
     },
   });
 }
@@ -1528,7 +1809,7 @@ async function handleOrderStatusChange(orderId, newStatus) {
   }
 
   const prevOrder = orders.find((o) => String(o.id) === String(orderId));
-  const prevStatus = prevOrder ? prevOrder.status : "new";
+  const prevStatus = prevOrder ? prevOrder.status : "received";
 
   // Optimistic UI update
   updateOrderStatus(orderId, newStatus);
@@ -1536,6 +1817,7 @@ async function handleOrderStatusChange(orderId, newStatus) {
   renderOrdersList();
 
   let cloudSuccess = false;
+  let serverStatus = newStatus;
 
   // 1. Direct Turso Cloud DB sync (bypasses serverless protection & cold starts)
   try {
@@ -1556,10 +1838,8 @@ async function handleOrderStatusChange(orderId, newStatus) {
     if (res.ok) {
       cloudSuccess = true;
       const json = await res.json().catch(() => ({}));
-      if (json && json.order) {
-        updateOrderStatus(orderId, json.order.status);
-        orders = getOrders();
-        renderOrdersList();
+      if (json && json.order && json.order.status) {
+        serverStatus = json.order.status;
       }
     } else {
       const errJson = await res.json().catch(() => ({}));
@@ -1570,6 +1850,9 @@ async function handleOrderStatusChange(orderId, newStatus) {
   }
 
   if (cloudSuccess) {
+    updateOrderStatus(orderId, serverStatus);
+    orders = getOrders();
+    renderOrdersList();
     showToast(`تم تحديث حالة الطلب #${orderId} في السحابة بنجاح ✓`);
     updateCloudDbBadge(true);
   } else {
@@ -1577,7 +1860,7 @@ async function handleOrderStatusChange(orderId, newStatus) {
     updateOrderStatus(orderId, prevStatus);
     orders = getOrders();
     renderOrdersList();
-    showToast(`تعذر حفظ حالة الطلب في السحابة. يرجى التحقق من الاتصال.`, true);
+    showToast(`تعذر حفظ حالة الطلب في السحابة. تم استرجاع الحالة السابقة.`, true);
     updateCloudDbBadge(false);
   }
 }
@@ -1614,6 +1897,7 @@ async function handleHeroSettingsSubmit(e) {
     return;
   }
 
+  const prevSettings = { ...storeSettings };
   const announcementVal = $("#setting-announcement").value.trim();
   const heroBadgeVal = $("#setting-hero-badge")?.value.trim() || "دقة متناهية • ضمان سنتين";
 
@@ -1649,8 +1933,13 @@ async function handleHeroSettingsSubmit(e) {
     renderTickerItemsList();
   }
 
+  let cloudSuccess = false;
+
   // Direct Turso Cloud DB sync (100% resilient across Mobile & Laptop)
-  saveSettingsDirectToTurso(updatedFields).catch(() => {});
+  try {
+    const directRes = await saveSettingsDirectToTurso(updatedFields);
+    if (directRes) cloudSuccess = true;
+  } catch {}
 
   // Sync with Turso /api/settings
   try {
@@ -1661,14 +1950,21 @@ async function handleHeroSettingsSubmit(e) {
     });
 
     if (res.ok) {
-      showToast("تم تحديث إعدادات الفيديو والواجهة ومزامنتها سحابياً بنجاح ✓");
-    } else {
-      const errJson = await res.json().catch(() => ({}));
-      showToast(`تم الحفظ محلياً ولكن فشلت المزامنة السحابية: ${errJson.error || "خطأ"}`, true);
+      cloudSuccess = true;
     }
   } catch (err) {
     console.warn("Failed to sync hero settings to Turso:", err);
-    showToast("تم حفظ التغييرات محلياً.");
+  }
+
+  if (cloudSuccess) {
+    showToast("تم تحديث إعدادات الفيديو وشارة الضمان والواجهة ومزامنتها سحابياً بنجاح ✓");
+    updateCloudDbBadge(true);
+  } else {
+    storeSettings = prevSettings;
+    saveStoreSettings(storeSettings);
+    populateHeroSettings();
+    showToast("فشلت المزامنة السحابية لإعدادات الواجهة. تم استرجاع الحالة السابقة.", true);
+    updateCloudDbBadge(false);
   }
 }
 
@@ -1873,117 +2169,78 @@ async function handleTickerSettingsSubmit(e) {
 }
 
 // ----------------------------------------------------
-// 8. STORE OWNER NOTIFICATION SETTINGS
+// 8. SOCIAL MEDIA & CONTACT LINKS MANAGEMENT
 // ----------------------------------------------------
-function populateNotificationSettings() {
-  const tgEnabled = $("#setting-tg-enabled");
-  const tgToken = $("#setting-tg-token");
-  const tgChatId = $("#setting-tg-chat-id");
-  const emailEnabled = $("#setting-email-enabled");
-  const web3formsKey = $("#setting-web3forms-key");
-  const ownerEmail = $("#setting-owner-email");
-
-  if (tgEnabled) tgEnabled.checked = Boolean(storeSettings.telegramNotificationsEnabled);
-  if (tgToken) tgToken.value = storeSettings.telegramBotToken || "";
-  if (tgChatId) tgChatId.value = storeSettings.telegramChatId || "";
-  if (emailEnabled) emailEnabled.checked = Boolean(storeSettings.emailNotificationsEnabled);
-  if (web3formsKey) web3formsKey.value = storeSettings.web3formsKey || "";
-  if (ownerEmail) ownerEmail.value = storeSettings.notificationEmail || "";
+function populateSocialLinksSettings() {
+  if ($("#setting-social-facebook")) $("#setting-social-facebook").value = storeSettings.facebookUrl || storeSettings.socialFacebook || "";
+  if ($("#setting-social-instagram")) $("#setting-social-instagram").value = storeSettings.instagramUrl || storeSettings.socialInstagram || "";
+  if ($("#setting-social-tiktok")) $("#setting-social-tiktok").value = storeSettings.tiktokUrl || storeSettings.socialTiktok || "";
+  if ($("#setting-social-youtube")) $("#setting-social-youtube").value = storeSettings.youtubeUrl || storeSettings.socialYoutube || "";
+  if ($("#setting-social-snapchat")) $("#setting-social-snapchat").value = storeSettings.snapchatUrl || storeSettings.socialSnapchat || "";
+  if ($("#setting-social-phone")) $("#setting-social-phone").value = storeSettings.phone || storeSettings.defaultPhone || storeSettings.socialPhone || "";
+  if ($("#setting-social-whatsapp")) $("#setting-social-whatsapp").value = storeSettings.defaultWhatsapp || storeSettings.socialWhatsapp || "";
 }
 
-function handleNotificationsSubmit(e) {
+async function handleSocialLinksSubmit(e) {
   e.preventDefault();
 
   if (!hasPermission("manage_delivery_settings")) {
-    showToast("ليس لديك صلاحية لتعديل إعدادات الإشعارات.", true);
+    showToast("ليس لديك صلاحية لتعديل روابط التواصل.", true);
     return;
   }
 
+  const prevSettings = { ...storeSettings };
+  const rawWa = $("#setting-social-whatsapp")?.value.trim() || "";
+  let cleanWa = "";
+  if (rawWa) {
+    if (!isValidWhatsAppPhone(rawWa)) {
+      showToast("يرجى إدخال رقم واتساب صحيح (مثلاً: 01012345678 أو 201012345678+).", true);
+      return;
+    }
+    cleanWa = formatWhatsAppPhone(rawWa);
+  }
+
+  const socialFields = {
+    facebookUrl: $("#setting-social-facebook")?.value.trim() || "",
+    instagramUrl: $("#setting-social-instagram")?.value.trim() || "",
+    tiktokUrl: $("#setting-social-tiktok")?.value.trim() || "",
+    youtubeUrl: $("#setting-social-youtube")?.value.trim() || "",
+    snapchatUrl: $("#setting-social-snapchat")?.value.trim() || "",
+    phone: $("#setting-social-phone")?.value.trim() || "",
+    defaultWhatsapp: cleanWa || storeSettings.defaultWhatsapp || "",
+    socialWhatsapp: cleanWa || storeSettings.socialWhatsapp || "",
+  };
+
   storeSettings = {
     ...storeSettings,
-    telegramNotificationsEnabled: $("#setting-tg-enabled").checked,
-    telegramBotToken: $("#setting-tg-token").value.trim(),
-    telegramChatId: $("#setting-tg-chat-id").value.trim(),
-    emailNotificationsEnabled: $("#setting-email-enabled").checked,
-    web3formsKey: $("#setting-web3forms-key").value.trim(),
-    notificationEmail: $("#setting-owner-email").value.trim(),
+    ...socialFields,
   };
   saveStoreSettings(storeSettings);
-  showToast("تم حفظ إعدادات الإشعارات الفورية بنجاح ✓");
-}
 
-async function handleTestNotification() {
-  const btn = $("#test-notification-btn");
-  if (btn) btn.disabled = true;
-  showToast("جاري إرسال إشعار تجريبي...");
+  let cloudSuccess = false;
+  try {
+    const directRes = await saveSettingsDirectToTurso(socialFields);
+    if (directRes) cloudSuccess = true;
+  } catch {}
 
-  const testOrder = {
-    id: `TEST-${Math.floor(1000 + Math.random() * 9000)}`,
-    customerName: "أحمد تجريبي",
-    phone: "01012345678",
-    governorate: "القاهرة",
-    city: "المعادي",
-    address: "شارع النصر، مبنى 5",
-    notes: "هذا إشعار تجريبي لاختبار قنوات تنبيهات المتجر",
-    totalAmount: 2450,
-    items: [
-      { name: "صُدْفَة هيريتدج كرونوغراف", quantity: 1, price: 2450, color: "أسود ملكي" }
-    ],
-  };
+  try {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ settings: socialFields }),
+    });
+    if (res.ok) cloudSuccess = true;
+  } catch {}
 
-  const currentTgEnabled = $("#setting-tg-enabled").checked;
-  const currentTgToken = $("#setting-tg-token").value.trim();
-  const currentTgChatId = $("#setting-tg-chat-id").value.trim();
-  const currentEmailEnabled = $("#setting-email-enabled").checked;
-  const currentWeb3Key = $("#setting-web3forms-key").value.trim();
-
-  let sentCount = 0;
-  let errors = [];
-
-  if (currentTgEnabled && currentTgToken && currentTgChatId) {
-    try {
-      const res = await fetch(`https://api.telegram.org/bot${encodeURIComponent(currentTgToken)}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: currentTgChatId,
-          text: `🚀 <b>إشعار تجريبي ناجح من متجر صُدْفَة</b>\n\nقناة تنبيهات تيليجرام تعمل بنجاح واستجابة فورية.\nرقم الطلب التجريبي: <code>#${testOrder.id}</code>\nالمبلغ: <b>${formatEgp(testOrder.totalAmount)}</b>`,
-          parse_mode: "HTML",
-        }),
-      });
-      if (res.ok) sentCount++;
-      else errors.push("تيليجرام (تحقق من الرمز ومعرّف المحادثة)");
-    } catch {
-      errors.push("تعذر الاتصال بتيليجرام");
-    }
-  }
-
-  if (currentEmailEnabled && currentWeb3Key) {
-    try {
-      const res = await fetch("https://api.web3forms.com/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          access_key: currentWeb3Key,
-          subject: "🚀 إشعار تجريبي من متجر صُدْفَة",
-          message: "قناة إشعارات البريد الإلكتروني تعمل بنجاح!",
-        }),
-      });
-      if (res.ok) sentCount++;
-      else errors.push("البريد الإلكتروني (تحقق من مفتاح Web3Forms)");
-    } catch {
-      errors.push("تعذر الاتصال بخادم البريد");
-    }
-  }
-
-  if (btn) btn.disabled = false;
-
-  if (sentCount > 0) {
-    showToast(`تم إرسال الإشعار التجريبي بنجاح إلى ${sentCount} قناة ✓`);
-  } else if (errors.length > 0) {
-    showToast(`فشل الإرسال: ${errors.join(", ")}`, true);
+  if (cloudSuccess) {
+    showToast("تم حفظ روابط السوشيال ميديا والتواصل ومزامنتها سحابياً بنجاح ✓");
+    updateCloudDbBadge(true);
   } else {
-    showToast("يرجى تفعيل تيليجرام أو البريد وتعبئة المفاتيح أولاً لاختبار الإرسال.", true);
+    storeSettings = prevSettings;
+    saveStoreSettings(storeSettings);
+    populateSocialLinksSettings();
+    showToast("تعذر مزامنة بيانات التواصل مع السحابة.", true);
+    updateCloudDbBadge(false);
   }
 }
 
@@ -2099,7 +2356,7 @@ function handleBulkDeleteCategories() {
   });
 }
 
-function handleAddCategory(e) {
+async function handleAddCategory(e) {
   e.preventDefault();
 
   if (!hasPermission("manage_categories")) {
@@ -2112,6 +2369,7 @@ function handleAddCategory(e) {
 
   if (!name) return;
 
+  const prevCategories = [...categories];
   const id = `cat-${Date.now()}`;
   categories.push({ id, name, icon });
   saveStoredCategories(categories);
@@ -2119,10 +2377,37 @@ function handleAddCategory(e) {
   renderCategoryOptions();
   updateKpiStats();
   $("#add-category-form")?.reset();
-  showToast(`تمت إضافة التصنيف «${name}» بنجاح ✓`);
+
+  let cloudSuccess = false;
+  try {
+    const directRes = await saveCategoriesDirectToTurso(categories);
+    if (directRes) cloudSuccess = true;
+  } catch {}
+
+  try {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ categories }),
+    });
+    if (res.ok) cloudSuccess = true;
+  } catch {}
+
+  if (cloudSuccess) {
+    showToast(`تمت إضافة التصنيف «${name}» ومزامنته سحابياً بنجاح ✓`);
+    updateCloudDbBadge(true);
+  } else {
+    categories = prevCategories;
+    saveStoredCategories(categories);
+    renderCategoriesTable();
+    renderCategoryOptions();
+    updateKpiStats();
+    showToast("تعذر مزامنة التصنيف مع السحابة.", true);
+    updateCloudDbBadge(false);
+  }
 }
 
-function handleDeleteCategory(catId) {
+async function handleDeleteCategory(catId) {
   if (!hasPermission("manage_categories")) {
     showToast("ليس لديك صلاحية لحذف التصنيفات.", true);
     return;
@@ -2140,13 +2425,41 @@ function handleDeleteCategory(catId) {
   const ok = confirm(`هل أنت متأكد من حذف تصنيف «${cat.name}»؟`);
   if (!ok) return;
 
+  const prevCategories = [...categories];
   selectedCategoryIds.delete(catId);
   deleteCategories([catId]);
   categories = getStoredCategories();
   renderCategoriesTable();
   renderCategoryOptions();
   updateKpiStats();
-  showToast(`تم حذف تصنيف «${cat.name}».`);
+
+  let cloudSuccess = false;
+  try {
+    const directRes = await saveCategoriesDirectToTurso(categories);
+    if (directRes) cloudSuccess = true;
+  } catch {}
+
+  try {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ categories }),
+    });
+    if (res.ok) cloudSuccess = true;
+  } catch {}
+
+  if (cloudSuccess) {
+    showToast(`تم حذف تصنيف «${cat.name}» من السحابة بنجاح ✓`);
+    updateCloudDbBadge(true);
+  } else {
+    categories = prevCategories;
+    saveStoredCategories(categories);
+    renderCategoriesTable();
+    renderCategoryOptions();
+    updateKpiStats();
+    showToast("تعذر حذف التصنيف من السحابة.", true);
+    updateCloudDbBadge(false);
+  }
 }
 
 // ----------------------------------------------------
@@ -2246,7 +2559,7 @@ function populateContactsAndPolicies() {
   updateGitHubBadge();
 }
 
-function handleContactsSubmit(e) {
+async function handleContactsSubmit(e) {
   e.preventDefault();
 
   if (!hasPermission("manage_delivery_settings")) {
@@ -2260,6 +2573,7 @@ function handleContactsSubmit(e) {
     return;
   }
 
+  const prevSettings = { ...storeSettings };
   const cleanWa = formatWhatsAppPhone(rawWa);
   const cName = $("#setting-cloudinary-name")?.value.trim() || "";
   const cPreset = $("#setting-cloudinary-preset")?.value.trim() || "";
@@ -2268,14 +2582,18 @@ function handleContactsSubmit(e) {
   const ghBranch = $("#setting-github-branch")?.value.trim() || "main";
   const ghToken = $("#setting-github-token")?.value.trim() || "";
 
-  storeSettings = {
-    ...storeSettings,
+  const contactFields = {
     defaultWhatsapp: cleanWa ? `+${cleanWa}` : "",
     defaultPhone: $("#setting-phone").value.trim(),
     shippingDetails: $("#setting-shipping").value.trim(),
     exchangeDetails: $("#setting-exchange").value.trim(),
     cloudinaryCloudName: cName,
     cloudinaryUploadPreset: cPreset,
+  };
+
+  storeSettings = {
+    ...storeSettings,
+    ...contactFields,
     githubOwner: ghOwner,
     githubRepo: ghRepo,
     githubBranch: ghBranch,
@@ -2294,24 +2612,31 @@ function handleContactsSubmit(e) {
   updateCloudinaryBadge();
   updateGitHubBadge();
   updateCloudSyncBanner();
-  showToast("تم حفظ بيانات التواصل وسياسات المتجر وإعدادات GitHub بنجاح ✓");
+
+  let cloudSuccess = false;
+  try {
+    const directRes = await saveSettingsDirectToTurso(contactFields);
+    if (directRes) cloudSuccess = true;
+  } catch {}
 
   try {
-    fetch("/api/settings", {
+    const res = await fetch("/api/settings", {
       method: "PUT",
       headers: getAdminAuthHeaders(),
-      body: JSON.stringify({
-        settings: {
-          defaultWhatsapp: storeSettings.defaultWhatsapp,
-          defaultPhone: storeSettings.defaultPhone,
-          shippingDetails: storeSettings.shippingDetails,
-          exchangeDetails: storeSettings.exchangeDetails,
-          cloudinaryCloudName: cName,
-          cloudinaryUploadPreset: cPreset,
-        },
-      }),
-    }).catch(() => { });
-  } catch { }
+      body: JSON.stringify({ settings: contactFields }),
+    });
+    if (res.ok) cloudSuccess = true;
+  } catch {}
+
+  if (cloudSuccess) {
+    showToast("تم حفظ بيانات التواصل ومزامنتها سحابياً بنجاح ✓");
+    updateCloudDbBadge(true);
+  } else {
+    storeSettings = prevSettings;
+    saveStoreSettings(storeSettings);
+    showToast("تعذر مزامنة بيانات التواصل مع السحابة.", true);
+    updateCloudDbBadge(false);
+  }
 }
 
 // ----------------------------------------------------
@@ -2348,7 +2673,7 @@ function updateDeliveryPreview() {
   }
 }
 
-function handleDeliverySettingsSubmit(e) {
+async function handleDeliverySettingsSubmit(e) {
   e.preventDefault();
 
   if (!hasPermission("manage_delivery_settings")) {
@@ -2356,20 +2681,50 @@ function handleDeliverySettingsSubmit(e) {
     return;
   }
 
+  const prevSettings = { ...storeSettings };
   const minVal = Math.max(1, parseInt($("#delivery-min-days")?.value, 10) || 2);
   const maxVal = Math.max(minVal, parseInt($("#delivery-max-days")?.value, 10) || minVal);
   const unitVal = $("#delivery-unit-text")?.value.trim() || "أيام عمل";
 
-  storeSettings = {
-    ...storeSettings,
+  const deliveryFields = {
     deliveryMinDays: minVal,
     deliveryMaxDays: maxVal,
     deliveryUnitText: unitVal,
   };
 
+  storeSettings = {
+    ...storeSettings,
+    ...deliveryFields,
+  };
+
   saveStoreSettings(storeSettings);
   updateDeliveryPreview();
-  showToast("تم حفظ إعدادات مدة التوصيل وتحديث واجهة المتجر بنجاح ✓");
+
+  let cloudSuccess = false;
+  try {
+    const directRes = await saveSettingsDirectToTurso(deliveryFields);
+    if (directRes) cloudSuccess = true;
+  } catch {}
+
+  try {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ settings: deliveryFields }),
+    });
+    if (res.ok) cloudSuccess = true;
+  } catch {}
+
+  if (cloudSuccess) {
+    showToast("تم حفظ إعدادات مدة التوصيل ومزامنتها سحابياً بنجاح ✓");
+    updateCloudDbBadge(true);
+  } else {
+    storeSettings = prevSettings;
+    saveStoreSettings(storeSettings);
+    populateDeliverySettings();
+    showToast("تعذر حفظ إعدادات التوصيل في السحابة.", true);
+    updateCloudDbBadge(false);
+  }
 }
 
 // ----------------------------------------------------
@@ -2677,7 +3032,7 @@ function renderDashboard() {
   renderOrdersList();
   populateHeroSettings();
   populateTickerSettings();
-  populateNotificationSettings();
+  populateSocialLinksSettings();
   renderCategoriesTable();
   populateContactsAndPolicies();
   populateDeliverySettings();
@@ -2715,7 +3070,7 @@ function initAdminApp() {
   // Live Cloud sync on mount: fetch fresh orders, products, and store settings directly from Turso & API
   fetchStoreDirectFromTurso().then((data) => {
     if (data && data.ok) {
-      if (Array.isArray(data.products) && data.products.length > 0) {
+      if (Array.isArray(data.products)) {
         products = data.products;
         saveProducts(products);
         renderProductsList();
@@ -2725,6 +3080,17 @@ function initAdminApp() {
         saveStoreSettings(storeSettings);
         populateHeroSettings();
       }
+      if (Array.isArray(data.categories)) {
+        categories = data.categories;
+        saveStoredCategories(categories);
+        renderCategoriesTable();
+        renderCategoryOptions();
+      }
+      if (Array.isArray(data.tickerItems)) {
+        tickerItems = data.tickerItems;
+        saveTickerItems(tickerItems);
+        renderTickerItemsList();
+      }
       updateCloudDbBadge(true);
     }
   }).catch(() => {
@@ -2732,7 +3098,7 @@ function initAdminApp() {
   });
 
   fetchOrdersDirectFromTurso().then((directOrders) => {
-    if (Array.isArray(directOrders) && directOrders.length > 0) {
+    if (Array.isArray(directOrders)) {
       orders = directOrders;
       saveOrders(orders);
       updateOrdersBadge();
@@ -2741,7 +3107,37 @@ function initAdminApp() {
     }
   }).catch(() => {});
 
-  fetch("/api/orders", { headers: getAdminAuthHeaders(), cache: "no-store" })
+  fetch(`/api/store?t=${Date.now()}`, { headers: { Accept: "application/json" }, cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (data && data.ok) {
+        if (Array.isArray(data.products)) {
+          products = data.products;
+          saveProducts(products);
+          renderProductsList();
+        }
+        if (data.settings) {
+          storeSettings = { ...storeSettings, ...data.settings };
+          saveStoreSettings(storeSettings);
+          populateHeroSettings();
+        }
+        if (Array.isArray(data.categories)) {
+          categories = data.categories;
+          saveStoredCategories(categories);
+          renderCategoriesTable();
+          renderCategoryOptions();
+        }
+        if (Array.isArray(data.tickerItems)) {
+          tickerItems = data.tickerItems;
+          saveTickerItems(tickerItems);
+          renderTickerItemsList();
+        }
+        updateCloudDbBadge(true);
+      }
+    })
+    .catch(() => {});
+
+  fetch(`/api/orders?t=${Date.now()}`, { headers: getAdminAuthHeaders(), cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((data) => {
       if (data && data.ok && Array.isArray(data.orders)) {
@@ -2929,9 +3325,68 @@ function initAdminApp() {
   });
   $("#btn-bulk-delete-ticker")?.addEventListener("click", handleBulkDeleteTicker);
 
-  // Notification Settings Form & Test Button
-  $("#notifications-settings-form")?.addEventListener("submit", handleNotificationsSubmit);
-  $("#test-notification-btn")?.addEventListener("click", handleTestNotification);
+  // Social Media & Contact Links Settings Form
+  $("#social-links-settings-form")?.addEventListener("submit", handleSocialLinksSubmit);
+
+  // Batch Multi-Image Gallery Handlers
+  const galleryFileInput = $("#product-gallery-file-input");
+  galleryFileInput?.addEventListener("change", (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleBatchFilesUpload(e.target.files);
+      e.target.value = "";
+    }
+  });
+
+  const batchDropzone = $("#product-batch-dropzone");
+  if (batchDropzone) {
+    batchDropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      batchDropzone.classList.add("is-dragover");
+    });
+    batchDropzone.addEventListener("dragleave", () => {
+      batchDropzone.classList.remove("is-dragover");
+    });
+    batchDropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      batchDropzone.classList.remove("is-dragover");
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleBatchFilesUpload(e.dataTransfer.files);
+      }
+    });
+  }
+
+  $("#btn-add-gallery-url")?.addEventListener("click", handleAddDirectGalleryUrl);
+
+  const galleryGrid = $("#product-gallery-grid");
+  galleryGrid?.addEventListener("click", (e) => {
+    const setPrimaryBtn = e.target.closest('[data-action="set-primary"]');
+    if (setPrimaryBtn) {
+      const idx = parseInt(setPrimaryBtn.dataset.index, 10);
+      productGalleryImages.forEach((img, i) => { img.isPrimary = (i === idx); });
+      renderProductGalleryGrid();
+      return;
+    }
+
+    const delBtn = e.target.closest('[data-action="delete-image"]');
+    if (delBtn) {
+      const idx = parseInt(delBtn.dataset.index, 10);
+      const wasPrimary = productGalleryImages[idx]?.isPrimary;
+      productGalleryImages.splice(idx, 1);
+      if (wasPrimary && productGalleryImages.length > 0) {
+        productGalleryImages[0].isPrimary = true;
+      }
+      renderProductGalleryGrid();
+    }
+  });
+
+  galleryGrid?.addEventListener("input", (e) => {
+    if (e.target.classList.contains("gallery-color-input")) {
+      const idx = parseInt(e.target.dataset.index, 10);
+      if (productGalleryImages[idx]) {
+        productGalleryImages[idx].colorLabel = e.target.value.trim();
+      }
+    }
+  });
 
   // Categories Form & Actions
   $("#add-category-form")?.addEventListener("submit", handleAddCategory);

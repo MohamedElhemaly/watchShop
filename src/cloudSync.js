@@ -176,23 +176,14 @@ export function handleIncomingData(key, cloudData, dispatchEvents = true) {
     }
 
     case "orders": {
-      const currentOrders = getOrders();
       if (Array.isArray(cloudData)) {
-        const map = new Map();
-        currentOrders.forEach((o) => { if (o && o.id) map.set(String(o.id), o); });
-        cloudData.forEach((o) => {
-          if (o && o.id) {
-            const strId = String(o.id);
-            map.set(strId, { ...(map.get(strId) || {}), ...o });
-          }
-        });
-        const mergedOrders = Array.from(map.values()).sort(
+        const sortedOrders = [...cloudData].sort(
           (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
         );
         try {
-          localStorage.setItem("daffa_orders", JSON.stringify(mergedOrders));
+          localStorage.setItem("daffa_orders", JSON.stringify(sortedOrders));
           if (dispatchEvents && typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("daffa:orders-updated", { detail: mergedOrders }));
+            window.dispatchEvent(new CustomEvent("daffa:orders-updated", { detail: sortedOrders }));
           }
         } catch {}
       }
@@ -200,7 +191,7 @@ export function handleIncomingData(key, cloudData, dispatchEvents = true) {
     }
 
     case "products": {
-      if (Array.isArray(cloudData) && cloudData.length > 0) {
+      if (Array.isArray(cloudData)) {
         try {
           localStorage.setItem("daffa_custom_products", JSON.stringify(cloudData));
           if (dispatchEvents && typeof window !== "undefined") {
@@ -212,7 +203,7 @@ export function handleIncomingData(key, cloudData, dispatchEvents = true) {
     }
 
     case "categories": {
-      if (Array.isArray(cloudData) && cloudData.length > 0) {
+      if (Array.isArray(cloudData)) {
         try {
           localStorage.setItem("daffa_custom_categories", JSON.stringify(cloudData));
           if (dispatchEvents && typeof window !== "undefined") {
@@ -224,7 +215,7 @@ export function handleIncomingData(key, cloudData, dispatchEvents = true) {
     }
 
     case "ticker_items": {
-      if (Array.isArray(cloudData) && cloudData.length > 0) {
+      if (Array.isArray(cloudData)) {
         try {
           localStorage.setItem("daffa_ticker_items", JSON.stringify(cloudData));
           if (dispatchEvents && typeof window !== "undefined") {

@@ -115,7 +115,9 @@ function getDiscountBadgeLabel(product) {
 // ----------------------------------------------------
 // SCROLLING NEWS TICKER RENDERING
 // ----------------------------------------------------
-function renderNewsTicker() {
+let lastRenderedTickerSignature = "";
+
+function renderNewsTicker(force = false) {
   const tickerBar = $("#news-ticker-bar");
   const track = $("#ticker-track");
   if (!tickerBar || !track) return;
@@ -123,6 +125,7 @@ function renderNewsTicker() {
   const isEnabled = currentSettings.tickerEnabled !== false;
   if (!isEnabled) {
     tickerBar.hidden = true;
+    lastRenderedTickerSignature = "hidden";
     return;
   }
 
@@ -130,7 +133,6 @@ function renderNewsTicker() {
 
   const speed = currentSettings.tickerSpeed || "medium";
   const duration = speed === "slow" ? "42s" : speed === "fast" ? "18s" : "28s";
-  track.style.setProperty("--ticker-duration", duration);
 
   const rawItems = getTickerItems();
   const announcement = (currentSettings.announcement || currentSettings.announcementBar || "").trim();
@@ -151,9 +153,18 @@ function renderNewsTicker() {
     ];
   }
 
-  // Ensure enough repetitions per segment so it fills any wide display seamlessly (minimum 10-12 repetitions)
-  const minItemsPerSegment = 10;
-  const repeatCount = Math.max(2, Math.ceil(minItemsPerSegment / displayItems.length));
+  // Prevent restarting the continuous CSS animation if the content hasn't changed
+  const currentSig = `${displayItems.join("||")}__${duration}`;
+  if (!force && lastRenderedTickerSignature === currentSig && track.children.length > 0) {
+    return;
+  }
+  lastRenderedTickerSignature = currentSig;
+
+  track.style.setProperty("--ticker-duration", duration);
+
+  // Ensure enough repetitions per segment so it fills any wide display seamlessly (minimum 20 repetitions)
+  const minItemsPerSegment = 20;
+  const repeatCount = Math.max(3, Math.ceil(minItemsPerSegment / displayItems.length));
   const fullList = [];
   for (let i = 0; i < repeatCount; i++) {
     fullList.push(...displayItems);
@@ -394,8 +405,152 @@ function applyStoreSettings(settings = currentSettings) {
   const successTimeline = $("#success-delivery-timeline");
   if (successTimeline) successTimeline.innerHTML = `التوصيل المتوقع: <strong>${timelineText}</strong> لباب منزلك`;
 
+  // Render Social Media Links (Footer & Mobile Menu)
+  renderSocialMediaLinks(settings);
+
   // News Ticker
   renderNewsTicker();
+}
+
+// ----------------------------------------------------
+// SOCIAL MEDIA LINKS RENDERING (FOOTER & MOBILE MENU)
+// ----------------------------------------------------
+function renderSocialMediaLinks(settings = currentSettings) {
+  const footerLinksContainer = $("#footer-social-links");
+  const navLinksContainer = $("#nav-social-links");
+  if (!footerLinksContainer && !navLinksContainer) return;
+
+  const links = [
+    {
+      id: "whatsapp",
+      label: "واتساب",
+      url: settings.defaultWhatsapp || settings.socialWhatsapp
+        ? buildWhatsAppUrl(formatWhatsAppPhone(settings.defaultWhatsapp || settings.socialWhatsapp), `مرحبًا، أود الاستفسار عن متجر ${settings.brandName || "ضَفّة"}.`)
+        : "",
+      svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.98.58 3.86 1.68 5.46L2 22l4.82-1.74c1.53.97 3.32 1.5 5.22 1.5 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm5.79 14.15c-.24.67-1.39 1.28-1.92 1.34-.51.06-1.16.08-3.73-.98-3.07-1.28-5.06-4.4-5.21-4.6-.15-.2-1.24-1.65-1.24-3.15 0-1.5.78-2.24 1.06-2.54.28-.3.61-.38.82-.38.2 0 .41 0 .59.01.19.01.44-.07.69.52.25.6.86 2.1.94 2.25.08.16.13.34.03.55-.1.21-.15.34-.3.52-.16.17-.33.39-.47.52-.15.15-.31.32-.13.63.17.31.78 1.28 1.67 2.08 1.15 1.02 2.12 1.34 2.42 1.49.3.15.48.13.66-.08.18-.2.78-.91.99-1.22.21-.31.42-.26.71-.15.29.1 1.84.87 2.16 1.03.32.16.53.24.61.37.08.14.08.8-.16 1.47z"/></svg>`,
+    },
+    {
+      id: "facebook",
+      label: "فيسبوك",
+      url: settings.facebookUrl || settings.socialFacebook || "",
+      svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`,
+    },
+    {
+      id: "instagram",
+      label: "إنستجرام",
+      url: settings.instagramUrl || settings.socialInstagram || "",
+      svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>`,
+    },
+    {
+      id: "tiktok",
+      label: "تيك توك",
+      url: settings.tiktokUrl || settings.socialTiktok || "",
+      svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.12V9.42a6.34 6.34 0 0 0-.86-.06 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V9.05a8.16 8.16 0 0 0 4.77 1.52V7.12a4.85 4.85 0 0 1-1-.43z"/></svg>`,
+    },
+    {
+      id: "youtube",
+      label: "يوتيوب",
+      url: settings.youtubeUrl || settings.socialYoutube || "",
+      svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
+    },
+    {
+      id: "snapchat",
+      label: "سناب شات",
+      url: settings.snapchatUrl || settings.socialSnapchat || "",
+      svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12.004 2c-3.52 0-6.17 2.478-6.17 5.75 0 .845.244 1.77.674 2.443.085.132.132.264.047.41-.123.21-.498.41-.95.534-.51.14-.99.39-1.02.937-.02.4.22.75.64 1.01.62.38 1.34.33 1.96.17.27-.07.47.07.56.28.32.74.88 1.48 2.06 1.84.41.13.78.36.93.79.17.47-.07 1.07-.63 1.42-.48.3-.98.53-1.55.67-.37.09-.59.39-.52.74.07.35.39.54.76.52.99-.05 1.95-.36 2.87-.85.27-.14.54-.15.8.02.82.52 1.82.85 2.83.85 1.02 0 2.01-.33 2.83-.85.26-.17.53-.16.8-.02.92.49 1.88.8 2.87.85.37.02.69-.17.76-.52.07-.35-.15-.65-.52-.74-.57-.14-1.07-.37-1.55-.67-.56-.35-.8-.95-.63-1.42.15-.43.52-.66.93-.79 1.18-.36 1.74-1.1 2.06-1.84.09-.21.29-.35.56-.28.62.16 1.34.21 1.96-.17.42-.26.66-.61.64-1.01-.03-.547-.51-.797-1.02-.937-.452-.124-.827-.324-.95-.534-.085-.146-.038-.278.047-.41.43-.673.674-1.598.674-2.443 0-3.272-2.65-5.75-6.17-5.75z"/></svg>`,
+    },
+    {
+      id: "phone",
+      label: "اتصال هاتفي",
+      url: settings.defaultPhone || settings.socialPhone ? `tel:${settings.defaultPhone || settings.socialPhone}` : "",
+      svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`,
+    },
+  ];
+
+  const activeLinks = links.filter((l) => Boolean(l.url));
+
+  const html = activeLinks.map((l) => `
+    <a href="${safeText(l.url)}" class="social-icon-btn social-icon-${l.id}" target="_blank" rel="noopener noreferrer" aria-label="${safeText(l.label)}" title="${safeText(l.label)}">
+      ${l.svg}
+    </a>
+  `).join("");
+
+  if (footerLinksContainer) {
+    footerLinksContainer.innerHTML = html;
+    footerLinksContainer.hidden = activeLinks.length === 0;
+  }
+  if (navLinksContainer) {
+    navLinksContainer.innerHTML = html;
+    navLinksContainer.hidden = activeLinks.length === 0;
+  }
+}
+
+// ----------------------------------------------------
+// HERO VIDEO SOUND & AUDIO TOGGLE CONTROLLER
+// ----------------------------------------------------
+function initHeroVideoAudio() {
+  const video = $("#hero-video-player");
+  const toggleBtn = $("#hero-sound-toggle-btn");
+  const heroArt = $(".hero-art");
+  if (!video || !toggleBtn) return;
+
+  // Modern browser standard: initialize unmuted volume capability
+  video.volume = 1.0;
+
+  function updateAudioButtonState(isMuted) {
+    const iconMuted = toggleBtn.querySelector(".sound-icon-muted");
+    const iconUnmuted = toggleBtn.querySelector(".sound-icon-unmuted");
+    const label = toggleBtn.querySelector(".sound-toggle-label");
+
+    if (isMuted) {
+      if (iconMuted) iconMuted.hidden = false;
+      if (iconUnmuted) iconUnmuted.hidden = true;
+      if (label) label.textContent = "تشغيل الصوت";
+      toggleBtn.classList.remove("is-unmuted");
+      toggleBtn.setAttribute("aria-label", "تشغيل صوت الفيديو");
+      toggleBtn.setAttribute("title", "تشغيل صوت الفيديو");
+    } else {
+      if (iconMuted) iconMuted.hidden = true;
+      if (iconUnmuted) iconUnmuted.hidden = false;
+      if (label) label.textContent = "كتم الصوت";
+      toggleBtn.classList.add("is-unmuted");
+      toggleBtn.setAttribute("aria-label", "كتم صوت الفيديو");
+      toggleBtn.setAttribute("title", "كتم صوت الفيديو");
+    }
+  }
+
+  // Handle explicit sound button click
+  toggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (video.muted) {
+      video.muted = false;
+      video.volume = 1.0;
+      video.play().catch(() => {});
+      updateAudioButtonState(false);
+    } else {
+      video.muted = true;
+      updateAudioButtonState(true);
+    }
+  });
+
+  // Clicking the video portrait art un-mutes and plays audio smoothly
+  if (heroArt) {
+    heroArt.addEventListener("click", (e) => {
+      if (e.target.closest("#hero-sound-toggle-btn") || e.target.closest("a") || e.target.closest("button")) {
+        return;
+      }
+      if (video.muted) {
+        video.muted = false;
+        video.volume = 1.0;
+        video.play().catch(() => {});
+        updateAudioButtonState(false);
+      }
+    });
+  }
+
+  video.addEventListener("volumechange", () => {
+    updateAudioButtonState(video.muted);
+  });
 }
 
 // ----------------------------------------------------
@@ -829,10 +984,18 @@ function openProductModal(productId) {
   if (modalPrice) modalPrice.innerHTML = renderPriceRow(product);
   if (qtyDisplay) qtyDisplay.textContent = "1";
 
-  // Gallery Swatches
+  // Gallery Swatches & Arrows
   const images = Array.isArray(product.images) && product.images.length > 0
     ? product.images
     : [{ imageUrl: product.imageUrl, colorLabel: "الأصلي" }];
+
+  const modalPrevBtn = $("#modal-gallery-prev");
+  const modalNextBtn = $("#modal-gallery-next");
+  if (modalPrevBtn && modalNextBtn) {
+    const hasMultiple = images.length > 1;
+    modalPrevBtn.hidden = !hasMultiple;
+    modalNextBtn.hidden = !hasMultiple;
+  }
 
   if (modalImage) {
     modalImage.src = images[0]?.imageUrl || product.imageUrl;
@@ -912,6 +1075,36 @@ function closeProductModal() {
       document.body.classList.remove("modal-open");
     }, 280);
   }
+}
+
+function selectModalGalleryImage(index) {
+  if (!modalProduct) return;
+  const rawImages = Array.isArray(modalProduct.images) && modalProduct.images.length > 0
+    ? modalProduct.images
+    : [{ imageUrl: modalProduct.imageUrl, colorLabel: "الأصلي" }];
+
+  const images = rawImages.map((img, i) =>
+    typeof img === "string" ? { imageUrl: img, colorLabel: `خيار ${i + 1}` } : img
+  );
+
+  if (images.length === 0) return;
+
+  modalSelectedImageIndex = ((index % images.length) + images.length) % images.length;
+  const currentImg = images[modalSelectedImageIndex];
+
+  const modalImage = $("#modal-main-image");
+  if (modalImage && currentImg) {
+    modalImage.src = currentImg.imageUrl;
+    const framing = modalProduct.imageFraming || { fitMode: "contain", alignment: "center", scale: 100 };
+    modalImage.style.objectFit = framing.fitMode || "contain";
+    modalImage.style.objectPosition = framing.alignment || "center";
+    modalImage.style.transform = `scale(${(Number(framing.scale) || 100) / 100})`;
+  }
+
+  const swatches = $$("#modal-swatches .modal-swatch-thumb");
+  swatches.forEach((sw, idx) => {
+    sw.classList.toggle("is-active", idx === modalSelectedImageIndex);
+  });
 }
 
 // ----------------------------------------------------
@@ -1163,18 +1356,22 @@ async function initStorefront() {
           heroTrustBadge: heroSettings.trustBadge || heroSettings.heroTrustBadge || data.settings?.heroTrustBadge || data.settings?.heroBadge || currentSettings.heroTrustBadge,
           heroBadge: heroSettings.heroBadge || heroSettings.trustBadge || data.settings?.heroBadge || data.settings?.heroTrustBadge || currentSettings.heroBadge,
         };
+        saveStoreSettings(currentSettings);
         applyStoreSettings(currentSettings);
       }
-      if (Array.isArray(data.tickerItems) && data.tickerItems.length > 0) {
+      if (Array.isArray(data.tickerItems)) {
         saveTickerItems(data.tickerItems);
         renderNewsTicker();
       }
-      if (Array.isArray(data.products) && data.products.length > 0) {
+      if (Array.isArray(data.products)) {
+        saveStoredProducts(data.products);
         allProducts = await resolveProductsMedia(data.products);
         schedulePromotionRefresh(allProducts, Date.now());
         renderCatalog();
       }
-      if (Array.isArray(data.categories) && data.categories.length > 0) {
+      if (Array.isArray(data.categories)) {
+        saveStoredCategories(data.categories);
+        allCategories = data.categories;
         renderCategoryTabs();
       }
     }
@@ -1195,18 +1392,22 @@ async function initStorefront() {
             heroTrustBadge: heroSettings.trustBadge || heroSettings.heroTrustBadge || data.settings?.heroTrustBadge || data.settings?.heroBadge || currentSettings.heroTrustBadge,
             heroBadge: heroSettings.heroBadge || heroSettings.trustBadge || data.settings?.heroBadge || data.settings?.heroTrustBadge || currentSettings.heroBadge,
           };
+          saveStoreSettings(currentSettings);
           applyStoreSettings(currentSettings);
         }
-        if (Array.isArray(data.tickerItems) && data.tickerItems.length > 0) {
+        if (Array.isArray(data.tickerItems)) {
           saveTickerItems(data.tickerItems);
           renderNewsTicker();
         }
-        if (Array.isArray(data.products) && data.products.length > 0) {
+        if (Array.isArray(data.products)) {
+          saveStoredProducts(data.products);
           allProducts = await resolveProductsMedia(data.products);
           schedulePromotionRefresh(allProducts, data.serverNow);
           renderCatalog();
         }
-        if (Array.isArray(data.categories) && data.categories.length > 0) {
+        if (Array.isArray(data.categories)) {
+          saveStoredCategories(data.categories);
+          allCategories = data.categories;
           renderCategoryTabs();
         }
       }
@@ -1221,6 +1422,7 @@ function initApp() {
   initStorefront();
   initCloudSync();
   initOrderTracker();
+  initHeroVideoAudio();
   const yearEl = $("#year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -1413,18 +1615,22 @@ function initApp() {
   $("#modal-close")?.addEventListener("click", closeProductModal);
   $("#modal-backdrop")?.addEventListener("click", closeProductModal);
 
+  // Modal Gallery Prev / Next Arrows
+  $("#modal-gallery-prev")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    selectModalGalleryImage(modalSelectedImageIndex - 1);
+  });
+  $("#modal-gallery-next")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    selectModalGalleryImage(modalSelectedImageIndex + 1);
+  });
+
   // Modal Gallery Swatches
   $("#modal-swatches")?.addEventListener("click", (e) => {
     const thumb = e.target.closest(".modal-swatch-thumb");
     if (!thumb || !modalProduct) return;
     const idx = Number(thumb.dataset.index);
-    modalSelectedImageIndex = idx;
-    const images = Array.isArray(modalProduct.images) ? modalProduct.images : [];
-    if (images[idx]) {
-      const mainImg = $("#modal-main-image");
-      if (mainImg) mainImg.src = images[idx].imageUrl;
-      $$(".modal-swatch-thumb").forEach(t => t.classList.toggle("is-active", t === thumb));
-    }
+    selectModalGalleryImage(idx);
   });
 
   // Modal Quantity

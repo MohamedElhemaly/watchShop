@@ -182,8 +182,8 @@
           <button class="admin-tab-btn" type="button" data-tab="delivery" data-permission="manage_delivery_settings" role="tab" aria-selected="false">
             🚚 الشحن ومدة التوصيل
           </button>
-          <button class="admin-tab-btn" type="button" data-tab="notifications" data-permission="manage_delivery_settings" role="tab" aria-selected="false">
-            🔔 إشعارات المالك الفورية
+          <button class="admin-tab-btn" type="button" data-tab="social-links" data-permission="manage_delivery_settings" role="tab" aria-selected="false">
+            🌐 روابط السوشيال ميديا والتواصل
           </button>
           <button class="admin-tab-btn" type="button" data-tab="categories" data-permission="manage_categories" role="tab" aria-selected="false">
             🗂️ إدارة التصنيفات
@@ -327,25 +327,58 @@
                   <small id="admin-preview-note"></small>
                 </div>
 
-                <!-- Direct Device Upload & Visual Variants Editor -->
-                <div class="editor-section">
-                  <input id="edit-image-url" type="hidden" value="" />
-                  <div id="product-primary-image-uploader"></div>
-
-                  <div class="variants-management-box" style="margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                      <div>
-                        <strong style="font-size: 14px; color: var(--teal-950); display: block;">خيارات الألوان وصورها الخاصة</strong>
-                        <small style="color: var(--ink-muted); font-size: 11px;">ارفع صورة مستقلة لكل لون أو خيار ساعة من جهازك مباشرة</small>
-                      </div>
-                      <button id="btn-add-variant-row" class="admin-button admin-button-small admin-button-primary" type="button">
-                        + إضافة لون جديد
-                      </button>
+                <!-- Direct Device Multi-Image Batch Upload & Product Gallery Manager -->
+                <div class="editor-section gallery-management-section">
+                  <div class="gallery-section-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div>
+                      <strong style="font-size:15px; color:var(--teal-950); display:block;">معرض صور الساعة (رفع عدة صور دفعة واحدة)</strong>
+                      <small style="color:var(--ink-muted); font-size:12px;">حدد صورة واحدة أو عدة صور معاً من جهازك، أو اسحبها دفعة واحدة. يمكنك تعيين أي صورة كصورة رئيسية بضغطة زر.</small>
                     </div>
-
-                    <div id="product-variants-container" class="variants-manager-wrap"></div>
-                    <textarea id="edit-variants" style="display:none;"></textarea>
+                    <span id="gallery-count-badge" class="count-badge" style="font-size:12px;">0 صور</span>
                   </div>
+
+                  <!-- Batch Multi-File Dropzone -->
+                  <div id="product-batch-dropzone" class="media-dropzone" role="button" tabindex="0" aria-label="رفع صور الساعة دفعة واحدة">
+                    <input 
+                      type="file" 
+                      id="product-gallery-file-input" 
+                      class="media-file-input" 
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml" 
+                      multiple 
+                      title="اضغط لتحديد صورة واحدة أو عدة صور من جهازك"
+                    />
+                    <div class="media-dropzone-icon">📸</div>
+                    <p class="media-dropzone-title">اسحب عدة صور للساعة هنا أو <strong>اضغط للاختيار دفعة واحدة من جهازك</strong></p>
+                    <p class="media-dropzone-hint">يدعم رفع صور متعددة متزامنة (PNG, JPG, WebP) مع ضغط ذكي ورفع مباشر للسحابة</p>
+                  </div>
+
+                  <!-- Uploading Progress Bar -->
+                  <div id="gallery-upload-progress" class="media-uploading-bar is-progress" hidden style="margin-top:10px;">
+                    <div class="media-progress-info">
+                      <span class="uploading-spinner" aria-hidden="true">⏳</span>
+                      <span id="gallery-progress-text" class="media-progress-text">جاري رفع الصور إلى السحابة...</span>
+                    </div>
+                    <div class="media-progress-track">
+                      <div id="gallery-progress-fill" class="media-progress-fill" style="width:0%;"></div>
+                    </div>
+                  </div>
+
+                  <!-- Direct URL Input Row -->
+                  <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
+                    <input id="gallery-direct-url-input" type="url" placeholder="أو أضف رابط صورة مباشرة (https://...)" dir="ltr" class="manual-url-input" style="flex:1;" />
+                    <button id="btn-add-gallery-url" type="button" class="admin-button admin-button-small admin-button-secondary">
+                      إضافة للمعرض +
+                    </button>
+                  </div>
+
+                  <!-- Gallery Cards Grid -->
+                  <div id="product-gallery-grid" class="product-gallery-grid" style="margin-top:14px;"></div>
+                  
+                  <!-- Fallback containers & hidden inputs -->
+                  <div id="product-primary-image-uploader" style="display:none;"></div>
+                  <div id="product-variants-container" style="display:none;"></div>
+                  <input id="edit-image-url" type="hidden" value="" />
+                  <textarea id="edit-variants" style="display:none;"></textarea>
                 </div>
 
                 <!-- Image Framing & Dimension Controls with Live Card Preview -->
@@ -518,6 +551,19 @@
                 <input id="setting-announcement" type="text" required placeholder="شحن مجاني لكافة المحافظات • دفع عند الاستلام..." />
               </label>
 
+              <!-- Editable Warranty Trust Badge ("دقة متناهية • ضمان سنتين") -->
+              <div class="warranty-badge-setting-card" style="background: rgba(190, 114, 76, 0.08); border: 1.5px solid rgba(190, 114, 76, 0.35); border-radius: 10px; padding: 14px 16px; margin: 12px 0;">
+                <label class="form-field" style="margin: 0;">
+                  <span style="font-weight: 700; color: var(--teal-950); display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    🛡️ عبارة الضمان وشارة الثقة أسفل الواجهة الرئيسية (تعديل عبارة: «دقة متناهية • ضمان سنتين»)
+                  </span>
+                  <input id="setting-hero-badge" type="text" placeholder="دقة متناهية • ضمان سنتين" style="background: #ffffff; font-weight: 600; font-size: 14px; margin-top: 6px;" />
+                  <small style="color: var(--ink-muted, #555); font-size: 12px; margin-top: 5px; display: block; line-height: 1.5;">
+                    العبارة الترويجية المعروضة أسفل الواجهة الرئيسية بالمتجر بجانب علامة التمرير. يمكنك كتابة أي نص تريده هنا (مثل: «دقة متناهية • ضمان سنتين» أو «ضمان 3 سنوات شامل» أو «ضمان الوكيل المعتمد»)، وسيتم حفظها سحابياً وعرضها فوراً لجميع الزوار.
+                  </small>
+                </label>
+              </div>
+
               <div class="form-row-2">
                 <div class="form-field">
                   <input id="setting-video-url" type="hidden" value="" />
@@ -553,12 +599,6 @@
                   <input id="setting-flagship-spec" type="text" placeholder="سافاير • مقاومة 100م • ستيل 316L" />
                 </label>
               </div>
-
-              <label class="form-field">
-                <span>نص الضمان والمميزات أسفل الواجهة (Hero Trust Badge)</span>
-                <input id="setting-hero-badge" type="text" placeholder="دقة متناهية • ضمان سنتين" />
-                <small style="color: var(--ink-muted, #777); font-size: 11px; margin-top: 4px;">النص الترويجي المعروض أسفل قسم البطل بجانب علامة التمرير (مثال: دقة متناهية • ضمان سنتين أو ضمان 3 سنوات معتمد).</small>
-              </label>
 
               <button class="admin-button admin-button-primary" type="submit" style="width: fit-content;">
                 حفظ إعدادات الواجهة والفيديو <span aria-hidden="true">✓</span>
@@ -628,72 +668,75 @@
           </div>
         </section>
 
-        <!-- TAB: INSTANT STORE OWNER NOTIFICATIONS -->
-        <section id="tab-notifications" class="admin-tab-content">
+        <!-- TAB: SOCIAL MEDIA & CONTACT LINKS -->
+        <section id="tab-social-links" class="admin-tab-content">
           <div class="settings-card">
             <div class="settings-card-header">
-              <span class="admin-kicker">التنبيهات الفورية</span>
-              <h2>إعدادات إشعارات الطلبات الفورية لمالك المتجر</h2>
-              <p>احصل على تنبيه فوري بالهاتف المحمول أو البريد الإلكتروني في نفس لحظة قيام أي عميل بطلب ساعة من المتجر، دون تأخير.</p>
+              <span class="admin-kicker">القنوات الرسمية</span>
+              <h2>روابط السوشيال ميديا والتواصل (Social Media & Support)</h2>
+              <p>تحكّم في روابط صفحات المتجر على منصات التواصل الاجتماعي وأرقام الدعم. تظهر الأيقونات مباشرة في أسفل الموقع وقائمة الموبايل.</p>
             </div>
 
-            <form id="notifications-settings-form" class="settings-form-layout">
-              <!-- Channel 1: Telegram Bot -->
+            <form id="social-links-settings-form" class="settings-form-layout">
+              <!-- Official Channels Group -->
               <div class="notification-channel-box">
-                <div class="channel-header-row">
-                  <div>
-                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">قناة تيليجرام الفورية (الأسرع والأسهل)</h3>
-                    <p style="margin:4px 0 0; font-size:12px; color:var(--ink-muted);">تصلك رسالة بكل تفاصيل الطلب على هاتفك فورًا عبر بوت تيليجرام مجاني.</p>
-                  </div>
-                  <label class="admin-checkbox-label">
-                    <input id="setting-tg-enabled" type="checkbox" />
-                    <span>تفعيل تنبيهات تيليجرام</span>
+                <h3 style="margin:0 0 12px; font-size:15px; color:var(--teal-950);">منصات التواصل الاجتماعي الرسمية</h3>
+                
+                <div class="form-row-2">
+                  <label class="form-field">
+                    <span>رابط صفحة فيسبوك (Facebook URL)</span>
+                    <input id="setting-social-facebook" type="url" placeholder="https://facebook.com/your-brand" dir="ltr" />
+                  </label>
+                  <label class="form-field">
+                    <span>رابط حساب إنستجرام (Instagram URL)</span>
+                    <input id="setting-social-instagram" type="url" placeholder="https://instagram.com/your-brand" dir="ltr" />
                   </label>
                 </div>
 
                 <div class="form-row-2" style="margin-top:12px;">
                   <label class="form-field">
-                    <span>رمز البوت (Telegram Bot Token)</span>
-                    <input id="setting-tg-token" type="text" placeholder="مثال: 7123456789:AAH..." dir="ltr" />
+                    <span>رابط حساب تيك توك (TikTok URL)</span>
+                    <input id="setting-social-tiktok" type="url" placeholder="https://tiktok.com/@your-brand" dir="ltr" />
                   </label>
                   <label class="form-field">
-                    <span>معرّف المحادثة (Telegram Chat ID)</span>
-                    <input id="setting-tg-chat-id" type="text" placeholder="مثال: 123456789" dir="ltr" />
+                    <span>رابط قناة يوتيوب (YouTube Channel - اختياري)</span>
+                    <input id="setting-social-youtube" type="url" placeholder="https://youtube.com/@your-brand" dir="ltr" />
+                  </label>
+                </div>
+
+                <div class="form-row-2" style="margin-top:12px;">
+                  <label class="form-field">
+                    <span>رابط حساب سناب شات (Snapchat - اختياري)</span>
+                    <input id="setting-social-snapchat" type="url" placeholder="https://snapchat.com/add/your-brand" dir="ltr" />
+                  </label>
+                  <label class="form-field">
+                    <span>رقم الاتصال الهاتفي المباشر (Phone)</span>
+                    <input id="setting-social-phone" type="tel" placeholder="01012345678" dir="ltr" />
                   </label>
                 </div>
               </div>
 
-              <!-- Channel 2: Email Webhook (Web3Forms / Formspree) -->
+              <!-- WhatsApp Channel -->
               <div class="notification-channel-box" style="margin-top:16px;">
                 <div class="channel-header-row">
                   <div>
-                    <h3 style="margin:0; font-size:16px; color:var(--teal-950);">إشعارات البريد الإلكتروني (Web3Forms / Formspree)</h3>
-                    <p style="margin:4px 0 0; font-size:12px; color:var(--ink-muted);">إرسال تفاصيل كل طلب إلى بريدك الإلكتروني الشخصي مباشرة.</p>
+                    <h3 style="margin:0; font-size:15px; color:var(--teal-950);">واتساب المتجر المعتمد (WhatsApp Orders & Support)</h3>
+                    <p style="margin:4px 0 0; font-size:12px; color:var(--ink-muted);">يستخدم في تواصل العملاء للاستفسار وتأكيد الطلبات وإشعارات الشحن الفورية.</p>
                   </div>
-                  <label class="admin-checkbox-label">
-                    <input id="setting-email-enabled" type="checkbox" />
-                    <span>تفعيل تنبيهات البريد</span>
-                  </label>
                 </div>
 
                 <div class="form-row-2" style="margin-top:12px;">
                   <label class="form-field">
-                    <span>مفتاح الوصول (Web3Forms Access Key)</span>
-                    <input id="setting-web3forms-key" type="text" placeholder="مثال: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" dir="ltr" />
-                  </label>
-                  <label class="form-field">
-                    <span>البريد الإلكتروني المخصص للاستلام (مرجع)</span>
-                    <input id="setting-owner-email" type="email" placeholder="owner@example.com" dir="ltr" />
+                    <span>رقم الواتساب الرسمي (محلي أو دولي)</span>
+                    <input id="setting-social-whatsapp" type="tel" placeholder="01012345678 أو 201012345678+" dir="ltr" />
+                    <small style="color:var(--ink-muted); font-size:11px; margin-top:4px;">يقبل الأرقام المصرية (010, 011, 012, 015) أو الدولية تلقائياً.</small>
                   </label>
                 </div>
               </div>
 
               <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px;">
                 <button class="admin-button admin-button-primary" type="submit">
-                  حفظ إعدادات الإشعارات <span aria-hidden="true">✓</span>
-                </button>
-                <button id="test-notification-btn" class="admin-button admin-button-quiet" type="button">
-                  🚀 إرسال إشعار تجريبي الآن
+                  حفظ روابط السوشيال ميديا والتواصل <span aria-hidden="true">✓</span>
                 </button>
               </div>
             </form>

@@ -77,24 +77,31 @@ export function orderMatchesQuery(order, query) {
 export function getOrderStepState(status = "") {
   const norm = String(status).toLowerCase().trim();
 
-  if (norm === "cancelled" || norm === "ملغي" || norm === "ملغى") {
-    return { isCancelled: true, activeStep: 0, completedSteps: [] };
+  if (norm === "cancelled" || norm === "ملغي" || norm === "ملغى" || norm === "تم إلغاء الطلب" || norm === "تم الالغاء") {
+    return { isCancelled: true, activeStep: 0, completedSteps: [], statusKey: "cancelled", statusLabel: "تم إلغاء الطلب" };
   }
 
   if (norm === "delivered" || norm === "تم التسليم" || norm === "تم التسليم بنجاح" || norm === "مكتمل") {
-    return { isCancelled: false, activeStep: 4, completedSteps: [1, 2, 3, 4] };
+    return { isCancelled: false, activeStep: 4, completedSteps: [1, 2, 3, 4], statusKey: "delivered", statusLabel: "تم التسليم بنجاح" };
   }
 
-  if (norm === "shipped" || norm === "shipping" || norm === "جاري الشحن" || norm === "تم الشحن" || norm === "مع المندوب") {
-    return { isCancelled: false, activeStep: 3, completedSteps: [1, 2] };
+  if (
+    norm === "shipped" ||
+    norm === "shipping" ||
+    norm === "جاري الشحن" ||
+    norm === "جاري الشحن والتوصيل" ||
+    norm === "تم الشحن" ||
+    norm === "مع المندوب"
+  ) {
+    return { isCancelled: false, activeStep: 3, completedSteps: [1, 2], statusKey: "shipped", statusLabel: "جاري الشحن والتوصيل" };
   }
 
   if (norm === "confirmed" || norm === "تم التأكيد" || norm === "تم تأكيد الطلب" || norm === "مؤكد") {
-    return { isCancelled: false, activeStep: 2, completedSteps: [1] };
+    return { isCancelled: false, activeStep: 2, completedSteps: [1], statusKey: "confirmed", statusLabel: "تم تأكيد الطلب" };
   }
 
-  // Default: "new" / "received" / "تم استلام الطلب" / "جديد"
-  return { isCancelled: false, activeStep: 1, completedSteps: [] };
+  // Default: Step 1 (received / new / تم استلام الطلب / جديد)
+  return { isCancelled: false, activeStep: 1, completedSteps: [], statusKey: "received", statusLabel: "تم استلام الطلب" };
 }
 
 /**
@@ -108,7 +115,7 @@ function renderTimelineHtml(status) {
       <div class="track-cancelled-notice">
         <span style="font-size: 24px;">⚠️</span>
         <div>
-          <strong>حالة الطلب: تم الإلغاء</strong>
+          <strong>حالة الطلب: تم إلغاء الطلب</strong>
           تم إلغاء هذا الطلب. إذا كان لديك أي استفسار أو ترغب في إعادة تأكيد طلبك، يمكنك التواصل مباشرة مع خدمة العملاء.
         </div>
       </div>
@@ -117,9 +124,9 @@ function renderTimelineHtml(status) {
 
   const steps = [
     { num: 1, title: "تم استلام الطلب", desc: "تم تسجيل طلبك بنجاح في النظام" },
-    { num: 2, title: "تم التأكيد", desc: "تمت مراجعة بيانات الشحن والتجهيز" },
-    { num: 3, title: "جاري الشحن", desc: "الشحنة مع مندوب التوصيل في طريقها إليك" },
-    { num: 4, title: "تم التسليم", desc: "تم استلام الساعة والمعاينة بنجاح" },
+    { num: 2, title: "تم تأكيد الطلب", desc: "تمت مراجعة بيانات الشحن والتجهيز" },
+    { num: 3, title: "جاري الشحن والتوصيل", desc: "الشحنة مع مندوب التوصيل في طريقها إليك" },
+    { num: 4, title: "تم التسليم بنجاح", desc: "تم استلام الساعة والمعاينة بنجاح" },
   ];
 
   return `
@@ -176,22 +183,22 @@ async function renderSingleOrderDetail(order, container) {
   );
 
   // Status Badge
-  const { isCancelled, activeStep } = getOrderStepState(order.status);
+  const { isCancelled, activeStep, statusLabel } = getOrderStepState(order.status);
   let statusBadgeClass = "status-badge-new";
-  let statusBadgeText = "تم استلام الطلب";
+  let statusBadgeText = statusLabel || "تم استلام الطلب";
 
   if (isCancelled) {
     statusBadgeClass = "status-badge-cancelled";
-    statusBadgeText = "ملغي";
+    statusBadgeText = "تم إلغاء الطلب";
   } else if (activeStep === 4) {
     statusBadgeClass = "status-badge-delivered";
     statusBadgeText = "تم التسليم بنجاح ✓";
   } else if (activeStep === 3) {
     statusBadgeClass = "status-badge-shipping";
-    statusBadgeText = "جاري الشحن مع المندوب 🚚";
+    statusBadgeText = "جاري الشحن والتوصيل 🚚";
   } else if (activeStep === 2) {
     statusBadgeClass = "status-badge-confirmed";
-    statusBadgeText = "تم التأكيد وجاري التجهيز";
+    statusBadgeText = "تم تأكيد الطلب";
   }
 
   // WhatsApp Support URL
@@ -339,6 +346,12 @@ export function initOrderTracker() {
 
   window.addEventListener("focus", () => {
     if (!modal.hidden && activeSearchQuery) {
+      executeSearch(activeSearchQuery, true);
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !modal.hidden && activeSearchQuery) {
       executeSearch(activeSearchQuery, true);
     }
   });

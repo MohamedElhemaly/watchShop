@@ -110,6 +110,15 @@ export async function fetchStoreDirectFromTurso() {
     return {
       ok: true,
       settings: generalSettings,
+      socialLinks: {
+        facebook: generalSettings.facebookUrl || generalSettings.socialFacebook || "",
+        instagram: generalSettings.instagramUrl || generalSettings.socialInstagram || "",
+        tiktok: generalSettings.tiktokUrl || generalSettings.socialTiktok || "",
+        youtube: generalSettings.youtubeUrl || generalSettings.socialYoutube || "",
+        snapchat: generalSettings.snapchatUrl || generalSettings.socialSnapchat || "",
+        whatsapp: generalSettings.defaultWhatsapp || generalSettings.socialWhatsapp || "",
+        phone: generalSettings.defaultPhone || generalSettings.socialPhone || "",
+      },
       heroSettings: {
         headline: generalSettings.heroHeadline || "كل لحظة حلوة\nتستاهل وقتها.",
         description: generalSettings.heroDescription || "ساعات مختارة بعناية فائقة...",
@@ -150,6 +159,35 @@ export async function saveSettingsDirectToTurso(settings) {
     return true;
   } catch (err) {
     console.warn("Direct Turso save settings failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Persists categories directly to Turso DB
+ */
+export async function saveCategoriesDirectToTurso(categories) {
+  const client = getTursoWebClient();
+  if (!client || !Array.isArray(categories)) return false;
+
+  try {
+    const statements = [
+      { sql: "DELETE FROM categories;", args: [] },
+      ...categories.map((c, idx) => ({
+        sql: "INSERT OR REPLACE INTO categories (id, name, slug, icon, sort_order) VALUES (?, ?, ?, ?, ?);",
+        args: [
+          String(c.id || "").trim(),
+          String(c.name || "").trim(),
+          String(c.slug || c.id || "").trim(),
+          String(c.icon || "").trim(),
+          idx,
+        ],
+      })),
+    ];
+    await client.batch(statements, "write");
+    return true;
+  } catch (err) {
+    console.warn("Direct Turso save categories failed:", err);
     return false;
   }
 }
@@ -318,7 +356,7 @@ export async function fetchOrdersDirectFromTurso(query = "") {
 }
 
 /**
- * Updates order status directly in Turso DB with robust # matching
+ * Updates order status directly in Turso DB with robust ID matching across prefixes and digits
  */
 export async function updateOrderStatusDirectInTurso(orderId, newStatus) {
   const client = getTursoWebClient();
@@ -326,15 +364,49 @@ export async function updateOrderStatusDirectInTurso(orderId, newStatus) {
 
   const rawId = String(orderId).trim();
   const cleanId = rawId.replace(/^[#]/, "").trim();
-  const hashId = "#" + cleanId;
+  const digitsOnly = rawId.replace(/\D/g, "");
+  const dafId = cleanId.toUpperCase().startsWith("DAF-") ? cleanId.toUpperCase() : `DAF-${digitsOnly || cleanId}`;
+  const sdfId = cleanId.toUpperCase().startsWith("SDF-") ? cleanId.toUpperCase() : `SDF-${digitsOnly || cleanId}`;
+
+  const idCandidates = Array.from(new Set([
+    rawId,
+    cleanId,
+    "#" + cleanId,
+    digitsOnly,
+    "#" + digitsOnly,
+    dafId,
+    "#" + dafId,
+    sdfId,
+  ])).filter(Boolean);
+
   const now = new Date().toISOString();
 
+  let canonStatus = String(newStatus).toLowerCase().trim();
+  if (
+    canonStatus === "shipping" ||
+    canonStatus === "تم الشحن" ||
+    canonStatus === "جاري الشحن" ||
+    canonStatus === "جاري الشحن والتوصيل" ||
+    canonStatus === "مع المندوب"
+  ) {
+    canonStatus = "shipped";
+  } else if (canonStatus === "تم التأكيد" || canonStatus === "مؤكد" || canonStatus === "تم تأكيد الطلب") {
+    canonStatus = "confirmed";
+  } else if (canonStatus === "تم التسليم" || canonStatus === "مكتمل" || canonStatus === "تم التسليم بنجاح") {
+    canonStatus = "delivered";
+  } else if (canonStatus === "ملغي" || canonStatus === "ملغى" || canonStatus === "تم إلغاء الطلب" || canonStatus === "تم الالغاء") {
+    canonStatus = "cancelled";
+  } else if (canonStatus === "new" || canonStatus === "تم استلام الطلب" || canonStatus === "جديد" || canonStatus === "received") {
+    canonStatus = "received";
+  }
+
   try {
-    await client.execute({
-      sql: `UPDATE orders SET status = ?, updated_at = ? WHERE id = ? OR id = ? OR id = ?;`,
-      args: [String(newStatus).trim(), now, rawId, cleanId, hashId],
+    const placeholders = idCandidates.map(() => "?").join(",");
+    const res = await client.execute({
+      sql: `UPDATE orders SET status = ?, updated_at = ? WHERE id IN (${placeholders});`,
+      args: [canonStatus, now, ...idCandidates],
     });
-    return true;
+    return (res.rowsAffected || 0) > 0;
   } catch (err) {
     console.warn("Direct Turso update order status failed:", err);
     return false;
@@ -342,24 +414,35 @@ export async function updateOrderStatusDirectInTurso(orderId, newStatus) {
 }
 
 /**
- * Deletes orders directly from Turso DB with robust # matching
+ * Deletes orders directly from Turso DB with robust ID matching across prefixes and digits
  */
 export async function deleteOrdersDirectFromTurso(orderIds = []) {
   const client = getTursoWebClient();
   if (!client || !orderIds.length) return false;
 
-  const allTargets = [];
+  const allTargets = new Set();
   for (const id of orderIds) {
     const raw = String(id).trim();
     const clean = raw.replace(/^[#]/, "").trim();
-    allTargets.push(raw, clean, "#" + clean);
+    const digits = raw.replace(/\D/g, "");
+    allTargets.add(raw);
+    allTargets.add(clean);
+    allTargets.add("#" + clean);
+    if (digits) {
+      allTargets.add(digits);
+      allTargets.add("#" + digits);
+      allTargets.add(`DAF-${digits}`);
+      allTargets.add(`#DAF-${digits}`);
+    }
   }
 
+  const targetsList = Array.from(allTargets).filter(Boolean);
+
   try {
-    const placeholders = allTargets.map(() => "?").join(",");
+    const placeholders = targetsList.map(() => "?").join(",");
     await client.execute({
       sql: `DELETE FROM orders WHERE id IN (${placeholders});`,
-      args: allTargets,
+      args: targetsList,
     });
     return true;
   } catch (err) {

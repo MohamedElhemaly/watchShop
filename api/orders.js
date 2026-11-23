@@ -100,6 +100,8 @@ async function sendOrderNotifications(order, db) {
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
   await ensureInitialized();
@@ -268,29 +270,50 @@ export default async function handler(req, res) {
   if (method === "PATCH") {
     try {
       const b = req.body || {};
-      const id = String(b.id || req.query?.id || "").trim();
-      if (!id) {
+      const targetId = String(b.id || b.orderId || b.order_number || b.orderNumber || req.query?.id || "").trim();
+      if (!targetId) {
         return res.status(400).json({ ok: false, error: "معرف الطلب مطلوب." });
       }
 
-      const cleanId = id.replace(/^[#]/, "").trim();
+      // Generate all possible variations of the ID for 100% robust matching
+      const cleanId = targetId.replace(/^[#]/, "").trim();
       const hashId = "#" + cleanId;
+      const digitsOnly = targetId.replace(/\D/g, "");
+      const dafId = cleanId.toUpperCase().startsWith("DAF-") ? cleanId.toUpperCase() : `DAF-${digitsOnly || cleanId}`;
+      const hashDafId = "#" + dafId;
+      const sdfId = cleanId.toUpperCase().startsWith("SDF-") ? cleanId.toUpperCase() : `SDF-${digitsOnly || cleanId}`;
+
+      const idCandidates = Array.from(new Set([
+        targetId,
+        cleanId,
+        hashId,
+        digitsOnly,
+        dafId,
+        hashDafId,
+        sdfId,
+      ])).filter(Boolean);
 
       const updates = [];
       const args = [];
 
       if (b.status !== undefined) {
         let rawStatus = String(b.status).toLowerCase().trim();
-        if (rawStatus === "shipping" || rawStatus === "تم الشحن" || rawStatus === "جاري الشحن" || rawStatus === "مع المندوب") {
+        if (
+          rawStatus === "shipping" ||
+          rawStatus === "تم الشحن" ||
+          rawStatus === "جاري الشحن" ||
+          rawStatus === "جاري الشحن والتوصيل" ||
+          rawStatus === "مع المندوب"
+        ) {
           rawStatus = "shipped";
-        } else if (rawStatus === "تم التأكيد" || rawStatus === "مؤكد") {
+        } else if (rawStatus === "تم التأكيد" || rawStatus === "مؤكد" || rawStatus === "تم تأكيد الطلب") {
           rawStatus = "confirmed";
-        } else if (rawStatus === "تم التسليم" || rawStatus === "مكتمل") {
+        } else if (rawStatus === "تم التسليم" || rawStatus === "مكتمل" || rawStatus === "تم التسليم بنجاح") {
           rawStatus = "delivered";
-        } else if (rawStatus === "ملغي" || rawStatus === "ملغى") {
+        } else if (rawStatus === "ملغي" || rawStatus === "ملغى" || rawStatus === "تم إلغاء الطلب" || rawStatus === "تم الالغاء") {
           rawStatus = "cancelled";
-        } else if (rawStatus === "received" || rawStatus === "تم استلام الطلب") {
-          rawStatus = "new";
+        } else if (rawStatus === "received" || rawStatus === "تم استلام الطلب" || rawStatus === "جديد" || rawStatus === "new") {
+          rawStatus = "received";
         }
         updates.push("status = ?");
         args.push(rawStatus);
@@ -304,29 +327,31 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "لم يتم تقديم أي حقول للتحديث." });
       }
 
+      const now = new Date().toISOString();
       updates.push("updated_at = ?");
-      args.push(new Date().toISOString());
+      args.push(now);
 
       // Pass ID targets for robust match
-      args.push(id, cleanId, hashId);
+      const placeholders = idCandidates.map(() => "?").join(",");
+      args.push(...idCandidates);
 
       await db.execute({
-        sql: `UPDATE orders SET ${updates.join(", ")} WHERE id = ? OR id = ? OR id = ?;`,
+        sql: `UPDATE orders SET ${updates.join(", ")} WHERE id IN (${placeholders});`,
         args,
       });
 
       const updated = await db.execute({
-        sql: "SELECT * FROM orders WHERE id = ? OR id = ? OR id = ? LIMIT 1;",
-        args: [id, cleanId, hashId],
+        sql: `SELECT * FROM orders WHERE id IN (${placeholders}) LIMIT 1;`,
+        args: idCandidates,
       });
       if (updated.rows.length === 0) {
-        return res.status(404).json({ ok: false, error: "الطلب غير موجود." });
+        return res.status(404).json({ ok: false, error: "الطلب غير موجود في قاعدة البيانات." });
       }
 
       return res.status(200).json({ ok: true, order: mapOrderRow(updated.rows[0]) });
     } catch (err) {
       console.error("PATCH /api/orders error:", err);
-      return res.status(500).json({ ok: false, error: "فشل تعديل حالة الطلب." });
+      return res.status(500).json({ ok: false, error: "فشل تعديل حالة الطلب في قاعدة البيانات.", details: err?.message });
     }
   }
 
@@ -348,18 +373,29 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "يرجى تحديد أرقام الطلبات المراد حذفها." });
       }
 
-      const deleteQueries = [];
+      const allTargets = new Set();
       for (const target of idsToDelete) {
         const raw = String(target).trim();
         const clean = raw.replace(/^[#]/, "").trim();
-        const hash = "#" + clean;
-        deleteQueries.push({
-          sql: "DELETE FROM orders WHERE id = ? OR id = ? OR id = ?;",
-          args: [raw, clean, hash],
-        });
+        const digits = raw.replace(/\D/g, "");
+        allTargets.add(raw);
+        allTargets.add(clean);
+        allTargets.add("#" + clean);
+        if (digits) {
+          allTargets.add(digits);
+          allTargets.add("#" + digits);
+          allTargets.add(`DAF-${digits}`);
+          allTargets.add(`#DAF-${digits}`);
+        }
       }
 
-      await db.batch(deleteQueries);
+      const targetList = Array.from(allTargets).filter(Boolean);
+      const placeholders = targetList.map(() => "?").join(",");
+
+      await db.execute({
+        sql: `DELETE FROM orders WHERE id IN (${placeholders});`,
+        args: targetList,
+      });
 
       return res.status(200).json({
         ok: true,

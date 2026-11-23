@@ -386,3 +386,127 @@
   background: #f1f5f9;
   color: #475569;
 }
+
+/* Product Multi-Image Gallery Grid & Cards */
+.product-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.gallery-card-item {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+
+.gallery-card-item:hover {
+  border-color: var(--copper, #be724c);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.gallery-card-item.is-primary {
+  border-color: var(--copper, #be724c);
+  box-shadow: 0 0 0 2px var(--copper, #be724c);
+}
+
+.gallery-thumb-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #fbf9f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.gallery-thumb-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.gallery-card-meta {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #ffffff;
+  border-top: 1px solid var(--line, #e5e7eb);
+}
+
+.gallery-color-input {
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line, #e5e7eb);
+  width: 100%;
+  background: #ffffff;
+}
+
+.gallery-primary-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--copper, #be724c);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 3;
+}
+
+.gallery-set-primary-btn {
+  background: none;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 4px;
+  color: var(--teal-950, #072624);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: center;
+}
+
+.gallery-set-primary-btn:hover {
+  background: var(--cream-100, #f6f3eb);
+  border-color: var(--copper, #be724c);
+  color: var(--copper, #be724c);
+}
+
+.gallery-delete-btn {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.9);
+  color: #ffffff;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  transition: all 0.15s ease;
+}
+
+.gallery-delete-btn:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}

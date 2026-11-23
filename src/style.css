@@ -124,6 +124,7 @@ a {
   height: 38px;
   display: flex;
   align-items: center;
+  direction: ltr !important;
 }
 
 .news-ticker-bar[hidden] {
@@ -136,7 +137,7 @@ a {
   display: flex;
   position: relative;
   user-select: none;
-  direction: ltr; /* Deterministic layout coordinate system for flawless marquee across all browsers */
+  direction: ltr !important;
 }
 
 .ticker-track {
@@ -145,7 +146,7 @@ a {
   width: max-content;
   white-space: nowrap;
   will-change: transform;
-  animation: ticker-marquee var(--ticker-duration, 28s) linear infinite;
+  animation: ticker-marquee var(--ticker-duration, 28s) linear infinite !important;
 }
 
 @keyframes ticker-marquee {
@@ -1699,6 +1700,45 @@ a {
   display: grid;
   place-items: center;
   overflow: hidden;
+  position: relative;
+}
+
+.modal-gallery-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  color: var(--teal-950);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  transition: all 0.18s ease;
+}
+
+.modal-gallery-arrow:hover {
+  background: var(--copper);
+  color: #ffffff;
+  border-color: var(--copper);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.modal-gallery-prev {
+  right: 10px;
+}
+
+.modal-gallery-next {
+  left: 10px;
+}
+
+.modal-gallery-arrow[hidden] {
+  display: none !important;
 }
 
 .modal-image-wrap img {
@@ -2310,12 +2350,97 @@ a {
   }
 }
 
+/* Hero Video Audio Toggle */
+.hero-sound-toggle-btn {
+  position: absolute;
+  bottom: 12px;
+  inset-inline-end: 12px;
+  z-index: 10;
+  background: rgba(7, 38, 36, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: var(--cream-50, #f6f3eb);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hero-sound-toggle-btn:hover {
+  background: var(--copper, #be724c);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+  transform: translateY(-1px) scale(1.03);
+}
+
+.hero-sound-toggle-btn.is-unmuted {
+  background: rgba(190, 114, 76, 0.95);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+/* Social Media Channels in Footer & Mobile Menu */
+.footer-social-links,
+.nav-social-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.footer-social-links {
+  margin-top: 14px;
+  justify-content: center;
+}
+
+.nav-social-links {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.social-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(7, 38, 36, 0.06);
+  border: 1px solid var(--line);
+  color: var(--teal-950);
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.footer-social-links .social-icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--cream-50);
+}
+
+.social-icon-btn:hover {
+  background: var(--copper);
+  border-color: var(--copper);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(190, 114, 76, 0.35);
+}
+
 /* Reduced Motion Standards */
 @media (prefers-reduced-motion: reduce) {
 
-  *,
-  *::before,
-  *::after {
+  *:not(.ticker-track),
+  *:not(.ticker-track)::before,
+  *:not(.ticker-track)::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;

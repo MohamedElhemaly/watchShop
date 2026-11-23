@@ -15,9 +15,9 @@
   </head>
   <body>
     <!-- Continuous Scrolling News Ticker Bar -->
-    <aside id="news-ticker-bar" class="news-ticker-bar" aria-label="شريط الأخبار والإعلانات">
-      <div class="ticker-track-wrap">
-        <div class="ticker-track" id="ticker-track">
+    <aside id="news-ticker-bar" class="news-ticker-bar" dir="ltr" aria-label="شريط الأخبار والإعلانات">
+      <div class="ticker-track-wrap" dir="ltr">
+        <div class="ticker-track" id="ticker-track" dir="ltr">
           <!-- Populated dynamically via renderNewsTicker -->
         </div>
       </div>
@@ -46,6 +46,7 @@
         <a href="#story">حكاية صُدْفَة</a>
         <a href="#ordering">الطلب والشحن</a>
         <a href="#policy">الضمان والسياسة</a>
+        <div id="nav-social-links" class="nav-social-links" aria-label="حسابات التواصل الاجتماعي"></div>
       </nav>
 
       <!-- Track Order Header Button (Quick access next to cart) -->
@@ -106,6 +107,25 @@
             متصفحك لا يدعم تشغيل الفيديو.
           </video>
           <div class="hero-art-scrim" aria-hidden="true"></div>
+
+          <!-- Sleek Hero Video Audio Toggle -->
+          <button id="hero-sound-toggle-btn" class="hero-sound-toggle-btn" type="button" aria-label="تشغيل صوت الفيديو" title="تشغيل صوت الفيديو">
+            <span class="sound-icon-muted" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            </span>
+            <span class="sound-icon-unmuted" hidden aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+            </span>
+            <span class="sound-toggle-label">تشغيل الصوت</span>
+          </button>
         </div>
 
         <div class="hero-bottom">
@@ -310,7 +330,17 @@
         <div class="modal-grid">
           <div class="modal-gallery-col">
             <div class="modal-image-wrap">
+              <button type="button" id="modal-gallery-prev" class="modal-gallery-arrow modal-gallery-prev" aria-label="الصورة السابقة" hidden>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
               <img id="modal-main-image" src="" alt="" />
+              <button type="button" id="modal-gallery-next" class="modal-gallery-arrow modal-gallery-next" aria-label="الصورة التالية" hidden>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
             </div>
             <div id="modal-swatches" class="modal-swatches" role="group" aria-label="ألوان وموديلات الساعة"></div>
           </div>
@@ -523,6 +553,7 @@
         <a id="footer-whatsapp-link" class="contact-link contact-link-primary" target="_blank" rel="noopener noreferrer" hidden>واتساب</a>
         <a id="footer-phone-link" class="contact-link contact-link-secondary" hidden>اتصال</a>
       </div>
+      <div id="footer-social-links" class="footer-social-links" aria-label="روابط السوشيال ميديا"></div>
       <div class="footer-bottom">
         <span>© <span id="year">2026</span> صُدْفَة — علامة تجارية مسجلة</span>
       </div>

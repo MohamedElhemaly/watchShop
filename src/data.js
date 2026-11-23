@@ -998,12 +998,23 @@ export function addOrder(orderData) {
 
 export function updateOrderStatus(orderId, status) {
   const orders = getOrders();
-  const idx = orders.findIndex((o) => o.id === orderId);
+  const rawTarget = String(orderId || "").trim().toLowerCase();
+  const cleanTarget = rawTarget.replace(/^[#]/, "").replace(/^(daf-|sdf-)/i, "").trim();
+
+  const idx = orders.findIndex((o) => {
+    const oId = String(o.id || "").trim().toLowerCase();
+    const oClean = oId.replace(/^[#]/, "").replace(/^(daf-|sdf-)/i, "").trim();
+    return oId === rawTarget || oClean === cleanTarget;
+  });
+
   if (idx > -1) {
     orders[idx].status = status;
     orders[idx].isRead = true;
+    orders[idx].updatedAt = new Date().toISOString();
     saveOrders(orders);
+    return orders[idx];
   }
+  return null;
 }
 
 export function deleteOrders(orderIds) {

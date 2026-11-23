@@ -65,6 +65,15 @@ export default async function handler(req, res) {
       tickerItems,
       settings: generalSettings,
       whatsappNumber: generalSettings.defaultWhatsapp || generalSettings.defaultPhone || "",
+      socialLinks: {
+        facebook: generalSettings.facebookUrl || generalSettings.socialFacebook || "",
+        instagram: generalSettings.instagramUrl || generalSettings.socialInstagram || "",
+        tiktok: generalSettings.tiktokUrl || generalSettings.socialTiktok || "",
+        youtube: generalSettings.youtubeUrl || generalSettings.socialYoutube || "",
+        snapchat: generalSettings.snapchatUrl || generalSettings.socialSnapchat || "",
+        whatsapp: generalSettings.defaultWhatsapp || generalSettings.socialWhatsapp || "",
+        phone: generalSettings.defaultPhone || generalSettings.socialPhone || generalSettings.phone || "",
+      },
       delivery: {
         minDays,
         maxDays,

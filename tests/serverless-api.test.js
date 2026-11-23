@@ -411,3 +411,60 @@ test("API: Admin Session with Arabic fullName in URI-encoded x-admin-session hea
   assert.equal(authMeMock.res.data.authenticated, true);
   assert.equal(authMeMock.res.data.user.role, "super_admin");
 });
+
+test("API: sync-local-admin persists local user to Cloud DB and allows cross-device login", async () => {
+  const superToken = signAdminToken({ userId: "usr_super_admin", username: "admin", role: "super_admin" });
+  const rawPassword = "SecretPassword123";
+  const { hashPassword } = await import("../api/_db.js");
+  const localPasswordHash = hashPassword(rawPassword);
+
+  // 1. Super Admin syncs a user created locally on PC
+  const syncMock = createMockReqRes({
+    method: "POST",
+    headers: { authorization: `Bearer ${superToken}` },
+    body: {
+      action: "sync-local-admin",
+      id: "usr_moh_test",
+      username: "moh_test",
+      fullName: "محمد تجريبي",
+      role: "regular_admin",
+      status: "active",
+      passwordHash: localPasswordHash,
+      permissions: { view_orders: true, manage_products: true },
+    },
+  });
+  await authHandler(syncMock.req, syncMock.res);
+
+  assert.equal(syncMock.res.statusCode, 201);
+  assert.equal(syncMock.res.data.ok, true);
+
+  // 2. Mobile device logs in with the synced user and raw password
+  const mobileLoginMock = createMockReqRes({
+    method: "POST",
+    query: { action: "login" },
+    body: {
+      username: "moh_test",
+      password: rawPassword,
+    },
+  });
+  await authHandler(mobileLoginMock.req, mobileLoginMock.res);
+
+  assert.equal(mobileLoginMock.res.statusCode, 200);
+  assert.equal(mobileLoginMock.res.data.ok, true);
+  assert.equal(mobileLoginMock.res.data.user.username, "moh_test");
+  assert.equal(mobileLoginMock.res.data.user.fullName, "محمد تجريبي");
+  assert.ok(mobileLoginMock.res.data.token);
+
+  // 3. Mobile device with wrong password fails with 401
+  const badLoginMock = createMockReqRes({
+    method: "POST",
+    query: { action: "login" },
+    body: {
+      username: "moh_test",
+      password: "wrong_password",
+    },
+  });
+  await authHandler(badLoginMock.req, badLoginMock.res);
+  assert.equal(badLoginMock.res.statusCode, 401);
+  assert.equal(badLoginMock.res.data.ok, false);
+});

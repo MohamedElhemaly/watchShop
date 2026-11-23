@@ -76,16 +76,17 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "يرجى إدخال اسم المستخدم وكلمة المرور." });
       }
 
-      let usersRes;
+      let allRows = [];
       try {
-        usersRes = await db.execute("SELECT * FROM admin_users;");
-      } catch {
-        usersRes = await db.execute("SELECT * FROM admins;");
-      }
-      if (!usersRes.rows || usersRes.rows.length === 0) {
-        usersRes = await db.execute("SELECT * FROM admins;");
-      }
-      const targetRow = usersRes.rows.find((r) => {
+        const r1 = await db.execute("SELECT * FROM admin_users;");
+        if (r1 && r1.rows) allRows.push(...r1.rows);
+      } catch {}
+      try {
+        const r2 = await db.execute("SELECT * FROM admins;");
+        if (r2 && r2.rows) allRows.push(...r2.rows);
+      } catch {}
+
+      const targetRow = allRows.find((r) => {
         const u = String(r.username || "").toLowerCase();
         const e = String(r.email || "").toLowerCase();
         const f = String(r.full_name || "").toLowerCase();
@@ -406,6 +407,78 @@ export default async function handler(req, res) {
       });
 
       return res.status(200).json({ ok: true, message: "تم تعيين كلمة المرور الجديدة للمشرف سحابياً بنجاح." });
+    }
+
+    // H. Sync Local Admin to Cloud (Super Admin only)
+    if (action === "sync-local-admin" || action === "sync-admin") {
+      const currentAdmin = await authenticateAdmin(req);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ ok: false, error: "مزامنة المشرفين متاحة للمدير العام فقط." });
+      }
+
+      const b = req.body || {};
+      const username = String(b.username || "").trim().toLowerCase();
+      if (!username || username.length < 3) {
+        return res.status(400).json({ ok: false, error: "اسم المستخدم غير صالح." });
+      }
+
+      const fullName = String(b.fullName || username).trim();
+      const email = String(b.email || "").trim().toLowerCase();
+      const status = b.status === "suspended" ? "suspended" : "active";
+      const permissions = b.permissions && typeof b.permissions === "object" ? b.permissions : {};
+      const permsJson = JSON.stringify(permissions);
+      const id = String(b.id || `usr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`).trim();
+      const now = new Date().toISOString();
+
+      let passwordHash = b.passwordHash;
+      if (!passwordHash && b.password) {
+        passwordHash = hashPassword(b.password);
+      }
+      if (!passwordHash) {
+        passwordHash = hashPassword("123456");
+      }
+
+      let existing;
+      try {
+        existing = await db.execute({
+          sql: "SELECT id FROM admin_users WHERE username = ? OR id = ? LIMIT 1;",
+          args: [username, id],
+        });
+      } catch {
+        existing = await db.execute({
+          sql: "SELECT id FROM admins WHERE username = ? OR id = ? LIMIT 1;",
+          args: [username, id],
+        });
+      }
+
+      if (existing && existing.rows && existing.rows.length > 0) {
+        const targetId = existing.rows[0].id;
+        try {
+          await db.execute({
+            sql: "UPDATE admin_users SET full_name = ?, email = ?, status = ?, permissions_json = ? WHERE id = ?;",
+            args: [fullName, email, status, permsJson, targetId],
+          });
+        } catch {}
+        await db.execute({
+          sql: "UPDATE admins SET full_name = ?, email = ?, status = ?, permissions_json = ? WHERE id = ?;",
+          args: [fullName, email, status, permsJson, targetId],
+        });
+        return res.status(200).json({ ok: true, message: "تم تحديث المشرف في السحابة.", id: targetId });
+      } else {
+        try {
+          await db.execute({
+            sql: `INSERT INTO admin_users (id, username, full_name, email, role, password_hash, status, permissions_json, created_at, updated_at)
+                  VALUES (?, ?, ?, ?, 'regular_admin', ?, ?, ?, ?, ?);`,
+            args: [id, username, fullName, email, passwordHash, status, permsJson, now, now],
+          });
+        } catch {}
+        await db.execute({
+          sql: `INSERT OR REPLACE INTO admins (id, username, full_name, email, role, password_hash, status, permissions_json, created_at)
+                VALUES (?, ?, ?, ?, 'regular_admin', ?, ?, ?, ?);`,
+          args: [id, username, fullName, email, passwordHash, status, permsJson, now],
+        });
+        return res.status(201).json({ ok: true, message: "تمت مزامنة المشرف في السحابة بنجاح.", id });
+      }
     }
 
     return res.status(400).json({ ok: false, error: "إجراء غير معروف." });

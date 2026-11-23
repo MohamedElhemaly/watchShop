@@ -2,8 +2,18 @@
 // Provides 100% free production-grade persistence for products, orders, settings, and admins.
 // Compatible with Turso Cloud (process.env.TURSO_DATABASE_URL) and safe local/in-memory fallback.
 
-import { createClient } from "@libsql/client";
+import { createClient } from "@libsql/client/web";
+import { createRequire } from "node:module";
 import { createHash, createHmac } from "node:crypto";
+
+const require = createRequire(import.meta.url);
+let nodeCreateClient = null;
+try {
+  // Only load native Node client in local test runner when file: / :memory: schemes are required
+  nodeCreateClient = require("@libsql/client").createClient;
+} catch {
+  // Pure Web / Vercel Serverless environment where native binaries are absent
+}
 
 let dbClient = null;
 let isInitialized = false;
@@ -113,17 +123,47 @@ export function getDb() {
     ? undefined
     : "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTUxNzcyMjgsImlkIjoiMDFhMWY4ZTYtOGQwMS03NTA4LThiYzQtOTIyOTZiYzE4MGY1Iiwia2lkIjoiM3pFZ1FBX19Td1FKVkwtVGpScUhOdDZLWnlXSmdwaVU2aXc4ODd0Z3NtTSIsInJpZCI6ImJjMzA5Yjk4LWFjNWMtNGE3My05NjIxLTE2N2YxNjk4YzcyZCJ9.wAMbFvk3nqBrR6oqg0gSy37_tvXktau-Lm2pipr5XzzzdsUg1hjdWtsnfnbjurq5NLLI7YqvuQIW7wbrhapqAA";
 
-  const url = process.env.TURSO_DATABASE_URL || defaultUrl;
+  const rawUrl = process.env.TURSO_DATABASE_URL || defaultUrl;
   const authToken = process.env.TURSO_AUTH_TOKEN || defaultToken;
 
+  const isWebScheme =
+    rawUrl.startsWith("libsql:") ||
+    rawUrl.startsWith("https:") ||
+    rawUrl.startsWith("http:") ||
+    rawUrl.startsWith("wss:") ||
+    rawUrl.startsWith("ws:");
+
   try {
-    dbClient = createClient({
-      url,
-      authToken,
-    });
+    if (isWebScheme) {
+      // Pure Web standard HTTP client (zero native binaries - eliminates Vercel serverless crashes)
+      const webUrl = rawUrl.replace(/^libsql:\/\//, "https://");
+      dbClient = createClient({
+        url: webUrl,
+        authToken,
+      });
+    } else if (nodeCreateClient) {
+      // Local Node / test runner with file: or :memory:
+      dbClient = nodeCreateClient({
+        url: rawUrl,
+        authToken,
+      });
+    } else {
+      dbClient = createClient({
+        url: rawUrl.replace(/^libsql:\/\//, "https://"),
+        authToken,
+      });
+    }
   } catch (err) {
     console.warn("Failed to connect to primary DB URL, falling back to memory:", err?.message || err);
-    dbClient = createClient({ url: ":memory:" });
+    try {
+      if (nodeCreateClient) {
+        dbClient = nodeCreateClient({ url: ":memory:" });
+      } else {
+        dbClient = createClient({ url: "https://localhost:8080", authToken: "dummy" });
+      }
+    } catch {
+      dbClient = createClient({ url: "https://localhost:8080", authToken: "dummy" });
+    }
   }
 
   return dbClient;
@@ -314,6 +354,17 @@ export async function ensureInitialized() {
         status TEXT DEFAULT 'active',
         created_at TEXT
       );`,
+      `CREATE TABLE IF NOT EXISTS admin_users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT,
+        full_name TEXT,
+        role TEXT DEFAULT 'regular_admin',
+        password_hash TEXT NOT NULL,
+        permissions_json TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TEXT
+      );`,
       `CREATE TABLE IF NOT EXISTS store_settings (
         key TEXT PRIMARY KEY,
         value_json TEXT,
@@ -359,7 +410,37 @@ export async function ensureInitialized() {
             ],
           },
           {
+            sql: `INSERT OR REPLACE INTO admin_users (id, username, email, full_name, role, password_hash, permissions_json, status, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            args: [
+              "usr_super_admin",
+              "admin",
+              "admin@sodfa.store",
+              "المدير العام (Super Admin)",
+              "super_admin",
+              hashPassword(DEFAULT_SUPER_ADMIN_PASSWORD),
+              fullPerms,
+              "active",
+              "2026-01-01T00:00:00.000Z",
+            ],
+          },
+          {
             sql: `INSERT OR REPLACE INTO admins (id, username, email, full_name, role, password_hash, permissions_json, status, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            args: [
+              "usr_hager_samir",
+              "hager",
+              "hager@sodfa.store",
+              "Hager Samir",
+              "regular_admin",
+              hashPassword("hager2026"),
+              fullPerms,
+              "active",
+              "2026-01-01T00:00:00.000Z",
+            ],
+          },
+          {
+            sql: `INSERT OR REPLACE INTO admin_users (id, username, email, full_name, role, password_hash, permissions_json, status, created_at)
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             args: [
               "usr_hager_samir",
@@ -484,11 +565,21 @@ export async function authenticateAdmin(req) {
     const payload = verifyAdminToken(token);
     if (payload && payload.userId) {
       const db = getDb();
-      const res = await db.execute({
-        sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;",
-        args: [payload.userId],
-      });
-      const row = res.rows[0];
+      let row;
+      try {
+        const res = await db.execute({
+          sql: "SELECT * FROM admin_users WHERE id = ? LIMIT 1;",
+          args: [payload.userId],
+        });
+        row = res.rows[0];
+      } catch {}
+      if (!row) {
+        const res = await db.execute({
+          sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;",
+          args: [payload.userId],
+        });
+        row = res.rows[0];
+      }
       if (row && row.status !== "suspended") {
         return mapAdminRow(row);
       }
@@ -502,11 +593,20 @@ export async function authenticateAdmin(req) {
       const parsed = JSON.parse(decodeURIComponent(sessionRaw));
       if (parsed.userId || parsed.username) {
         const db = getDb();
-        const r = await db.execute({
-          sql: "SELECT * FROM admins WHERE id = ? OR username = ? LIMIT 1;",
-          args: [parsed.userId || "", parsed.username || ""],
-        });
-        if (r.rows[0] && r.rows[0].status === "active") {
+        let r;
+        try {
+          r = await db.execute({
+            sql: "SELECT * FROM admin_users WHERE id = ? OR username = ? LIMIT 1;",
+            args: [parsed.userId || "", parsed.username || ""],
+          });
+        } catch {}
+        if (!r || !r.rows || r.rows.length === 0) {
+          r = await db.execute({
+            sql: "SELECT * FROM admins WHERE id = ? OR username = ? LIMIT 1;",
+            args: [parsed.userId || "", parsed.username || ""],
+          });
+        }
+        if (r && r.rows[0] && r.rows[0].status === "active") {
           return mapAdminRow(r.rows[0]);
         }
       }

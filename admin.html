@@ -137,6 +137,23 @@
 
       <!-- 2. Full Admin Dashboard Workspace (Revealed After Auth) -->
       <section id="admin-dashboard-view" class="admin-dashboard-view" hidden aria-labelledby="workspace-title">
+        <!-- Actionable Cloud Diagnostic Banner -->
+        <div id="cloud-diagnostic-banner" class="cloud-diagnostic-banner" hidden>
+          <div class="diagnostic-content">
+            <span class="diagnostic-icon" aria-hidden="true">⚠️</span>
+            <div class="diagnostic-body">
+              <strong id="diagnostic-title">تنبيه: غير متصل بقاعدة بيانات Turso السحابية</strong>
+              <p id="diagnostic-desc">جاري فحص حالة الاتصال بالسحابة...</p>
+              <small id="diagnostic-hint" style="display:block; margin-top:4px; opacity:0.85;"></small>
+            </div>
+          </div>
+          <div class="diagnostic-actions">
+            <button type="button" id="btn-recheck-health" class="admin-button admin-button-small admin-button-primary">
+              إعادة فحص الاتصال 🔄
+            </button>
+          </div>
+        </div>
+
         <!-- Top Workspace Header & KPI Stats -->
         <div class="dashboard-topbar">
           <div>

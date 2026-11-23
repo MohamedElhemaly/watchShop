@@ -40,9 +40,17 @@ export default async function handler(req, res) {
         return res.status(403).json({ ok: false, error: "هذه الصلاحية مخصصة للمدير العام (Super Admin) فقط." });
       }
 
-      const rowsRes = await db.execute("SELECT * FROM admins ORDER BY created_at ASC;");
+      let rowsRes;
+      try {
+        rowsRes = await db.execute("SELECT * FROM admin_users ORDER BY created_at ASC;");
+      } catch {
+        rowsRes = await db.execute("SELECT * FROM admins ORDER BY created_at ASC;");
+      }
+      if (!rowsRes.rows || rowsRes.rows.length === 0) {
+        rowsRes = await db.execute("SELECT * FROM admins ORDER BY created_at ASC;");
+      }
       const users = rowsRes.rows.map((r) => mapAdminRow(r, false));
-      return res.status(200).json({ ok: true, users });
+      return res.status(200).json({ ok: true, users, admins: users });
     }
 
     if (action === "recovery-key") {
@@ -68,7 +76,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "يرجى إدخال اسم المستخدم وكلمة المرور." });
       }
 
-      const usersRes = await db.execute("SELECT * FROM admins;");
+      let usersRes;
+      try {
+        usersRes = await db.execute("SELECT * FROM admin_users;");
+      } catch {
+        usersRes = await db.execute("SELECT * FROM admins;");
+      }
+      if (!usersRes.rows || usersRes.rows.length === 0) {
+        usersRes = await db.execute("SELECT * FROM admins;");
+      }
       const targetRow = usersRes.rows.find((r) => {
         const u = String(r.username || "").toLowerCase();
         const e = String(r.email || "").toLowerCase();
@@ -123,7 +139,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "كلمة المرور الجديدة يجب ألا تقل عن 6 خانات." });
       }
 
-      const usersRes = await db.execute("SELECT * FROM admins;");
+      let usersRes;
+      try {
+        usersRes = await db.execute("SELECT * FROM admin_users;");
+      } catch {
+        usersRes = await db.execute("SELECT * FROM admins;");
+      }
+      if (!usersRes.rows || usersRes.rows.length === 0) {
+        usersRes = await db.execute("SELECT * FROM admins;");
+      }
       const targetRow = usersRes.rows.find((r) => {
         const u = String(r.username || "").toLowerCase();
         const e = String(r.email || "").toLowerCase();
@@ -203,7 +227,12 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "كلمة المرور يجب أن تتكون من 6 خانات على الأقل." });
       }
 
-      const checkExists = await db.execute({ sql: "SELECT id FROM admins WHERE username = ? LIMIT 1;", args: [username] });
+      let checkExists;
+      try {
+        checkExists = await db.execute({ sql: "SELECT id FROM admin_users WHERE username = ? LIMIT 1;", args: [username] });
+      } catch {
+        checkExists = await db.execute({ sql: "SELECT id FROM admins WHERE username = ? LIMIT 1;", args: [username] });
+      }
       if (checkExists.rows.length > 0) {
         return res.status(409).json({ ok: false, error: "اسم المستخدم هذا مسجل مسبقاً." });
       }
@@ -218,13 +247,26 @@ export default async function handler(req, res) {
         manage_delivery_settings: Boolean(permissions.manage_delivery_settings),
       });
 
+      const insertArgs = [newId, username, email, fullName, hashPassword(password), permsJson, new Date().toISOString()];
+      try {
+        await db.execute({
+          sql: `INSERT OR REPLACE INTO admin_users (id, username, email, full_name, role, password_hash, permissions_json, status, created_at)
+                VALUES (?, ?, ?, ?, 'regular_admin', ?, ?, 'active', ?);`,
+          args: insertArgs,
+        });
+      } catch {}
       await db.execute({
-        sql: `INSERT INTO admins (id, username, email, full_name, role, password_hash, permissions_json, status, created_at)
+        sql: `INSERT OR REPLACE INTO admins (id, username, email, full_name, role, password_hash, permissions_json, status, created_at)
               VALUES (?, ?, ?, ?, 'regular_admin', ?, ?, 'active', ?);`,
-        args: [newId, username, email, fullName, hashPassword(password), permsJson, new Date().toISOString()],
+        args: insertArgs,
       });
 
-      const created = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [newId] });
+      let created;
+      try {
+        created = await db.execute({ sql: "SELECT * FROM admin_users WHERE id = ? LIMIT 1;", args: [newId] });
+      } catch {
+        created = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [newId] });
+      }
       return res.status(201).json({ ok: true, user: mapAdminRow(created.rows[0]) });
     }
 
@@ -241,7 +283,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "معرف المشرف مطلوب." });
       }
 
-      const userRes = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      let userRes;
+      try {
+        userRes = await db.execute({ sql: "SELECT * FROM admin_users WHERE id = ? LIMIT 1;", args: [targetId] });
+      } catch {
+        userRes = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      }
+      if (!userRes.rows || userRes.rows.length === 0) {
+        userRes = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      }
       const row = userRes.rows[0];
       if (!row) {
         return res.status(404).json({ ok: false, error: "المشرف غير موجود." });
@@ -271,12 +321,23 @@ export default async function handler(req, res) {
       }
       args.push(targetId);
 
+      try {
+        await db.execute({
+          sql: `UPDATE admin_users SET full_name = ?, email = ?, status = ?, permissions_json = ? ${passwordClause} WHERE id = ?;`,
+          args,
+        });
+      } catch {}
       await db.execute({
         sql: `UPDATE admins SET full_name = ?, email = ?, status = ?, permissions_json = ? ${passwordClause} WHERE id = ?;`,
         args,
       });
 
-      const updated = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      let updated;
+      try {
+        updated = await db.execute({ sql: "SELECT * FROM admin_users WHERE id = ? LIMIT 1;", args: [targetId] });
+      } catch {
+        updated = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      }
       return res.status(200).json({ ok: true, user: mapAdminRow(updated.rows[0]) });
     }
 
@@ -292,7 +353,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "معرف المشرف مطلوب." });
       }
 
-      const userRes = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      let userRes;
+      try {
+        userRes = await db.execute({ sql: "SELECT * FROM admin_users WHERE id = ? LIMIT 1;", args: [targetId] });
+      } catch {
+        userRes = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      }
+      if (!userRes.rows || userRes.rows.length === 0) {
+        userRes = await db.execute({ sql: "SELECT * FROM admins WHERE id = ? LIMIT 1;", args: [targetId] });
+      }
       const row = userRes.rows[0];
       if (!row) {
         return res.status(404).json({ ok: false, error: "المشرف غير موجود." });
@@ -302,8 +371,41 @@ export default async function handler(req, res) {
         return res.status(403).json({ ok: false, error: "لا يمكن حذف حساب المدير العام نهائياً." });
       }
 
+      try {
+        await db.execute({ sql: "DELETE FROM admin_users WHERE id = ?;", args: [targetId] });
+      } catch {}
       await db.execute({ sql: "DELETE FROM admins WHERE id = ?;", args: [targetId] });
       return res.status(200).json({ ok: true, message: "تم حذف المشرف بنجاح." });
+    }
+
+    // G. Reset Admin Password by Super Admin
+    if (action === "reset-user-password" || action === "reset-password") {
+      const currentAdmin = await authenticateAdmin(req);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ ok: false, error: "تعيين كلمة مرور المشرفين متاح للمدير العام فقط." });
+      }
+
+      const b = req.body || {};
+      const targetId = String(b.id || req.query?.id || "").trim();
+      const newPassword = String(b.newPassword || b.password || "").trim();
+
+      if (!targetId || !newPassword || newPassword.length < 6) {
+        return res.status(400).json({ ok: false, error: "يرجى تحديد المشرف وكلمة مرور جديدة لا تقل عن 6 خانات." });
+      }
+
+      const newHash = hashPassword(newPassword);
+      try {
+        await db.execute({
+          sql: "UPDATE admin_users SET password_hash = ? WHERE id = ?;",
+          args: [newHash, targetId],
+        });
+      } catch {}
+      await db.execute({
+        sql: "UPDATE admins SET password_hash = ? WHERE id = ?;",
+        args: [newHash, targetId],
+      });
+
+      return res.status(200).json({ ok: true, message: "تم تعيين كلمة المرور الجديدة للمشرف سحابياً بنجاح." });
     }
 
     return res.status(400).json({ ok: false, error: "إجراء غير معروف." });

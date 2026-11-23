@@ -30,6 +30,7 @@ import {
   recoverPasswordWithKey,
   changeUserPassword,
   getAdminUsers,
+  saveAdminUsers,
   createAdminUser,
   updateAdminUser,
   deleteAdminUser,
@@ -88,6 +89,7 @@ let editingProductId = null;
 let currentListFilter = "all";
 let currentOrderFilter = "all";
 let toastTimer = null;
+let isCloudConnected = true;
 
 // Multi-Select & Bulk Actions State
 const selectedProductIds = new Set();
@@ -306,6 +308,10 @@ async function handleLoginSubmit(e) {
 
   setAdminSession(sessionData, rememberMe);
   updateAuthViews();
+  checkCloudHealth();
+  if (result.role === "super_admin") {
+    fetchAdminUsersFromCloud();
+  }
   showToast(`أهلاً بك يا ${result.fullName || result.username} في لوحة تحكم صُدْفَة ✓`);
 }
 
@@ -2864,10 +2870,52 @@ function closeAdminUserModal() {
   if (modal) modal.hidden = true;
 }
 
-function handleSaveAdminUser(e) {
+async function fetchAdminUsersFromCloud() {
+  const session = getAdminSession();
+  if (!session || session.role !== "super_admin") return;
+
+  try {
+    const res = await fetch(`/api/auth?action=admins&t=${Date.now()}`, {
+      headers: getAdminAuthHeaders(),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const list = data.users || data.admins;
+      if (Array.isArray(list) && list.length > 0) {
+        const mapped = list.map((u) => ({
+          id: u.id,
+          username: u.username,
+          fullName: u.fullName || u.full_name || u.username,
+          role: u.role,
+          status: u.status || "active",
+          permissions: typeof u.permissions === "string" ? JSON.parse(u.permissions) : (u.permissions || {}),
+          createdAt: u.created_at || u.createdAt || new Date().toISOString(),
+        }));
+        saveAdminUsers(mapped);
+        renderAdminUsersTable();
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch admin users from cloud:", err);
+  }
+}
+
+async function handleSaveAdminUser(e) {
   e.preventDefault();
   const errorBox = $("#modal-admin-user-error");
+  const submitBtn = $("#btn-save-admin-user") || e.target.querySelector("button[type='submit']");
   if (errorBox) errorBox.hidden = true;
+
+  if (!isCloudConnected) {
+    const msg = "⚠️ لا يمكن إضافة أو تعديل المشرفين أثناء انقطاع الاتصال بالسحابة. يرجى فحص إعدادات اتصال Turso وVercel ثم إعادة المحاولة.";
+    if (errorBox) {
+      errorBox.textContent = msg;
+      errorBox.hidden = false;
+    }
+    showToast(msg, true);
+    return;
+  }
 
   const editId = $("#admin-user-edit-id")?.value;
   const fullName = $("#admin-user-fullname")?.value.trim();
@@ -2884,20 +2932,48 @@ function handleSaveAdminUser(e) {
     manage_delivery_settings: $("#perm-manage-delivery")?.checked ?? false,
   };
 
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "جاري الحفظ في السحابة... ⏳";
+  }
+
   try {
+    const payload = editId
+      ? { action: "update-admin", id: editId, fullName, status, permissions }
+      : { action: "create-admin", fullName, username, password, permissions };
+
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !data.ok) {
+      throw new Error(data?.error || `فشل الحفظ في السحابة (${res.status})`);
+    }
+
     if (editId) {
       updateAdminUser(editId, { fullName, status, permissions });
-      showToast("تم تحديث بيانات وصلاحيات المشرف بنجاح ✓");
+      showToast("تم تحديث بيانات وصلاحيات المشرف وحفظها سحابياً بنجاح ✓");
     } else {
-      createAdminUser({ fullName, username, password, permissions });
-      showToast("تمت إضافة المشرف الجديد بنجاح ✓");
+      createAdminUser({ fullName, username, password, permissions, id: data.user?.id });
+      showToast("تمت إضافة المشرف وحفظه في سحابة Turso بنجاح ✓");
     }
+
+    await fetchAdminUsersFromCloud();
     closeAdminUserModal();
     renderAdminUsersTable();
   } catch (err) {
     if (errorBox) {
       errorBox.textContent = err.message || "حدث خطأ أثناء حفظ المشرف.";
       errorBox.hidden = false;
+    }
+    showToast(err.message, true);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "حفظ المشرف";
     }
   }
 }
@@ -2923,22 +2999,53 @@ function closeResetPassModal() {
   if (modal) modal.hidden = true;
 }
 
-function handleSaveResetPass(e) {
+async function handleSaveResetPass(e) {
   e.preventDefault();
   const errBox = $("#modal-reset-pass-error");
+  const submitBtn = $("#btn-save-reset-pass") || e.target.querySelector("button[type='submit']");
   if (errBox) errBox.hidden = true;
+
+  if (!isCloudConnected) {
+    const msg = "⚠️ لا يمكن إعادة تعيين كلمة المرور أثناء انقطاع الاتصال بالسحابة.";
+    if (errBox) {
+      errBox.textContent = msg;
+      errBox.hidden = false;
+    }
+    showToast(msg, true);
+    return;
+  }
 
   const userId = $("#reset-target-user-id")?.value;
   const newPass = $("#reset-new-password")?.value.trim();
 
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "جاري الحفظ... ⏳";
+  }
+
   try {
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: getAdminAuthHeaders(),
+      body: JSON.stringify({ action: "reset-user-password", id: userId, newPassword: newPass }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) {
+      throw new Error(data?.error || "فشل تعيين كلمة المرور في السحابة");
+    }
+
     resetUserPassword(userId, newPass);
-    showToast("تم تعيين كلمة المرور الجديدة للمشرف بنجاح ✓");
+    showToast("تم تعيين كلمة المرور الجديدة للمشرف وحفظها سحابياً بنجاح ✓");
     closeResetPassModal();
   } catch (err) {
     if (errBox) {
       errBox.textContent = err.message || "فشل تعيين كلمة المرور.";
       errBox.hidden = false;
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "تعيين كلمة المرور";
     }
   }
 }
@@ -3039,14 +3146,38 @@ function renderDashboard() {
   populateAccountSecurity();
 }
 
-function updateCloudDbBadge(connected = true) {
+async function checkCloudHealth() {
+  try {
+    const res = await fetch(`/api/health?t=${Date.now()}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data && data.ok && data.connected) {
+      isCloudConnected = true;
+      updateCloudDbBadge(true, data);
+      return true;
+    } else {
+      isCloudConnected = false;
+      updateCloudDbBadge(false, data || { ok: false, connected: false, reason: "DB_ERROR" });
+      return false;
+    }
+  } catch (err) {
+    isCloudConnected = false;
+    updateCloudDbBadge(false, { ok: false, connected: false, reason: "NETWORK_ERROR", error: err.message });
+    return false;
+  }
+}
+
+function updateCloudDbBadge(connected = true, diagnostic = null) {
+  isCloudConnected = Boolean(connected);
   let badge = $("#admin-db-status");
   if (!badge) {
     const target = $(".admin-topbar-right") || $(".admin-header-user") || $(".admin-header-actions") || $("header");
     if (target) {
       badge = document.createElement("span");
       badge.id = "admin-db-status";
-      badge.className = "admin-db-badge is-connected";
+      badge.className = connected ? "admin-db-badge is-connected" : "admin-db-badge is-disconnected";
       target.prepend(badge);
     }
   }
@@ -3061,11 +3192,58 @@ function updateCloudDbBadge(connected = true) {
       badge.title = "فشل الاتصال بقاعدة البيانات السحابية";
     }
   }
+
+  // Diagnostic Banner Management
+  const banner = $("#cloud-diagnostic-banner");
+  if (banner) {
+    if (connected) {
+      banner.hidden = true;
+    } else {
+      banner.hidden = false;
+      const titleEl = $("#diagnostic-title");
+      const descEl = $("#diagnostic-desc");
+      const hintEl = $("#diagnostic-hint");
+
+      const reason = diagnostic?.reason;
+      if (reason === "MISSING_ENV_VARS") {
+        if (titleEl) titleEl.textContent = "تنبيه هام: متغيرات اتصال Turso غير معرّفة في إعدادات Vercel";
+        if (descEl) descEl.textContent = "لا يمكن الحفظ في قاعدة البيانات السحابية لعدم وجود متغيرات البيئة. يرجى الدخول إلى Vercel Project Settings ثم Environment Variables وإضافة: TURSO_DATABASE_URL و TURSO_AUTH_TOKEN ثم إعادة النشر (Redeploy).";
+        if (hintEl) hintEl.textContent = diagnostic?.details || "المتغيرات المفقودة: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN";
+      } else if (reason === "AUTH_FAILED") {
+        if (titleEl) titleEl.textContent = "خطأ في المصادقة: رمز TURSO_AUTH_TOKEN غير صالح أو منتهي الصلاحية";
+        if (descEl) descEl.textContent = "فشل التحقق من صحة التوكن مع خادم Turso السحابي. يرجى إنشاء توكن جديد من لوحة Turso وتحديثه في Vercel.";
+        if (hintEl) hintEl.textContent = diagnostic?.error || "";
+      } else if (reason === "DB_ERROR") {
+        if (titleEl) titleEl.textContent = "تعذر الاتصال بقاعدة بيانات Turso السحابية";
+        if (descEl) descEl.textContent = "حدث خطأ أثناء تنفيذ استعلام الفحص في قاعدة البيانات السحابية. يرجى التحقق من حالة قاعدة البيانات في Turso.";
+        if (hintEl) hintEl.textContent = diagnostic?.error || "";
+      } else {
+        if (titleEl) titleEl.textContent = "تنبيه: غير متصل بقاعدة بيانات Turso السحابية";
+        if (descEl) descEl.textContent = "لوحة التحكم غير قادرة على الاتصال بـ Turso حالياً. تم حظر إضافة المشرفين محلياً لحماية البيانات.";
+        if (hintEl) hintEl.textContent = diagnostic?.error || diagnostic?.details || "تأكد من اتصالك بالإنترنت وصحة إعدادات Vercel Serverless Functions.";
+      }
+    }
+  }
 }
 
 function initAdminApp() {
   updateAuthViews();
   initCloudSync();
+  checkCloudHealth();
+  fetchAdminUsersFromCloud();
+
+  $("#btn-recheck-health")?.addEventListener("click", async () => {
+    const btn = $("#btn-recheck-health");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "جاري الفحص... ⏳";
+    }
+    await checkCloudHealth();
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "إعادة فحص الاتصال 🔄";
+    }
+  });
 
   // Live Cloud sync on mount: fetch fresh orders, products, and store settings directly from Turso & API
   fetchStoreDirectFromTurso().then((data) => {
@@ -3670,29 +3848,65 @@ function initAdminApp() {
     if (action === "edit-user") {
       openEditAdminUserModal(userId);
     } else if (action === "toggle-status") {
+      if (!isCloudConnected) {
+        showToast("⚠️ لا يمكن تعديل حالة المشرف أثناء انقطاع الاتصال بالسحابة.", true);
+        return;
+      }
       const currentStatus = btn.dataset.status;
       const nextStatus = currentStatus === "active" ? "suspended" : "active";
-      try {
-        updateAdminUser(userId, { status: nextStatus });
-        renderAdminUsersTable();
-        showToast(nextStatus === "active" ? "تم تفعيل حساب المشرف بنجاح ▶" : "تم إيقاف حساب المشرف مؤقتاً ⏸");
-      } catch (err) {
-        showToast(err.message, true);
-      }
+      btn.disabled = true;
+      (async () => {
+        try {
+          const res = await fetch("/api/auth", {
+            method: "POST",
+            headers: getAdminAuthHeaders(),
+            body: JSON.stringify({ action: "update-admin", id: userId, status: nextStatus }),
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data?.ok) {
+            throw new Error(data?.error || "فشل تحديث حالة المشرف سحابياً");
+          }
+          updateAdminUser(userId, { status: nextStatus });
+          renderAdminUsersTable();
+          showToast(nextStatus === "active" ? "تم تفعيل حساب المشرف بنجاح ▶" : "تم إيقاف حساب المشرف مؤقتاً ⏸");
+        } catch (err) {
+          showToast(err.message, true);
+        } finally {
+          btn.disabled = false;
+        }
+      })();
     } else if (action === "reset-user-pass") {
       const username = btn.dataset.username;
       openResetPassModal(userId, username);
     } else if (action === "delete-user") {
-      const name = btn.dataset.name;
-      const ok = confirm(`هل أنت متأكد من حذف حساب المشرف «${name}» نهائياً؟`);
-      if (!ok) return;
-      try {
-        deleteAdminUser(userId);
-        renderAdminUsersTable();
-        showToast(`تم حذف المشرف «${name}» بنجاح.`);
-      } catch (err) {
-        showToast(err.message, true);
+      if (!isCloudConnected) {
+        showToast("⚠️ لا يمكن حذف المشرف أثناء انقطاع الاتصال بالسحابة.", true);
+        return;
       }
+      const name = btn.dataset.name;
+      const ok = confirm(`هل أنت متأكد من حذف حساب المشرف «${name}» نهائياً من سحابة Turso؟`);
+      if (!ok) return;
+      btn.disabled = true;
+      (async () => {
+        try {
+          const res = await fetch("/api/auth", {
+            method: "POST",
+            headers: getAdminAuthHeaders(),
+            body: JSON.stringify({ action: "delete-admin", id: userId }),
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data?.ok) {
+            throw new Error(data?.error || "فشل حذف المشرف من السحابة");
+          }
+          deleteAdminUser(userId);
+          renderAdminUsersTable();
+          showToast(`تم حذف المشرف «${name}» نهائياً من السحابة بنجاح.`);
+        } catch (err) {
+          showToast(err.message, true);
+        } finally {
+          btn.disabled = false;
+        }
+      })();
     }
   });
 

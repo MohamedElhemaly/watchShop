@@ -442,19 +442,23 @@ export async function processMediaUpload(file, options = {}) {
 
   // Resolve Cloudinary settings from runtime storeSettings or environment variables
   const cloudName = (
-    options?.cloudName ||
-    cloudSettings?.cloudName ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME) ||
-    (typeof window !== "undefined" && window.__CLOUDINARY_CLOUD_NAME) ||
-    "v3macb6a"
+    options?.cloudName !== undefined
+      ? options.cloudName
+      : cloudSettings?.cloudName !== undefined
+        ? cloudSettings.cloudName
+        : (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_CLOUD_NAME) ||
+          (typeof window !== "undefined" && window.__CLOUDINARY_CLOUD_NAME) ||
+          "v3macb6a"
   ).trim();
 
   const uploadPreset = (
-    options?.uploadPreset ||
-    cloudSettings?.uploadPreset ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET) ||
-    (typeof window !== "undefined" && window.__CLOUDINARY_UPLOAD_PRESET) ||
-    "SodfaShop"
+    options?.uploadPreset !== undefined
+      ? options.uploadPreset
+      : cloudSettings?.uploadPreset !== undefined
+        ? cloudSettings.uploadPreset
+        : (typeof import.meta !== "undefined" && import.meta.env?.VITE_CLOUDINARY_UPLOAD_PRESET) ||
+          (typeof window !== "undefined" && window.__CLOUDINARY_UPLOAD_PRESET) ||
+          "SodfaShop"
   ).trim();
 
   // For Videos: Cloudinary is mandatory for cross-device live playback. Never fail silently!

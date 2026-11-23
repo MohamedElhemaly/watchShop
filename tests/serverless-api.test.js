@@ -6,6 +6,7 @@ import productsHandler from "../api/products.js";
 import ordersHandler from "../api/orders.js";
 import settingsHandler from "../api/settings.js";
 import authHandler from "../api/auth.js";
+import healthHandler from "../api/health.js";
 import { signAdminToken, getDb } from "../api/_db.js";
 
 function createMockReqRes({ method = "GET", query = {}, body = {}, headers = {} } = {}) {
@@ -282,4 +283,103 @@ test("API: Settings update via /api/settings", async () => {
   assert.equal(putMock.res.data.settings.defaultWhatsapp, "01099887766");
   assert.equal(putMock.res.data.settings.deliveryMinDays, 3);
   assert.deepEqual(putMock.res.data.tickerItems, ["عرض خاص لفترة محدودة"]);
+});
+
+test("API: GET /api/health returns diagnostic payload and handles missing env vars gracefully", async () => {
+  const { req, res } = createMockReqRes({ method: "GET" });
+  await healthHandler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(typeof res.data.connected === "boolean");
+  if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
+    assert.equal(res.data.ok, false);
+    assert.equal(res.data.reason, "MISSING_ENV_VARS");
+    assert.ok(res.data.solution.includes("Vercel"));
+  }
+});
+
+test("API: Admin User CRUD and Password Reset persistence via /api/auth", async () => {
+  const superToken = signAdminToken({ userId: "usr_super_admin", username: "admin", role: "super_admin" });
+  const testUsername = `moderator_${Date.now().toString(36)}`;
+
+  // 1. Super Admin creates a new admin user
+  const createMock = createMockReqRes({
+    method: "POST",
+    headers: { authorization: `Bearer ${superToken}` },
+    body: {
+      action: "create-admin",
+      username: testUsername,
+      fullName: "مشرف تجريبي جديد",
+      password: "TestPassword123",
+      permissions: { view_orders: true, manage_orders: true },
+    },
+  });
+  await authHandler(createMock.req, createMock.res);
+
+  assert.equal(createMock.res.statusCode, 201);
+  assert.equal(createMock.res.data.ok, true);
+  assert.equal(createMock.res.data.user.username, testUsername);
+  const createdUserId = createMock.res.data.user.id;
+  assert.ok(createdUserId);
+
+  // 2. Fetch admins list and verify user is included
+  const listMock = createMockReqRes({
+    method: "GET",
+    query: { action: "admins" },
+    headers: { authorization: `Bearer ${superToken}` },
+  });
+  await authHandler(listMock.req, listMock.res);
+
+  assert.equal(listMock.res.statusCode, 200);
+  assert.equal(listMock.res.data.ok, true);
+  const foundUser = (listMock.res.data.users || listMock.res.data.admins).find((u) => u.id === createdUserId);
+  assert.ok(foundUser);
+  assert.equal(foundUser.username, testUsername);
+
+  // 3. Update user status to suspended
+  const updateMock = createMockReqRes({
+    method: "POST",
+    headers: { authorization: `Bearer ${superToken}` },
+    body: {
+      action: "update-admin",
+      id: createdUserId,
+      status: "suspended",
+      fullName: "مشرف تجريبي محدث",
+    },
+  });
+  await authHandler(updateMock.req, updateMock.res);
+
+  assert.equal(updateMock.res.statusCode, 200);
+  assert.equal(updateMock.res.data.ok, true);
+  assert.equal(updateMock.res.data.user.status, "suspended");
+  assert.equal(updateMock.res.data.user.fullName, "مشرف تجريبي محدث");
+
+  // 4. Reset user password
+  const resetMock = createMockReqRes({
+    method: "POST",
+    headers: { authorization: `Bearer ${superToken}` },
+    body: {
+      action: "reset-user-password",
+      id: createdUserId,
+      newPassword: "BrandNewPassword456!",
+    },
+  });
+  await authHandler(resetMock.req, resetMock.res);
+
+  assert.equal(resetMock.res.statusCode, 200);
+  assert.equal(resetMock.res.data.ok, true);
+
+  // 5. Delete admin user
+  const deleteMock = createMockReqRes({
+    method: "POST",
+    headers: { authorization: `Bearer ${superToken}` },
+    body: {
+      action: "delete-admin",
+      id: createdUserId,
+    },
+  });
+  await authHandler(deleteMock.req, deleteMock.res);
+
+  assert.equal(deleteMock.res.statusCode, 200);
+  assert.equal(deleteMock.res.data.ok, true);
 });

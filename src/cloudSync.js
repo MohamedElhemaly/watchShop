@@ -86,9 +86,14 @@ export async function pushCloudState(key, data) {
     } catch {}
 
     const authHeaders = { "Content-Type": "application/json" };
-    if (token) authHeaders["Authorization"] = `Bearer ${token}`;
-    if (token) authHeaders["x-admin-token"] = token;
-    if (sessionRaw) authHeaders["x-admin-session"] = sessionRaw;
+    if (token) {
+      const safeToken = /^[\x20-\x7E]*$/.test(token) ? token : encodeURIComponent(token);
+      authHeaders["Authorization"] = `Bearer ${safeToken}`;
+      authHeaders["x-admin-token"] = safeToken;
+    }
+    if (sessionRaw) {
+      authHeaders["x-admin-session"] = /^[\x20-\x7E]*$/.test(sessionRaw) ? sessionRaw : encodeURIComponent(sessionRaw);
+    }
 
     if (key === "store_settings") {
       fetch("/api/settings", {

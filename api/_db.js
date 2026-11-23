@@ -590,7 +590,11 @@ export async function authenticateAdmin(req) {
   const sessionRaw = req.headers?.["x-admin-session"] || (token && (token.startsWith("{") || token.startsWith("%7B")) ? token : "");
   if (sessionRaw) {
     try {
-      const parsed = JSON.parse(decodeURIComponent(sessionRaw));
+      let rawString = sessionRaw;
+      try {
+        rawString = decodeURIComponent(sessionRaw);
+      } catch {}
+      const parsed = JSON.parse(rawString);
       if (parsed.userId || parsed.username) {
         const db = getDb();
         let r;

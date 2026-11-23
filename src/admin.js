@@ -116,19 +116,30 @@ function getEffectiveCloudinarySettings() {
   };
 }
 
+function toAsciiSafeHeader(val) {
+  if (!val) return "";
+  const str = String(val);
+  return /^[\x20-\x7E]*$/.test(str) ? str : encodeURIComponent(str);
+}
+
 function getAdminAuthHeaders() {
   const headers = { "Content-Type": "application/json" };
   try {
     const raw = sessionStorage.getItem("daffa_admin_session") || localStorage.getItem("daffa_admin_session");
     if (raw) {
-      headers["x-admin-session"] = raw;
-      const parsed = JSON.parse(raw);
-      if (parsed.token) {
-        headers["Authorization"] = `Bearer ${parsed.token}`;
-        headers["x-admin-token"] = parsed.token;
+      const safeEncoded = toAsciiSafeHeader(raw);
+      headers["x-admin-session"] = safeEncoded;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {}
+      if (parsed?.token && typeof parsed.token === "string" && !parsed.token.startsWith("{")) {
+        const safeToken = toAsciiSafeHeader(parsed.token.trim());
+        headers["Authorization"] = `Bearer ${safeToken}`;
+        headers["x-admin-token"] = safeToken;
       } else {
-        headers["Authorization"] = `Bearer ${raw}`;
-        headers["x-admin-token"] = raw;
+        headers["Authorization"] = `Bearer ${safeEncoded}`;
+        headers["x-admin-token"] = safeEncoded;
       }
     }
   } catch {}

@@ -383,3 +383,31 @@ test("API: Admin User CRUD and Password Reset persistence via /api/auth", async 
   assert.equal(deleteMock.res.statusCode, 200);
   assert.equal(deleteMock.res.data.ok, true);
 });
+
+test("API: Admin Session with Arabic fullName in URI-encoded x-admin-session header authenticates without non-ISO error", async () => {
+  const sessionWithArabic = JSON.stringify({
+    userId: "usr_super_admin",
+    username: "admin",
+    fullName: "المدير العام (Super Admin)",
+    role: "super_admin",
+  });
+
+  const safeEncodedSession = encodeURIComponent(sessionWithArabic);
+
+  // Verify that safeEncodedSession is strictly ASCII (code points <= 127)
+  assert.ok(/^[\x20-\x7E]*$/.test(safeEncodedSession));
+
+  const authMeMock = createMockReqRes({
+    method: "GET",
+    query: { action: "me" },
+    headers: {
+      "x-admin-session": safeEncodedSession,
+    },
+  });
+  await authHandler(authMeMock.req, authMeMock.res);
+
+  assert.equal(authMeMock.res.statusCode, 200);
+  assert.equal(authMeMock.res.data.ok, true);
+  assert.equal(authMeMock.res.data.authenticated, true);
+  assert.equal(authMeMock.res.data.user.role, "super_admin");
+});

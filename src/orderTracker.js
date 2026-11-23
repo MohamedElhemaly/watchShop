@@ -183,22 +183,22 @@ async function renderSingleOrderDetail(order, container) {
   );
 
   // Status Badge
-  const { isCancelled, activeStep, statusLabel } = getOrderStepState(order.status);
+  const { isCancelled, activeStep } = getOrderStepState(order.status);
   let statusBadgeClass = "status-badge-new";
-  let statusBadgeText = statusLabel || "تم استلام الطلب";
+  let statusBadgeText = "تم استلام الطلب";
 
   if (isCancelled) {
     statusBadgeClass = "status-badge-cancelled";
-    statusBadgeText = "تم إلغاء الطلب";
+    statusBadgeText = "ملغي";
   } else if (activeStep === 4) {
     statusBadgeClass = "status-badge-delivered";
     statusBadgeText = "تم التسليم بنجاح ✓";
   } else if (activeStep === 3) {
     statusBadgeClass = "status-badge-shipping";
-    statusBadgeText = "جاري الشحن والتوصيل 🚚";
+    statusBadgeText = "جاري الشحن مع المندوب 🚚";
   } else if (activeStep === 2) {
     statusBadgeClass = "status-badge-confirmed";
-    statusBadgeText = "تم تأكيد الطلب";
+    statusBadgeText = "تم التأكيد وجاري التجهيز";
   }
 
   // WhatsApp Support URL
@@ -346,12 +346,6 @@ export function initOrderTracker() {
 
   window.addEventListener("focus", () => {
     if (!modal.hidden && activeSearchQuery) {
-      executeSearch(activeSearchQuery, true);
-    }
-  });
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !modal.hidden && activeSearchQuery) {
       executeSearch(activeSearchQuery, true);
     }
   });

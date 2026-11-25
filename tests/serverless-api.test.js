@@ -207,6 +207,7 @@ test("API: Order creation, Order Tracking query lookup, and Status update via /a
       city: "مدينة نصر",
       address: "شارع عباس العقاد",
       notes: "يرجى الاتصال قبل الوصول",
+      deliveryTimeline: "خلال 10 إلى 15 أيام عمل",
       items: [
         { id: "sodfa-001", name: "ساعة كرونوغراف", unitPrice: 1500, quantity: 2, color: "بترولي" },
       ],
@@ -219,6 +220,7 @@ test("API: Order creation, Order Tracking query lookup, and Status update via /a
   assert.equal(checkoutMock.res.data.ok, true);
   assert.equal(checkoutMock.res.data.order.id, testOrderId);
   assert.equal(checkoutMock.res.data.order.totalAmount, 3000);
+  assert.equal(checkoutMock.res.data.order.deliveryTimeline, "خلال 10 إلى 15 أيام عمل");
 
   // 2. Customer tracks order by Order ID without #
   const trackById = createMockReqRes({
@@ -229,6 +231,7 @@ test("API: Order creation, Order Tracking query lookup, and Status update via /a
   assert.equal(trackById.res.statusCode, 200);
   assert.equal(trackById.res.data.orders.length, 1);
   assert.equal(trackById.res.data.orders[0].id, testOrderId);
+  assert.equal(trackById.res.data.orders[0].deliveryTimeline, "خلال 10 إلى 15 أيام عمل");
 
   // 3. Customer tracks order by Phone with Egyptian normalization
   const trackByPhone = createMockReqRes({

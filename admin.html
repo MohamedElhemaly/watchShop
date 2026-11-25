@@ -642,10 +642,18 @@
                 <label class="form-field">
                   <span>سرعة حركة الشريط التمريري</span>
                   <select id="setting-ticker-speed">
-                    <option value="slow">بطيء (38 ثانية)</option>
-                    <option value="medium" selected>متوسط (26 ثانية - موصى به)</option>
-                    <option value="fast">سريع (16 ثانية)</option>
+                    <option value="ultra-slow">فائق الهدوء (150 ثانية - مريح للقراءة المتأنية)</option>
+                    <option value="very-slow">بطيء جداً (120 ثانية)</option>
+                    <option value="slow">متأنٍ ومريح (90 ثانية)</option>
+                    <option value="relaxed">هادئ (60 ثانية)</option>
+                    <option value="medium" selected>متوسط (40 ثانية - قياسي وموصى به)</option>
+                    <option value="fast">سريع (25 ثانية)</option>
+                    <option value="custom">تخصيص بالثواني...</option>
                   </select>
+                  <div id="ticker-custom-duration-wrap" style="margin-top: 8px;" hidden>
+                    <span style="font-size: 12px; color: var(--ink-muted); display: block; margin-bottom: 4px;">المدة المخصصة للحركة الكاملة (بالثواني من 5 إلى 600)</span>
+                    <input id="setting-ticker-duration-seconds" type="number" min="5" max="600" step="5" placeholder="مثال: 90" style="background: #ffffff;" />
+                  </div>
                 </label>
               </div>
 
@@ -855,6 +863,19 @@
                 <span>سياسة الاستبدال والضمان وحماية المستهلك</span>
                 <textarea id="setting-exchange" rows="3" placeholder="حق الاستبدال أو الاسترجاع خلال 14 يومًا..."></textarea>
               </label>
+
+              <!-- Editable Warranty Trust Badge ("دقة متناهية • ضمان سنتين") -->
+              <div class="warranty-badge-setting-card" style="background: rgba(190, 114, 76, 0.08); border: 1.5px solid rgba(190, 114, 76, 0.35); border-radius: 10px; padding: 14px 16px; margin: 12px 0;">
+                <label class="form-field" style="margin: 0;">
+                  <span style="font-weight: 700; color: var(--teal-950); display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    🛡️ عبارة الضمان وشارة الثقة أسفل الواجهة الرئيسية (تعديل عبارة: «دقة متناهية • ضمان سنتين»)
+                  </span>
+                  <input id="setting-warranty-badge" type="text" placeholder="دقة متناهية • ضمان سنتين" style="background: #ffffff; font-weight: 600; font-size: 14px; margin-top: 6px;" />
+                  <small style="color: var(--ink-muted, #555); font-size: 12px; margin-top: 5px; display: block; line-height: 1.5;">
+                    العبارة الترويجية وشارة الضمان المعروضة أسفل الواجهة الرئيسية بالمتجر. يمكنك كتابة أي نص تريده هنا (مثل: «دقة متناهية • ضمان سنتين» أو «ضمان 3 سنوات شامل» أو «ضمان الوكيل المعتمد»)، وسيتم حفظها سحابياً وعرضها فوراً لجميع الزوار.
+                  </small>
+                </label>
+              </div>
 
               <!-- Optional Cloudinary Media Sync Card -->
               <div class="cloudinary-settings-card">

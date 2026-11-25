@@ -156,7 +156,7 @@ async function renderSingleOrderDetail(order, container) {
   if (!order || !container) return;
 
   const settings = getStoreSettings();
-  const deliveryTimeline = formatDeliveryTimeline(settings.deliveryMinDays, settings.deliveryMaxDays, settings.deliveryUnitText);
+  const deliveryTimeline = order.deliveryTimeline || formatDeliveryTimeline(settings);
   const cleanWa = formatWhatsAppPhone(settings.defaultWhatsapp || "");
 
   const displayId = String(order.id).startsWith("#") ? order.id : `#${order.id}`;

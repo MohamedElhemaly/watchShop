@@ -154,7 +154,28 @@ export default async function handler(req, res) {
         : calculatedTotal;
 
       const orderId = String(b.id || `DAF-${Math.floor(1000 + Math.random() * 9000)}`).replace(/^[#]/, "").trim();
-      const deliveryTimeline = String(b.deliveryTimeline || "خلال 2 إلى 4 أيام عمل").trim();
+      let deliveryTimeline = String(b.deliveryTimeline || "").trim();
+      if (!deliveryTimeline) {
+        try {
+          const sRes = await db.execute("SELECT value_json FROM store_settings WHERE key = 'general' LIMIT 1;");
+          if (sRes.rows && sRes.rows[0]) {
+            const sObj = safeParseJson(sRes.rows[0].value_json, {});
+            const min = parseInt(sObj.deliveryMinDays, 10) || 2;
+            const max = Math.max(min, parseInt(sObj.deliveryMaxDays, 10) || 4);
+            const unit = (sObj.deliveryUnitText || "أيام عمل").trim();
+            if (min === max) {
+              if (min === 1 && unit === "أيام عمل") deliveryTimeline = "خلال 1 يوم عمل";
+              else if (min === 2 && unit === "أيام عمل") deliveryTimeline = "خلال يومين عمل";
+              else deliveryTimeline = `خلال ${min} ${unit}`;
+            } else {
+              deliveryTimeline = `خلال ${min} إلى ${max} ${unit}`;
+            }
+          }
+        } catch {}
+      }
+      if (!deliveryTimeline) {
+        deliveryTimeline = "خلال 2 إلى 4 أيام عمل";
+      }
       const now = new Date().toISOString();
 
       await db.execute({

@@ -276,39 +276,16 @@ async function handleLoginSubmit(e) {
     return;
   }
 
-  const result = verifyAdminCredentials(username, password);
-  if (!result) {
-    if (errBox) {
-      errBox.textContent = "بيانات الدخول غير صحيحة. يرجى التأكد من اسم المستخدم وكلمة المرور.";
-      errBox.hidden = false;
-    }
-    return;
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.textContent = "جاري التحقق... ⏳";
   }
 
-  if (result.error) {
-    if (errBox) {
-      errBox.textContent = result.error;
-      errBox.hidden = false;
-    }
-    return;
-  }
   let sessionData = null;
   let authenticatedUser = null;
   let serverAuthFailed = false;
   let serverErrorMessage = "";
 
-  const sessionData = {
-    userId: result.id,
-    username: result.username,
-    fullName: result.fullName,
-    role: result.role,
-    loggedInAt: new Date().toISOString(),
-  };
-
-  // Obtain cloud session token from /api/auth before continuing
   // 1. Primary: Cloud Authentication via /api/auth?action=login (Turso Cloud DB)
   try {
     const authRes = await fetch("/api/auth?action=login", {
@@ -316,11 +293,6 @@ async function handleLoginSubmit(e) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, rememberMe }),
     });
-    if (authRes.ok) {
-      const data = await authRes.json();
-      if (data && data.token) {
-        sessionData.token = data.token;
-      }
 
     const data = await authRes.json().catch(() => null);
 
@@ -340,7 +312,6 @@ async function handleLoginSubmit(e) {
       serverErrorMessage = data.error;
     }
   } catch (err) {
-    console.warn("Could not obtain online auth token, falling back to local session:", err);
     console.warn("Cloud login fetch error, falling back to local credentials:", err);
   }
 
@@ -412,11 +383,9 @@ async function handleLoginSubmit(e) {
   setAdminSession(sessionData, rememberMe);
   updateAuthViews();
   checkCloudHealth();
-  if (result.role === "super_admin") {
   if (authenticatedUser.role === "super_admin") {
     fetchAdminUsersFromCloud();
   }
-  showToast(`أهلاً بك يا ${result.fullName || result.username} في لوحة تحكم صُدْفَة ✓`);
   showToast(`أهلاً بك يا ${authenticatedUser.fullName || authenticatedUser.username} في لوحة تحكم صُدْفَة ✓`);
 }
 
@@ -1994,9 +1963,14 @@ function populateHeroSettings() {
   $("#setting-flagship-tag").value = storeSettings.featuredTag || "القطعة المميزة";
   $("#setting-flagship-name").value = storeSettings.featuredName || "";
   $("#setting-flagship-spec").value = storeSettings.featuredSpec || "";
+  const heroBadgeVal = storeSettings.heroTrustBadge || storeSettings.heroBadge || "دقة متناهية • ضمان سنتين";
   const heroBadgeEl = $("#setting-hero-badge");
   if (heroBadgeEl) {
-    heroBadgeEl.value = storeSettings.heroTrustBadge || storeSettings.heroBadge || "دقة متناهية • ضمان سنتين";
+    heroBadgeEl.value = heroBadgeVal;
+  }
+  const warrantyBadgeEl = $("#setting-warranty-badge");
+  if (warrantyBadgeEl) {
+    warrantyBadgeEl.value = heroBadgeVal;
   }
 }
 
@@ -2010,7 +1984,7 @@ async function handleHeroSettingsSubmit(e) {
 
   const prevSettings = { ...storeSettings };
   const announcementVal = $("#setting-announcement").value.trim();
-  const heroBadgeVal = $("#setting-hero-badge")?.value.trim() || "دقة متناهية • ضمان سنتين";
+  const heroBadgeVal = $("#setting-hero-badge")?.value.trim() || $("#setting-warranty-badge")?.value.trim() || "دقة متناهية • ضمان سنتين";
 
   const updatedFields = {
     brandName: $("#setting-brand-name").value.trim(),
@@ -2036,13 +2010,8 @@ async function handleHeroSettingsSubmit(e) {
 
   saveStoreSettings(storeSettings);
 
-  // Keep ticker items in sync with announcement text
-  if (announcementVal && !tickerItems.includes(announcementVal)) {
-    tickerItems.unshift(announcementVal);
-    saveTickerItems(tickerItems);
-    saveTickerItemsDirectToTurso(tickerItems).catch(() => {});
-    renderTickerItemsList();
-  }
+  const warrantyBadgeEl = $("#setting-warranty-badge");
+  if (warrantyBadgeEl) warrantyBadgeEl.value = heroBadgeVal;
 
   let cloudSuccess = false;
 
@@ -2057,7 +2026,7 @@ async function handleHeroSettingsSubmit(e) {
     const res = await fetch("/api/settings", {
       method: "PUT",
       headers: getAdminAuthHeaders(),
-      body: JSON.stringify({ settings: updatedFields, tickerItems }),
+      body: JSON.stringify({ settings: updatedFields }),
     });
 
     if (res.ok) {
@@ -2098,8 +2067,19 @@ async function syncTickerItemsToBackend(items) {
 function populateTickerSettings() {
   const enabledEl = $("#setting-ticker-enabled");
   const speedEl = $("#setting-ticker-speed");
+  const customWrap = $("#ticker-custom-duration-wrap");
+  const customSecEl = $("#setting-ticker-duration-seconds");
+
   if (enabledEl) enabledEl.checked = storeSettings.tickerEnabled !== false;
-  if (speedEl) speedEl.value = storeSettings.tickerSpeed || "medium";
+  if (speedEl) {
+    speedEl.value = storeSettings.tickerSpeed || "medium";
+    if (customWrap) {
+      customWrap.hidden = speedEl.value !== "custom";
+    }
+  }
+  if (customSecEl && storeSettings.tickerDurationSeconds) {
+    customSecEl.value = storeSettings.tickerDurationSeconds;
+  }
   renderTickerItemsList();
 }
 
@@ -2251,9 +2231,12 @@ async function handleTickerSettingsSubmit(e) {
     return;
   }
 
+  const speedVal = $("#setting-ticker-speed")?.value || "medium";
+  const customSec = parseInt($("#setting-ticker-duration-seconds")?.value, 10);
   const tickerSettings = {
     tickerEnabled: $("#setting-ticker-enabled").checked,
-    tickerSpeed: $("#setting-ticker-speed").value,
+    tickerSpeed: speedVal,
+    tickerDurationSeconds: !isNaN(customSec) && customSec > 0 ? customSec : undefined,
   };
 
   storeSettings = {
@@ -2269,12 +2252,19 @@ async function handleTickerSettingsSubmit(e) {
   try {
     await fetch("/api/settings", {
       method: "PUT",
-      headers: getAdminAuthHeaders(),
+      headers: {
+        ...getAdminAuthHeaders(),
+        "Cache-Control": "no-store",
+      },
+      cache: "no-store",
       body: JSON.stringify({ settings: tickerSettings, tickerItems }),
     });
   } catch (err) {
     console.warn("Failed to sync ticker settings:", err);
   }
+
+  window.dispatchEvent(new CustomEvent("daffa:ticker-updated", { detail: tickerItems }));
+  window.dispatchEvent(new CustomEvent("daffa:settings-updated", { detail: storeSettings }));
 
   showToast("تم حفظ إعدادات شريط الأخبار ومزامنتها سحابياً بنجاح ✓");
 }
@@ -2646,6 +2636,11 @@ function populateContactsAndPolicies() {
   $("#setting-shipping").value = storeSettings.shippingDetails || "";
   $("#setting-exchange").value = storeSettings.exchangeDetails || "";
 
+  const warrantyBadgeEl = $("#setting-warranty-badge");
+  if (warrantyBadgeEl) {
+    warrantyBadgeEl.value = storeSettings.heroTrustBadge || storeSettings.heroBadge || "دقة متناهية • ضمان سنتين";
+  }
+
   const cloudNameInput = $("#setting-cloudinary-name");
   const cloudPresetInput = $("#setting-cloudinary-preset");
   const envCloudName = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) || "";
@@ -2692,12 +2687,15 @@ async function handleContactsSubmit(e) {
   const ghRepo = $("#setting-github-repo")?.value.trim() || "";
   const ghBranch = $("#setting-github-branch")?.value.trim() || "main";
   const ghToken = $("#setting-github-token")?.value.trim() || "";
+  const warrantyVal = $("#setting-warranty-badge")?.value.trim() || $("#setting-hero-badge")?.value.trim() || storeSettings.heroTrustBadge || "دقة متناهية • ضمان سنتين";
 
   const contactFields = {
     defaultWhatsapp: cleanWa ? `+${cleanWa}` : "",
     defaultPhone: $("#setting-phone").value.trim(),
     shippingDetails: $("#setting-shipping").value.trim(),
     exchangeDetails: $("#setting-exchange").value.trim(),
+    heroTrustBadge: warrantyVal,
+    heroBadge: warrantyVal,
     cloudinaryCloudName: cName,
     cloudinaryUploadPreset: cPreset,
   };
@@ -2712,6 +2710,9 @@ async function handleContactsSubmit(e) {
   };
 
   saveStoreSettings(storeSettings);
+
+  const heroBadgeEl = $("#setting-hero-badge");
+  if (heroBadgeEl) heroBadgeEl.value = warrantyVal;
   saveGitHubConfig({
     githubOwner: ghOwner,
     githubRepo: ghRepo,
@@ -2986,19 +2987,6 @@ async function fetchAdminUsersFromCloud() {
     });
     if (res.ok) {
       const data = await res.json();
-      const list = data.users || data.admins;
-      if (Array.isArray(list) && list.length > 0) {
-        const mapped = list.map((u) => ({
-          id: u.id,
-          username: u.username,
-          fullName: u.fullName || u.full_name || u.username,
-          role: u.role,
-          status: u.status || "active",
-          permissions: typeof u.permissions === "string" ? JSON.parse(u.permissions) : (u.permissions || {}),
-          createdAt: u.created_at || u.createdAt || new Date().toISOString(),
-        }));
-        saveAdminUsers(mapped);
-        renderAdminUsersTable();
       const cloudList = data.users || data.admins || [];
       const cloudUsernames = new Set(cloudList.map((u) => String(u.username || "").toLowerCase()));
 
@@ -3615,9 +3603,21 @@ function initAdminApp() {
 
   // Hero & Banner Settings Form
   $("#hero-settings-form")?.addEventListener("submit", handleHeroSettingsSubmit);
+  $("#setting-hero-badge")?.addEventListener("input", (e) => {
+    const other = $("#setting-warranty-badge");
+    if (other) other.value = e.target.value;
+  });
+  $("#setting-warranty-badge")?.addEventListener("input", (e) => {
+    const other = $("#setting-hero-badge");
+    if (other) other.value = e.target.value;
+  });
 
   // News Ticker Form & Actions
   $("#ticker-settings-form")?.addEventListener("submit", handleTickerSettingsSubmit);
+  $("#setting-ticker-speed")?.addEventListener("change", (e) => {
+    const wrap = $("#ticker-custom-duration-wrap");
+    if (wrap) wrap.hidden = e.target.value !== "custom";
+  });
   $("#add-ticker-item-btn")?.addEventListener("click", handleAddTickerItem);
   $("#new-ticker-item-input")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {

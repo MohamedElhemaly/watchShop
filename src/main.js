@@ -10,6 +10,7 @@ import {
   getStoreSettings,
   getStoredCategories,
   getTickerItems,
+  getTickerDuration,
   formatDeliveryTimeline,
   formatWhatsAppPhone,
   buildWhatsAppUrl,
@@ -117,6 +118,8 @@ function getDiscountBadgeLabel(product) {
 // ----------------------------------------------------
 let lastRenderedTickerSignature = "";
 
+export { getTickerDuration };
+
 function renderNewsTicker(force = false) {
   const tickerBar = $("#news-ticker-bar");
   const track = $("#ticker-track");
@@ -131,25 +134,21 @@ function renderNewsTicker(force = false) {
 
   tickerBar.hidden = false;
 
-  const speed = currentSettings.tickerSpeed || "medium";
-  const duration = speed === "slow" ? "42s" : speed === "fast" ? "18s" : "28s";
-
+  const duration = getTickerDuration(currentSettings);
   const rawItems = getTickerItems();
   const announcement = (currentSettings.announcement || currentSettings.announcementBar || "").trim();
 
-  let displayItems = Array.isArray(rawItems) ? [...rawItems] : [];
-  if (announcement) {
-    if (!displayItems.includes(announcement)) {
-      displayItems.unshift(announcement);
-    }
-  }
-
-  if (displayItems.length === 0) {
+  let displayItems = [];
+  if (Array.isArray(rawItems) && rawItems.length > 0) {
+    displayItems = [...rawItems];
+  } else if (announcement) {
+    displayItems = [announcement];
+  } else {
     displayItems = [
       "شحن مجاني لكافة محافظات مصر • متاح المعاينة والفحص الدقيق قبل السداد للمندوب",
-      "ضمان رسمي شامل لمدة عامين على جميع الساعات الأصلية مع استبدال فوري",
+      "ضمان رسمي شامل على جميع الساعات الأصلية مع استبدال فوري",
       "خصومات حصرية بمناسبة إطلاق تشكيلة ساعات صُدْفَة 2026 الفاخرة",
-      "توصيل سريع وموثوق خلال 2 إلى 4 أيام عمل لباب منزلك مباشرة",
+      "توصيل سريع وموثوق لباب منزلك مباشرة مع حق المعاينة والفحص",
     ];
   }
 
@@ -162,9 +161,9 @@ function renderNewsTicker(force = false) {
 
   track.style.setProperty("--ticker-duration", duration);
 
-  // Ensure enough repetitions per segment so it fills any wide display seamlessly (minimum 20 repetitions)
-  const minItemsPerSegment = 20;
-  const repeatCount = Math.max(3, Math.ceil(minItemsPerSegment / displayItems.length));
+  // Ensure enough repetitions per segment so it fills any wide display seamlessly (minimum 25 repetitions)
+  const minItemsPerSegment = 25;
+  const repeatCount = Math.max(3, Math.ceil(minItemsPerSegment / Math.max(1, displayItems.length)));
   const fullList = [];
   for (let i = 0; i < repeatCount; i++) {
     fullList.push(...displayItems);
@@ -1708,7 +1707,7 @@ function initApp() {
   });
 
   window.addEventListener("daffa:ticker-updated", () => {
-    renderNewsTicker();
+    renderNewsTicker(true);
   });
 }
 

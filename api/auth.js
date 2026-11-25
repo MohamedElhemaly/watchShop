@@ -76,17 +76,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: "يرجى إدخال اسم المستخدم وكلمة المرور." });
       }
 
-      let usersRes;
       let allRows = [];
       try {
-        usersRes = await db.execute("SELECT * FROM admin_users;");
-      } catch {
-        usersRes = await db.execute("SELECT * FROM admins;");
-      }
-      if (!usersRes.rows || usersRes.rows.length === 0) {
-        usersRes = await db.execute("SELECT * FROM admins;");
-      }
-      const targetRow = usersRes.rows.find((r) => {
         const r1 = await db.execute("SELECT * FROM admin_users;");
         if (r1 && r1.rows) allRows.push(...r1.rows);
       } catch {}

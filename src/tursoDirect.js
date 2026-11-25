@@ -311,7 +311,7 @@ export function mapTursoOrderRow(row) {
     notes: row.notes || "",
     totalAmount: Number(row.total_amount) || 0,
     items: safeParse(row.items_json, []),
-    deliveryTimeline: row.delivery_timeline || "خلال 2 إلى 4 أيام عمل",
+    deliveryTimeline: row.delivery_timeline || "",
     status: row.status || "new",
     isRead: Boolean(row.is_read),
     createdAt: row.created_at || new Date().toISOString(),

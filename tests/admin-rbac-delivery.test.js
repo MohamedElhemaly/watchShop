@@ -22,6 +22,7 @@ const {
   normalizeCartItem,
   sanitizeCart,
   formatDeliveryTimeline,
+  getTickerDuration,
   hashPassword,
   verifyAdminCredentials,
   getAdminUsers,
@@ -111,9 +112,35 @@ test("formatDeliveryTimeline outputs formatted Arabic strings dynamically", () =
   // Custom unit (e.g. hours or days)
   assert.equal(formatDeliveryTimeline({ deliveryMinDays: 24, deliveryMaxDays: 48, deliveryUnitText: "ساعة" }), "خلال 24 إلى 48 ساعة");
 
+  // Extended delivery range set by admin (e.g., 10 to 15 business days)
+  assert.equal(formatDeliveryTimeline({ deliveryMinDays: 10, deliveryMaxDays: 15, deliveryUnitText: "أيام عمل" }), "خلال 10 إلى 15 أيام عمل");
+
+  // Positional arguments support: (min, max, unit)
+  assert.equal(formatDeliveryTimeline(10, 15, "أيام عمل"), "خلال 10 إلى 15 أيام عمل");
+  assert.equal(formatDeliveryTimeline("10", "15", "أيام عمل"), "خلال 10 إلى 15 أيام عمل");
+  assert.equal(formatDeliveryTimeline(1, 1, "أيام عمل"), "خلال 1 يوم عمل");
+
   // Missing or fallback settings
   assert.equal(formatDeliveryTimeline(null), "خلال 2 إلى 4 أيام عمل");
   assert.equal(formatDeliveryTimeline({}), "خلال 2 إلى 4 أيام عمل");
+});
+
+test("getTickerDuration maps speed presets and custom durations correctly", () => {
+  assert.equal(getTickerDuration({ tickerSpeed: "ultra-slow" }), "150s");
+  assert.equal(getTickerDuration({ tickerSpeed: "very-slow" }), "120s");
+  assert.equal(getTickerDuration({ tickerSpeed: "slow" }), "90s");
+  assert.equal(getTickerDuration({ tickerSpeed: "relaxed" }), "60s");
+  assert.equal(getTickerDuration({ tickerSpeed: "medium" }), "40s");
+  assert.equal(getTickerDuration({ tickerSpeed: "fast" }), "25s");
+
+  // Custom duration
+  assert.equal(getTickerDuration({ tickerSpeed: "custom", tickerDurationSeconds: 75 }), "75s");
+  assert.equal(getTickerDuration({ tickerSpeed: "custom", tickerDurationSeconds: "100" }), "100s");
+
+  // Fallback to medium (40s) on invalid or missing speed
+  assert.equal(getTickerDuration({}), "40s");
+  assert.equal(getTickerDuration(null), "40s");
+  assert.equal(getTickerDuration({ tickerSpeed: "custom", tickerDurationSeconds: 2 }), "40s");
 });
 
 // ----------------------------------------------------

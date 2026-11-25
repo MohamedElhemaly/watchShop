@@ -844,7 +844,7 @@ export const defaultTickerItems = [
   "شحن مجاني لكافة محافظات مصر • متاح المعاينة والفحص الدقيق قبل السداد للمندوب",
   "ضمان رسمي شامل لمدة عامين على جميع الساعات الأصلية مع استبدال فوري",
   "خصومات حصرية بمناسبة إطلاق تشكيلة ساعات صُدْفَة 2026 الفاخرة",
-  "توصيل سريع وموثوق خلال 2 إلى 4 أيام عمل لباب منزلك مباشرة",
+  "توصيل سريع وموثوق لباب منزلك مباشرة مع حق المعاينة والفحص",
 ];
 
 // ----------------------------------------------------
@@ -1174,18 +1174,52 @@ export function deleteProduct(productId) {
   return deleteProducts([productId]);
 }
 
-// Dynamic Delivery Timeline Formatter
-export function formatDeliveryTimeline(settings) {
-  const current = settings || getStoreSettings();
-  const min = parseInt(current?.deliveryMinDays, 10) || 2;
-  const max = Math.max(min, parseInt(current?.deliveryMaxDays, 10) || 4);
-  const unit = (current?.deliveryUnitText || "أيام عمل").trim();
+// Dynamic Delivery Timeline Formatter (Supports object, individual args, or global settings)
+export function formatDeliveryTimeline(arg1, arg2, arg3) {
+  let min, max, unit;
+  if (typeof arg1 === "object" && arg1 !== null) {
+    min = parseInt(arg1.deliveryMinDays, 10);
+    max = parseInt(arg1.deliveryMaxDays, 10);
+    unit = arg1.deliveryUnitText;
+  } else if (arg1 !== undefined && typeof arg1 !== "object") {
+    min = parseInt(arg1, 10);
+    max = parseInt(arg2, 10);
+    unit = arg3;
+  }
+  const current = getStoreSettings() || {};
+  if (isNaN(min)) min = parseInt(current.deliveryMinDays, 10) || 2;
+  if (isNaN(max)) max = parseInt(current.deliveryMaxDays, 10) || 4;
+  max = Math.max(min, max);
+  unit = (unit || current.deliveryUnitText || "أيام عمل").trim();
   if (min === max) {
     if (min === 1 && unit === "أيام عمل") return "خلال 1 يوم عمل";
     if (min === 2 && unit === "أيام عمل") return "خلال يومين عمل";
     return `خلال ${min} ${unit}`;
   }
   return `خلال ${min} إلى ${max} ${unit}`;
+}
+
+/**
+ * Computes ticker duration based on speed preset or custom duration in seconds
+ */
+export function getTickerDuration(settings) {
+  const current = (typeof settings === "object" && settings !== null) ? settings : (getStoreSettings() || {});
+  const speed = current.tickerSpeed || "medium";
+  if (speed === "custom") {
+    const customSec = parseInt(current.tickerDurationSeconds, 10);
+    if (!isNaN(customSec) && customSec >= 5 && customSec <= 600) {
+      return `${customSec}s`;
+    }
+  }
+  const speedMap = {
+    "ultra-slow": "150s",
+    "very-slow": "120s",
+    "slow": "90s",
+    "relaxed": "60s",
+    "medium": "40s",
+    "fast": "25s",
+  };
+  return speedMap[speed] || "40s";
 }
 
 // ----------------------------------------------------

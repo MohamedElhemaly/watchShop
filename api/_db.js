@@ -239,7 +239,7 @@ export function mapOrderRow(row) {
     notes: row.notes || "",
     totalAmount: Number(row.total_amount) || 0,
     items: safeParseJson(row.items_json, []),
-    deliveryTimeline: row.delivery_timeline || "خلال 2 إلى 4 أيام عمل",
+    deliveryTimeline: row.delivery_timeline || "",
     status: row.status || "new",
     isRead: Boolean(row.is_read),
     createdAt: row.created_at || new Date().toISOString(),
@@ -512,7 +512,7 @@ export async function ensureInitialized() {
           "شحن مجاني لكافة محافظات مصر • متاح المعاينة والفحص الدقيق قبل السداد للمندوب",
           "ضمان رسمي شامل لمدة عامين على جميع الساعات الأصلية مع استبدال فوري",
           "خصومات حصرية بمناسبة إطلاق تشكيلة ساعات صُدْفَة 2026 الفاخرة",
-          "توصيل سريع وموثوق خلال 2 إلى 4 أيام عمل لباب منزلك مباشرة",
+          "توصيل سريع وموثوق لباب منزلك مباشرة مع حق المعاينة والفحص",
         ];
 
         await db.batch([

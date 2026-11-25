@@ -276,16 +276,39 @@ async function handleLoginSubmit(e) {
     return;
   }
 
+  const result = verifyAdminCredentials(username, password);
+  if (!result) {
+    if (errBox) {
+      errBox.textContent = "بيانات الدخول غير صحيحة. يرجى التأكد من اسم المستخدم وكلمة المرور.";
+      errBox.hidden = false;
+    }
+    return;
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.textContent = "جاري التحقق... ⏳";
   }
 
+  if (result.error) {
+    if (errBox) {
+      errBox.textContent = result.error;
+      errBox.hidden = false;
+    }
+    return;
+  }
   let sessionData = null;
   let authenticatedUser = null;
   let serverAuthFailed = false;
   let serverErrorMessage = "";
 
+  const sessionData = {
+    userId: result.id,
+    username: result.username,
+    fullName: result.fullName,
+    role: result.role,
+    loggedInAt: new Date().toISOString(),
+  };
+
+  // Obtain cloud session token from /api/auth before continuing
   // 1. Primary: Cloud Authentication via /api/auth?action=login (Turso Cloud DB)
   try {
     const authRes = await fetch("/api/auth?action=login", {
@@ -293,6 +316,11 @@ async function handleLoginSubmit(e) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, rememberMe }),
     });
+    if (authRes.ok) {
+      const data = await authRes.json();
+      if (data && data.token) {
+        sessionData.token = data.token;
+      }
 
     const data = await authRes.json().catch(() => null);
 
@@ -312,6 +340,7 @@ async function handleLoginSubmit(e) {
       serverErrorMessage = data.error;
     }
   } catch (err) {
+    console.warn("Could not obtain online auth token, falling back to local session:", err);
     console.warn("Cloud login fetch error, falling back to local credentials:", err);
   }
 
@@ -383,9 +412,11 @@ async function handleLoginSubmit(e) {
   setAdminSession(sessionData, rememberMe);
   updateAuthViews();
   checkCloudHealth();
+  if (result.role === "super_admin") {
   if (authenticatedUser.role === "super_admin") {
     fetchAdminUsersFromCloud();
   }
+  showToast(`أهلاً بك يا ${result.fullName || result.username} في لوحة تحكم صُدْفَة ✓`);
   showToast(`أهلاً بك يا ${authenticatedUser.fullName || authenticatedUser.username} في لوحة تحكم صُدْفَة ✓`);
 }
 
@@ -2955,6 +2986,19 @@ async function fetchAdminUsersFromCloud() {
     });
     if (res.ok) {
       const data = await res.json();
+      const list = data.users || data.admins;
+      if (Array.isArray(list) && list.length > 0) {
+        const mapped = list.map((u) => ({
+          id: u.id,
+          username: u.username,
+          fullName: u.fullName || u.full_name || u.username,
+          role: u.role,
+          status: u.status || "active",
+          permissions: typeof u.permissions === "string" ? JSON.parse(u.permissions) : (u.permissions || {}),
+          createdAt: u.created_at || u.createdAt || new Date().toISOString(),
+        }));
+        saveAdminUsers(mapped);
+        renderAdminUsersTable();
       const cloudList = data.users || data.admins || [];
       const cloudUsernames = new Set(cloudList.map((u) => String(u.username || "").toLowerCase()));
 
